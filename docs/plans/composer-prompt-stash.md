@@ -1,8 +1,8 @@
 # Lossless composer drafts and prompt stash
 
 - Status: not started
-- Next: agree the active-draft ownership, conflict behaviour, attachment scope,
-  and `+` popover end state before implementation.
+- Next: agree the active-draft ownership, conflict behaviour and attachment scope
+  before implementation.
 - Context: [composer anchors](../code-anchors.md); Grayson reproduced both
   failures on the installed PWA on 2026-08-14.
 
@@ -12,9 +12,7 @@
       Session does with non-empty text, whether a stash contains text only or
       attachments too, the lifetime and maximum count of browser-local
       stashes, and whether desktop `Ctrl+S` accompanies the visible control.
-      The leading UI is a compact `+` popover with **Attach files**, **Stash
-      prompt**, and **Stashed prompts (N)**; no visual work begins until this is
-      approved.
+      **Stash prompt** and **Stashed prompts (N)** join the existing + menu.
 - [ ] **2. Make draft handoff lossless.** Give the visible composer an explicit
       owner (untargeted, project, or session), keep text written before project
       selection visible, and never restore an empty or older project draft over
@@ -26,10 +24,8 @@
       one into an empty composer, and swap rather than overwrite when the
       composer is non-empty. Empty, duplicate, delete, quota, and stale-entry
       behaviour must be deterministic.
-- [ ] **4. Add the composer surface.** Reuse `useComposerMenuAnchor` and
-      `ComposerMenuPrimitives`; keep the compact plus trigger. The Attach row
-      must retain a real native file input so the installed Android PWA does not
-      regress to a JavaScript-opened picker. Add keyboard and screen-reader
+- [ ] **4. Add the + menu rows.** Reuse `ComposerMenuPrimitives`; leave the
+      attach rows as ADRs 0070–0075 fix them. Add keyboard and screen-reader
       access alongside the touch flow.
 - [ ] **5. Verify the complete lifecycle.** Run the focused client tests and
       client build, then exercise the agreed flows in the installed PWA. Treat
@@ -45,7 +41,7 @@
   which one is active; no project/session switch, restore, or clear silently
   discards either.
 - A prompt can be stashed and restored from the agreed composer surface after a
-  refresh, and attaching a file still opens the native Android picker reliably.
+  refresh, and every + menu attach row still works on the installed PWA.
 
 ## Not doing
 

@@ -12,12 +12,9 @@ Current active work comes first, followed by the queue Grayson ordered on
 |---|---|---|
 | [Agent runtime rebuild](agent-runtime-rebuild.md) | 4/11 | Phase 3: typed wire in place |
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
-| [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Composer message recall; the other two builds shipped |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Send a queued message into the running turn](send-queued-now.md) | 3/4 | Phase 3: Codex live once its limit resets; Claude accepted on the phone |
-| [Source Control truthfulness](source-control-truthfulness.md) | 1/4 | Phase 0: make server-side Git failures visible in the UI |
-| [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
-| [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
+| [Source Control: review, commit, merge, PR](source-control-truthfulness.md) | 1/7 | Grayson agrees the design; then Phase 0 item 1, live-checking commit errors first |
 | — | | |
 | [Claude permission default](claude-permission-default.md) | not started | Phase 1: read `permissions.defaultMode` into Claude's capability default |
 | [Single-row mobile composer](composer-single-row.md) | 0/4 | Phase 1: probe at `dist/composer-row-probe.html` awaiting S20 verdict |
@@ -26,12 +23,10 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript; waits on runtime rebuild phase 7 |
 | [Workspace surfaces](workspace-surfaces.md) | 1/3 | Phases 1 and 3's first cut await Grayson's live check; then terminal tabs, output search and settings |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
-| [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | 2/6 | Phase 2: plan-format contract (phase sizes, `Needs:`) enforced by check:docs |
 | [Claude settings surface](claude-settings-surface.md) | 3/6 | Phase 4 (categories) built: live check on 3001, then Phase 5 |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Design system](design-system.md) | not started | Phase 0: Grayson agrees the design |
-| [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main`; the chat-path core is runtime rebuild phase 1b |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |

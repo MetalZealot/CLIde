@@ -1,141 +1,137 @@
-# Source Control: truthful Git state, then worktree lifecycle
+# Source Control: review a session's work, then commit, merge or open a pull request
 
-- Status: 1/4
-- Next: Phase 0 item 1 — make server-side Git failures visible in the UI. Nothing
-  else in this plan is safe to build until a refusal can reach the screen.
+- Status: 1/7
+- Next: Grayson agrees the design; then Phase 0 item 1, starting with a live check of the commit-error path
 - Context: ADRs [0016](../decisions/0016-repository-grouped-checkouts.md),
   [0028](../decisions/0028-worktree-creation-precedes-phase-0.md),
   [0029](../decisions/0029-per-row-session-views-load-before-they-filter.md),
   [0033](../decisions/0033-discovered-checkouts-are-derived-not-stored.md)
-  · TODO items: Source Control worktrees and branch integration; Git branch remote
-  labels; Git branch-switcher safety; silent commit failures
+  · TODO item: Source Control
+- Design: [Source Control](../designs/source-control.md) binds every phase
 
-Merged 2026-08-06 from two documents that described this same sequence with two
-different phase lists: the Source Control UX spec and the post-v1.37 worktree
-review. Both are archived.
-
-## The decision this plan encodes
-
-Upstream v1.37 ships a Worktrees feature. **Do not expose it as shipped.** Its
-backend primitives are useful and testable, but its product contract conflicts
-with ADR 0016's identity model, and it adds destructive operations to a panel
-that cannot yet represent conflicts, detached `HEAD`, in-progress operations,
-remote identity, or self-hosting risk. Adopt compatible non-worktree Git
-improvements now; harvest its parsing, listing, validation and rollback
-primitives onto CLIde's model later; replace its identity, integration and
-cleanup behaviour; reject its destructive defaults, hidden cleanup, hardcoded
-layout, and standalone tab.
+Upstream v1.37's Worktrees feature is not exposed as shipped. Its parsing, listing,
+validation and rollback primitives get harvested onto ADR 0016's model, and its
+identity, integration and cleanup behaviour get replaced.
 
 ## Phases
 
-- [ ] **0. Make existing Git state truthful and switching safe.** Prerequisite for
-      everything below; each item is small, independently shippable, and several
-      are upstreamable.
-  1. Return structured server errors on every consequential operation and show
-     them. Retain commit input after failure; preserve hook stderr. **This one
-     gates the rest** — today `commitChanges` returns `false` for both non-2xx and
-     thrown fetches, so a `commit-msg` rejection is a dead button.
+- [~] **0. Make existing Git state truthful and switching safe.** This gates
+      everything below. Each item is small and ships alone, and several can go
+      upstream.
+  1. Return structured errors from every consequential operation, show them beside
+     the action that failed, and keep what was typed. The commit path already
+     returns hook stderr to the panel header (`6dc05b23`, read from source): check
+     that live, then give push, pull, checkout, merge and discard the same shape.
   2. Return conflicts separately from ordinary modifications.
-  3. Detect merge, rebase, cherry-pick, and revert state.
-  4. Render detached `HEAD` as `Detached at <sha>`, never as a branch; report
-     unborn-branch state distinctly.
-  5. Preserve canonical local and remote refs end to end, keeping `origin`,
-     `upstream`, and other remotes distinguishable.
-  6. Let users choose a new repository's initial branch; suggest Git's setting or `main`.
-  7. Build **one** shared checkout-mutation preflight — refusing dirty or
-     conflicted switches, reporting a branch occupied by another linked worktree,
-     and refusing or elevating mutations of the checkout serving CLIde. The
-     branch switcher and the later merge flow both use it rather than
-     accumulating operation-specific warnings.
+  3. Detect merge, rebase, cherry-pick and revert in progress.
+  4. Render a detached `HEAD` as `Detached at <sha>`, never as a branch. Report an
+     unborn branch (a new repository with no commits yet) separately.
+  5. Keep canonical local and remote refs intact end to end, so `origin`,
+     `upstream` and other remotes stay distinguishable.
+  6. Let a new repository's initial branch be chosen, suggesting Git's own setting
+     or `main`.
+  7. Build **one** shared checkout-mutation preflight, used by the branch
+     switcher, merge and removal. It refuses dirty or conflicted switches, reports
+     a branch already checked out in another worktree, and refuses or elevates
+     mutations of the checkout serving CLIde.
 
-- [~] **1. Repository and checkout inventory.** Read-only; no mutation needed.
-  - [x] Repository identity from `git rev-parse --git-common-dir`, path-keyed
-        project rows grouped by it, sessions still bound to their checkout —
-        `repository-identity.service.ts`, ADR 0016.
-  - [x] One sidebar row per repository, sessions merged across its checkouts and
-        labelled by branch, with per-row session sort and filter (ADR 0029).
-  - [x] Worktree *creation*, which shipped here rather than in Phase 2 — ADR 0028
-        records why the additive half was allowed to precede Phase 0.
-  - [ ] Structured local/remote refs replacing the branch string arrays,
-        preserving remote namespaces.
-  - [x] Inventory worktrees from `git worktree list --porcelain`, so one created
-        outside CLIde is listed rather than invisible — ADR 0033. Locked and
-        prunable are parsed but not shown.
-  - [ ] Per checkout: branch, tracking ref, dirty/conflict/operation state, last
-        activity, and occupancy CLIde can prove (agent, terminal, dev service,
-        branch test, serving).
+- [~] **1. Repository and checkout inventory.** Read-only.
+  - [x] Repository identity from `git rev-parse --git-common-dir`, and one
+        sidebar row per repository with sessions labelled by branch (ADRs 0016,
+        0029).
+  - [x] Worktree *creation* (ADR 0028), and listing worktrees made outside CLIde
+        (ADR 0033).
+  - [ ] Structured local and remote refs in place of the branch string arrays.
+  - [ ] Per checkout: branch, tracking ref, dirty, conflict and in-progress state,
+        last activity, and the occupancy CLIde can prove (agent, terminal, dev
+        service, branch test, serving).
 
-- [ ] **2. Occupancy and workspace lifecycle.**
-  1. Show shared-checkout thread counts so concurrent agents are visible. *This
-     is the point of the whole plan.*
-  2. Safe worktree removal, retaining the branch by default — the destructive
-     half, blocked on Phase 0 by ADR 0028.
-  3. Live-verify creation. Items shipped in Phase 1 have static coverage only
-     (`worktree.service.test.ts`).
+- [ ] **2. Review in the Git tab.** Start with one probe page covering every
+      level: Changes, a file's diff, a line comment, the commit, merge and
+      pull request sheets, History, Branches, and the chat's `+N −M` link. It
+      gets checked on the phone before any of it is built. Then build Changes with
+      on-demand per-file diffs, collapsed large and generated files, viewed chips,
+      line comments drafted per `session_id`, and "Send N comments" filling the
+      composer. Add the chat link, and restyle History and Branches onto the same
+      components.
 
-- [ ] **3. Explicit integration.**
-  0. Read-only Compare (upstream `#1369`): pick a base ref, list the files that
-     differ from the merge base, load each file's diff on demand. Read-only, so
-     it may precede the rest of this phase, but not Phase 0 item 1: an unknown
-     ref or unrelated history must reach the screen.
-  1. Choose and display source and target checkout/ref.
-  2. Refresh and report merge base, unique commits, changed files,
-     fast-forwardability, dirty/operation state, occupancy, and push state.
-  3. Default to fast-forward; explicit merge commit when divergence requires one;
-     squash, rebase and cherry-pick stay under Advanced.
-  4. Execute only in the resolved clean target checkout, protecting the checkout
-     serving CLIde. Abort conflicts and prove target recovery.
-  5. Report verification, push, pull request, worktree, and branch state as
-     **separate** remaining actions. There is no single "Finish" that silently
-     verifies, pushes, removes a directory, and deletes a branch.
+- [ ] **3. Commit, push and pull request from the review.**
+  1. A commit sheet with the generated message, file checkboxes and Commit, then
+     Push on the default branch.
+  2. A host capability read: whether the GitHub CLI is installed and signed in
+     for the remote's host, shown when it is missing.
+  3. A pull request sheet that resolves `owner/repo` from the push remote and
+     passes it explicitly. Test it against a fork fixture where `origin` and
+     `upstream` differ.
+  4. "Ask for a review": each adapter declares its review command or none.
+     Verify Codex, Cursor and OpenCode before declaring theirs.
+  5. The commit message's model is a provider and model pair chosen in the
+     sheet, kept per user on the server. Claude and Codex generate it as a
+     one-off job that leaves no transcript or session, never changes the chat's
+     model, and shows a provider failure instead of canned text.
 
-## Guardrail policy
+- [ ] **4. Isolated sessions.**
+  1. Live-check worktree creation. What shipped in Phase 1 has only static
+     coverage (`worktree.service.test.ts`).
+  2. The launcher's worktree choice becomes one Isolated toggle with a base ref.
+  3. A per-project worktree setup command, run once with streamed output. A
+     failure keeps the checkout and shows the output.
+  4. Occupancy in the review header and the sidebar: other live sessions in the
+     same checkout.
 
-- **Read-only** (status, log, diff, listings, fetch and merge previews): no
-  confirmation. Fetch moves remote-tracking refs, not working files.
-- **Working-tree mutations** (switch, restore, discard, delete-untracked, merge,
-  worktree removal): state-aware preflight; refuse by default when the target is
-  dirty or conflicted.
-- **History and remote mutations** (commit, amend, branch deletion, push, tag
-  deletion): explicit targets, and never an unqualified force push.
-- **Self-hosting protection**: CLIde must know which repository and checkout hold
-  its own runtime source, plus any registered dev/test service workspaces, and
-  block or elevate actions that rewrite them. A dirty-tree warning does not cover
-  runtime disruption.
+- [ ] **5. Merge into the base and remove a worktree.**
+  0. A read-only Compare (upstream `#1369`): pick a base ref, list the files that
+     differ from the merge base, and load each diff on demand. It may come before
+     the rest of this phase, but not before Phase 0 item 1.
+  1. A merge sheet with explicit source and target. Squash by default;
+     fast-forward and a merge commit under Advanced. It runs only in the resolved,
+     clean target checkout. A conflict aborts and the target is shown to be
+     restored. Merging into the serving checkout says whether a build or restart
+     follows.
+  2. Removal as a separate action that keeps the branch by default. It refuses
+     while there is uncommitted, unmerged (by tree comparison, so a squashed branch
+     counts as merged) or unpushed work. The Worktrees page shows each worktree's
+     age and size.
+  3. Verification, push, pull request, worktree and branch stay **separate**
+     actions. There is no single "Finish".
+
+- [ ] **6. Per-hunk stage and revert**, on the line addressing from Phase 2.
 
 ## Done when
 
-The acceptance test, on a phone, without opening a terminal:
+On the phone, with no terminal:
 
-> I can see that CLIde has three checkouts, which branch each is on, and that two
-> agent threads are live in the same directory — and I can create a fourth
-> worktree from a chosen base and start a session in it.
+> An agent's edits sit uncommitted on `main`. I open the review from the chat,
+> comment on two lines and send them, see the fix land, then commit with the
+> generated message and push. In an isolated session I do the same and end with a
+> squash merge into `main` or a pull request on my own fork. The worktree goes only
+> when I remove it. The review header warns me when another session is live in the
+> same checkout.
 
-Mutating worktree routes stay unregistered and their controls unreachable until
-all of these hold: identity conforms to ADR 0016; canonical refs and remote
-identity survive end to end; conflicts, detached `HEAD` and in-progress
-operations are representable; the shared preflight protects dirty, occupied,
-locked, active and serving checkouts; creation has a bootstrap contract;
-integration has explicit source, target, direction and history policy; removal
-proves uncommitted, unintegrated, unpushed, ignored-file and occupancy risks;
-branch deletion is independent and defaults off; every server refusal reaches a
-visible surface; and no modal uses backdrop filtering (ADR 0001).
+Mutating worktree routes stay unregistered, and their controls unreachable, until
+every one of these holds: the preflight protects dirty, occupied, locked, active and
+serving checkouts; conflicts, detached `HEAD` and in-progress operations can be
+represented; every server refusal reaches the screen; and no modal uses backdrop
+filtering (ADR 0001).
 
-Automated coverage this needs, at minimum: canonical local/remote/remote-tracking
-ref parsing; same-named refs on `origin` and `upstream` staying distinct; detached
-`HEAD` carrying a short SHA and no fake branch; conflicted files separate from
-staged and modified; merge/rebase/cherry-pick/revert detection; multiple checkouts
-resolving to one repository identity; non-Git projects unchanged; dirty and
-conflicted switches refusing before `git checkout`; occupied branches returning
-the existing checkout path; serving-checkout mutation refusing without the
-elevated policy.
+Tests needed, at minimum:
+- ref parsing that keeps same-named refs on `origin` and `upstream` distinct
+- a detached `HEAD` with a short SHA and no fake branch
+- conflicted files kept separate from staged and modified
+- operation-in-progress detection
+- dirty and conflicted switches refused before `git checkout` runs
+- an occupied branch returning the existing checkout's path
+- a mutation of the serving checkout refused without elevation
+- each mutation's failure shape
+- the pull request resolving its target from a fork
+- a squashed branch counting as merged
+- the comment-to-composer message format
 
 ## Not doing
 
-- Upstream's standalone Worktrees tab, its destructive defaults, and its hidden
-  cleanup.
-- Stable opaque checkout IDs. Identity stays path-derived, so moving a worktree
-  directory breaks continuity with its sessions and transcripts — accepted,
-  because the provider's on-disk layout is path-keyed too.
-- Retaining unused unregistered upstream code to claim parity. Primitives may
-  land early only if read-only inventory actually uses and tests them.
+- Everything in [the design's](../designs/source-control.md) "Not doing".
+- Stable opaque checkout IDs. Identity stays derived from the path, so moving a
+  worktree directory breaks continuity with its sessions. That is accepted, because
+  providers key their transcripts by path too.
+- Keeping unused, unregistered upstream code to claim parity. A primitive lands only
+  once something uses and tests it.

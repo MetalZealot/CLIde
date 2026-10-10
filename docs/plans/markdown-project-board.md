@@ -2,7 +2,7 @@
 
 - Status: 2/6
 - Next: phase 2, the plan-format contract
-- Context: [current project dashboard](project-dashboard.md), [plans board](README.md), [static HTML preview boundary](../decisions/0045-html-file-preview-is-static-and-isolated.md), [sidebar design](../designs/sidebar-rail.md) (Board's place, rows and scope)
+- Context: current generated page (`npm run docs:dashboard`), [plans board](README.md), [static HTML preview boundary](../decisions/0045-html-file-preview-is-static-and-isolated.md), [sidebar design](../designs/sidebar-rail.md) (Board's place, rows and scope)
 
 CLIde may eventually provide a built-in or opt-in extension that shows project work
 as a dashboard and Kanban board. This plan owns that cross-project, potentially
