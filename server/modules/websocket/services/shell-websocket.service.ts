@@ -6,7 +6,7 @@ import path from 'node:path';
 import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
-import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { parseIncomingJsonObject, prioritizeUserNpmGlobalBin } from '@/shared/utils.js';
 import { providerUpdateCoordinator } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 
@@ -244,62 +244,6 @@ async function buildShellCommand(
     return `claude --resume "${resumeSessionId}" || claude`;
   }
   return command;
-}
-
-function readEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const resolvedKey = Object.keys(env).find((envKey) => envKey.toLowerCase() === key.toLowerCase());
-  return resolvedKey ? env[resolvedKey] : undefined;
-}
-
-function getPathEnvKey(env: NodeJS.ProcessEnv): string {
-  return Object.keys(env).find((key) => key.toLowerCase() === 'path') || 'PATH';
-}
-
-function prioritizeUserNpmGlobalBin(env: NodeJS.ProcessEnv): { key: string; value: string | undefined } {
-  const pathKey = getPathEnvKey(env);
-  const currentPath = env[pathKey];
-  if (!currentPath) {
-    return { key: pathKey, value: currentPath };
-  }
-
-  const delimiter = path.delimiter;
-  const pathEntries = currentPath.split(delimiter).filter(Boolean);
-  const npmPrefix = readEnvValue(env, 'npm_config_prefix');
-  const appData = readEnvValue(env, 'APPDATA');
-  const candidates = [
-    npmPrefix || '',
-    npmPrefix ? path.join(npmPrefix, 'bin') : '',
-    appData ? path.join(appData, 'npm') : '',
-    path.join(os.homedir(), 'AppData', 'Roaming', 'npm'),
-    path.join(os.homedir(), '.npm-global', 'bin'),
-  ].filter(Boolean);
-
-  const normalizedPathEntries = pathEntries.map((entry) => os.platform() === 'win32' ? entry.toLowerCase() : entry);
-  const preferredEntries = candidates.filter((candidate, index) => {
-    const normalizedCandidate = os.platform() === 'win32' ? candidate.toLowerCase() : candidate;
-    return (
-      candidates.indexOf(candidate) === index &&
-      normalizedPathEntries.includes(normalizedCandidate)
-    );
-  });
-
-  if (preferredEntries.length === 0) {
-    return { key: pathKey, value: currentPath };
-  }
-
-  const normalizedPreferredEntries = preferredEntries.map((entry) =>
-    os.platform() === 'win32' ? entry.toLowerCase() : entry
-  );
-
-  const value = [
-    ...preferredEntries,
-    ...pathEntries.filter((entry) => {
-      const normalizedEntry = os.platform() === 'win32' ? entry.toLowerCase() : entry;
-      return !normalizedPreferredEntries.includes(normalizedEntry);
-    }),
-  ].join(delimiter);
-
-  return { key: pathKey, value };
 }
 
 /**

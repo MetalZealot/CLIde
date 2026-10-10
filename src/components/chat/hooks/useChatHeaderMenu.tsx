@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Download, Pencil, Pin, Repeat, Search, Trash2 } from 'lucide-react';
+import { Archive, Download, Pencil, Pin, Repeat, Search, SquareTerminal, Trash2 } from 'lucide-react';
 
 import { useRegisterHeaderMenu, type HeaderMenuItem, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
@@ -22,6 +22,7 @@ type UseChatHeaderMenuArgs = {
   isLoadingAllMessages: boolean;
   loadAllMessages: () => Promise<ChatMessage[] | null>;
   onOpenFind: () => void;
+  onOpenInCli?: () => void;
   findHeaderContent: ReactNode | null;
   autoContinue: { enabled: boolean; setEnabled: (next: boolean, limitStopLive: boolean) => void };
   /** The chat is sitting on a limit stop, so turning the mode on queues the continue now. */
@@ -42,6 +43,7 @@ export function useChatHeaderMenu({
   isLoadingAllMessages,
   loadAllMessages,
   onOpenFind,
+  onOpenInCli,
   findHeaderContent,
   autoContinue,
   limitStopLive,
@@ -156,6 +158,14 @@ export function useChatHeaderMenu({
             ),
           }]
         : []),
+      ...(onOpenInCli
+        ? [{
+            key: 'open-in-cli',
+            label: tChat('shell.openInCli'),
+            icon: SquareTerminal,
+            onSelect: onOpenInCli,
+          }]
+        : []),
       {
         // Splits what keeps the session from what removes it, as the sidebar's menu does.
         // Archive is recoverable from the sidebar's Archive view, so it needs no confirmation.
@@ -196,6 +206,7 @@ export function useChatHeaderMenu({
     loadAllMessages,
     exportInclude,
     onOpenFind,
+    onOpenInCli,
     findHeaderContent,
     t,
     tChat,

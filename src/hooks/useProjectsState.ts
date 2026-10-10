@@ -448,7 +448,7 @@ const patchSessionInProject = (
   return { ...project, sessions: nextSessions };
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'files', 'shell', 'git', 'browser']);
+const VALID_TABS: Set<string> = new Set(['chat', 'files', 'terminal', 'shell', 'git', 'browser']);
 
 const isValidTab = (tab: string): tab is AppTab => {
   return VALID_TABS.has(tab);

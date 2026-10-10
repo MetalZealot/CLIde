@@ -58,7 +58,7 @@ main checkout only).
 - [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–6, 8 and 9 complete. Position faults fixed (`61440326`, `3a83002a`); a walk now checks position and per-step work in both scroll modes. Next: cut the ~50 ms fixed frame cost of scroll restoration, then load history ahead. [Plan](plans/chat-history-performance.md). **L**
 - [ ] **A failed commit is completely silent.** Leading suspect is a `commit-msg` hook rejection leaving the index staged. It is Phase 0 item 1 of [the Source Control plan](plans/source-control-truthfulness.md) and blocks everything else there. [upstreamable] **S**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
-- [ ] Shell view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
+- [ ] Open in CLI view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
 - [ ] **The Git branch switcher can wreck the working tree when the selected project is CLIde's own checkout** — the norm for anyone forking CLIde to hack on CLIde. `handleSwitchBranch` → `switchBranch` → the switch route runs a real `git checkout` on the running app's directory. Needs the self-hosting guard from [the plan](plans/source-control-truthfulness.md). [upstreamable] **M**
 - [~] **Send delivery: bubble at the press, stage label, one run per send.** Duplicate sessions and turns on a spotty connection; request ids, receipts and a two-minute give-up, invariant 21 in `ARCHITECTURE.md`. Tested; awaiting an airplane-mode check on the phone. **M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
@@ -92,10 +92,10 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**
 - [ ] #11 — upstreaming opportunity: upstream issue #981 and PR #996 hit the same bug family as the `85ddd7e`/`5d9da84`/`8771eea` stack. Consider a PR — needs Grayson's go-ahead. **S**
 
-## Shell sync
+## Open in CLI (the old Shell view, ADR 0077)
 
-- [ ] **A new Codex, Cursor or OpenCode Shell still detaches from its sidebar row.** They cannot be handed an id at launch, so the PTY stays filed under no session; only Claude gets the minted id (`shell-websocket.service.ts`). **M**
-- [ ] **Shell shows a stale transcript snapshot; Disconnect/Restart don't reliably refresh it.** The Shell tab is a separate `claude --resume <id>` CLI in a server-side PTY: it renders the transcript as of process start and never live-tails web-chat turns, so *some* staleness is inherent. Two real defects sit behind that — separate them before fixing. Observed 2026-07-16. **M**
+- [ ] **Open in CLI for Codex, Cursor or OpenCode still detaches from its sidebar row.** They cannot be handed an id at launch, so the PTY stays filed under no session; only Claude gets the minted id (`shell-websocket.service.ts`). **M**
+- [ ] **Open in CLI shows a stale transcript snapshot; Disconnect/Restart don't reliably refresh it.** The Shell tab is a separate `claude --resume <id>` CLI in a server-side PTY: it renders the transcript as of process start and never live-tails web-chat turns, so *some* staleness is inherent. Two real defects sit behind that — separate them before fixing. Observed 2026-07-16. **M**
 
 ## Theming
 
@@ -143,7 +143,8 @@ new work.
 - [ ] Audit which Codex commands and config keys CLIde lacks; give each a destination. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks and Agents tabs dropped. [Plan](plans/workspace-surfaces.md). **M/L**
+- [~] **Workspace tabs like the desktop apps** — Terminal for Shell, rebuilt on upstream's terminal plugin; Tasks and Agents tabs dropped. Phase 1 and the Terminal's first cut built, awaiting live check. [Plan](plans/workspace-surfaces.md). **M/L**
+- [ ] **Claude's terminal in the Terminal tab.** A read-only feed of every command the agent runs, with its output and running state, beside Your shell behind a switch, as in the mobile-agent mockup. Built from the Bash calls Chat already receives; needs no PTY. Not yet planned. **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
 

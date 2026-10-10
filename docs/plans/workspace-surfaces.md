@@ -1,7 +1,7 @@
 # The workspace tabs offer what the desktop agent apps' side panels offer
 
-- Status: 1/2
-- Next: Phase 1 — a plain Terminal tab takes Shell's place, and Shell view moves to the chat kebab
+- Status: 1/3
+- Next: Phases 1 and 3's first cut await Grayson's live check; then terminal tabs, output search and settings
 - Context: [subagent visibility](subagent-visibility.md) owns how agents show
   in the chat; [provider capabilities](../providers.md)
 
@@ -18,12 +18,22 @@ set.
 ## Phases
 
 - [ ] 1. **Terminal replaces Shell in the bar.** A new `terminal` tab runs a
-  plain shell in the selected checkout — the plain-shell mode already exists
-  and needs no server work. Shell view leaves the bar and becomes "Open in
-  CLI" in the chat's kebab menu, opening the same view it does today. One
-  phase, because the phone bar has exactly five places.
+  plain shell in the selected checkout, reusing the Shell view's plain-shell
+  mode; the server starts an interactive shell when given no command, under
+  its own PTY key. Shell view leaves the bar and becomes "Open in CLI" in the
+  chat's kebab menu, opening the same view it does today. One phase, because
+  the phone bar has exactly five places.
 - [x] 2. **A running subagent updates without a reload.** Built as
   [subagent visibility](subagent-visibility.md) phase 3.
+- [ ] 3. **Terminal is rebuilt on upstream's terminal plugin** (MIT,
+  `cloudcli-ai/cloudcli-plugin-terminal`), whose plugin host CLIde removed. Its
+  framework-free `session.ts` (reconnect with exact replay) and `shell.ts`
+  (shell and working-directory resolution) come across nearly verbatim; the
+  screen is rewritten in CLIde's React components. Layout B (actions in the
+  header menu, a tab row only with two or more terminals) with the pinned key
+  bar, picked from the probe. First cut built: the `/terminal` socket, reconnect
+  with exact replay, the key bar, light/dark, Clear and Restart. Next: terminal
+  tabs, output search (needs `@xterm/addon-search`) and the settings sheet.
 
 ## Done when
 
@@ -31,14 +41,16 @@ set.
   Terminal tab opens a prompt in the checkout's directory, not a provider CLI.
 - "Open in CLI" from the chat kebab opens the chat in the provider's CLI,
   exactly as the Shell tab does today, for all four providers.
+- Locking the phone and coming back resumes the same Terminal with the missed
+  output, with no tap.
 
 ## Not doing
 
 - A Diff tab. The Git tab already shows the working tree's diff and each
   commit's; the file viewer does not show diffs, and T3's per-thread diff is a
   narrower version of the same view.
-- A Pull request surface. How PRs belong in CLIde's Git control is not yet
-  assessed.
+- A Pull request surface. Pull requests live in the Git tab
+  ([Source Control design](../designs/source-control.md)).
 - An Agents tab, and the "agents working" strip that opened it. Running agents
   show on the Working line instead ([ADR 0076](../decisions/0076-plan-pins-under-header-agents-ride-working-line.md)).
 - A Tasks tab. The plan pins under the chat header instead

@@ -83,6 +83,7 @@ function ChatInterface({
   sessionActions,
   isVisible,
   onOpenBrowser,
+  onOpenInCli,
   pageScroll = false,
   hasBottomNav = false,
 }: ChatInterfaceProps) {
@@ -1048,6 +1049,7 @@ function ChatInterface({
     isLoadingAllMessages,
     loadAllMessages,
     onOpenFind: chatFind.open,
+    onOpenInCli,
     findHeaderContent: chatFindHeader,
     autoContinue,
     limitStopLive: liveLimitStop !== null,

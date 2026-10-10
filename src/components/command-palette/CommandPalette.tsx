@@ -60,7 +60,7 @@ type CommandPaletteProps = {
 const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
   { id: 'chat', label: 'Go to Chat', keywords: 'chat messages conversation' },
   { id: 'files', label: 'Go to Files', keywords: 'files file tree explorer' },
-  { id: 'shell', label: 'Go to Shell', keywords: 'shell terminal console' },
+  { id: 'terminal', label: 'Go to Terminal', keywords: 'terminal shell console bash' },
   { id: 'git', label: 'Go to Git', keywords: 'git diff branches' },
 ];
 

@@ -24,8 +24,9 @@ and OpenCode) from a phone or a desktop browser. It is a fork of
   outside the checkout (by default `~/.cloudcli/auth.db`). Each provider writes its
   own transcript files in its own home; those are the record of what ran. A watcher
   indexes transcripts written by any process, including ones started outside CLIde.
-- **Around chat:** a terminal (the Shell), Files, Source Control, a Playwright-driven
-  Browser, voice and scheduled messages.
+- **Around chat:** a plain Terminal, the Shell (the open chat reopened in its
+  provider's own CLI), Files, Source Control, a Playwright-driven Browser, voice and
+  scheduled messages.
 - **Scope.** English only, run from a git checkout. CLIde has no desktop app,
   container image, npm package or plugin system of its own; the agents' own plugins
   and skills appear under each provider's Tools.
@@ -91,8 +92,8 @@ shaped by [the module standards](.agents/skills/backend-module-standards/SKILL.m
 - `providers/` holds one adapter per provider in `list/<provider>/` (runtime, history
   parser, models, settings) plus shared services: runtime selection, capabilities,
   CLI updates and the sessions watcher. Provider SDKs are imported only here.
-- `websocket/` is the chat gateway (run registry, session writer, replay, abort) and
-  the Shell's terminal connection.
+- `websocket/` is the chat gateway (run registry, session writer, replay, abort), the
+  Shell's terminal connection, and the Terminal's resumable PTYs.
 - `database/` is the SQLite connection, migrations and repositories.
 - `auth/` and `user/` cover sign-in, per-user Git config and onboarding.
 - `projects/`, `file-tree/` and `git/` back project discovery, Files and Source
@@ -108,7 +109,7 @@ shaped by [the module standards](.agents/skills/backend-module-standards/SKILL.m
 ### `src/`
 
 - `App.tsx` wraps the whole app in sign-in, theme and the WebSocket connection.
-- `components/<area>/` has one folder per surface: `chat/`, `sidebar/`, `shell/`,
+- `components/<area>/` has one folder per surface: `chat/`, `sidebar/`, `shell/`, `terminal/`,
   `git-panel/`, `file-tree/`, `settings/`, `browser-use/` and others.
 - `stores/useSessionStore.ts` holds each session's messages, pagination and live
   reconciliation; `contexts/` holds the WebSocket, auth, theme, appearance and
@@ -316,7 +317,7 @@ per feature.
 
 #### 17. Mobile navigation stays in place before choosing a worktree
 
-Shell, Files and Git need a worktree; a new Chat can begin at the picker. The bottom
+Terminal, Files and Git need a worktree; a new Chat can begin at the picker. The bottom
 bar stays visible with Chat selected while choosing, and destinations that need a
 worktree are greyed out, including those inside More. The bar still hides when the
 keyboard opens.

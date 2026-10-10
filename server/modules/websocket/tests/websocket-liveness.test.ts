@@ -1,5 +1,6 @@
-// Two suites: chat.ping/chat_pong echo plus the transport heartbeat, and the
-// shell-websocket PTY launch, auth-URL, and Codex-launch paths.
+// Three suites: chat.ping/chat_pong echo plus the transport heartbeat, the
+// shell-websocket PTY launch, auth-URL, and Codex-launch paths, and the Terminal
+// tab's resumable PTY.
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test, { describe } from 'node:test';
@@ -8,6 +9,7 @@ import { WebSocket } from 'ws';
 
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { handleShellConnection } from '@/modules/websocket/services/shell-websocket.service.js';
+import { handleTerminalConnection } from '@/modules/websocket/services/terminal-websocket.service.js';
 import { attachWebSocketHeartbeat } from '@/modules/websocket/services/websocket-server.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
@@ -475,5 +477,159 @@ describe('shell-websocket.service', () => {
     const frames = socket.frames.map((frame) => JSON.parse(frame) as Record<string, unknown>);
     assert.equal(frames.some((frame) => frame.type === 'session-assigned'), false);
     pty.emitExit();
+  });
+});
+
+describe('terminal-websocket.service', () => {
+  type Control = Record<string, unknown> & { type: string };
+
+  function createSocket() {
+    const socket = new EventEmitter() as EventEmitter & {
+      readyState: number;
+      control: Control[];
+      data: Buffer[];
+      closedWith: number | null;
+      send: (data: string | Buffer, options?: unknown, done?: () => void) => void;
+      close: (code?: number) => void;
+    };
+    socket.readyState = WebSocket.OPEN;
+    socket.control = [];
+    socket.data = [];
+    socket.closedWith = null;
+    socket.send = (data, options, done) => {
+      if (Buffer.isBuffer(data)) {
+        socket.data.push(data);
+      } else {
+        socket.control.push(JSON.parse(data) as Control);
+      }
+      (typeof options === 'function' ? options as () => void : done)?.();
+    };
+    socket.close = (code) => {
+      socket.closedWith = code ?? 1000;
+      socket.readyState = WebSocket.CLOSED;
+      socket.emit('close');
+    };
+    return socket;
+  }
+
+  function createPty() {
+    let dataListener: ((data: string) => void) | null = null;
+    let exitListener: ((event: { exitCode: number }) => void) | null = null;
+    return {
+      killed: false,
+      written: [] as Buffer[],
+      onData(listener: (data: string) => void) {
+        dataListener = listener;
+        return { dispose: () => undefined };
+      },
+      onExit(listener: (event: { exitCode: number }) => void) {
+        exitListener = listener;
+        return { dispose: () => undefined };
+      },
+      emitData(data: string) {
+        dataListener?.(data);
+      },
+      emitExit() {
+        exitListener?.({ exitCode: 0 });
+      },
+      write(data: Buffer) {
+        this.written.push(data);
+      },
+      resize() {},
+      pause() {},
+      resume() {},
+      kill() {
+        this.killed = true;
+      },
+    };
+  }
+
+  const userRequest = (id: number) => ({ user: { id } }) as unknown as AuthenticatedWebSocketRequest;
+
+  function setup() {
+    const ptys: ReturnType<typeof createPty>[] = [];
+    const spawns: Array<{ args: string[]; cwd: string; env: NodeJS.ProcessEnv }> = [];
+    const spawnPty = ((_file: string, args: string | string[], options: { cwd: string; env: NodeJS.ProcessEnv }) => {
+      spawns.push({ args: args as string[], cwd: options.cwd, env: options.env });
+      const pty = createPty();
+      ptys.push(pty);
+      return pty;
+    }) as never;
+    const connect = (init: Record<string, unknown>, userId = 1) => {
+      const socket = createSocket();
+      handleTerminalConnection(socket as never, userRequest(userId), { spawnPty });
+      socket.emit('message', Buffer.from(JSON.stringify({ type: 'init', cols: 80, rows: 24, ...init })), false);
+      return socket;
+    };
+    return { ptys, spawns, connect };
+  }
+
+  test('a new terminal is an interactive shell in the project, without the server NODE_ENV', () => {
+    const { spawns, connect, ptys } = setup();
+    const socket = connect({ cwd: process.cwd() });
+
+    assert.equal(socket.control[0]?.type, 'hello');
+    assert.deepEqual(spawns[0]?.args, []);
+    assert.equal(spawns[0]?.cwd, process.cwd());
+    assert.equal(spawns[0]?.env.NODE_ENV, undefined);
+    const ready = socket.control.find((frame) => frame.type === 'ready');
+    assert.equal(ready?.resumed, false);
+    assert.equal(ready?.seq, 0);
+    socket.emit('message', JSON.stringify({ type: 'close' }), false);
+    assert.equal(ptys[0]?.killed, true);
+  });
+
+  test('a reconnect resumes the same shell and replays only the bytes it missed', () => {
+    const { ptys, spawns, connect } = setup();
+    const first = connect({ cwd: process.cwd() });
+    const sessionId = first.control.find((frame) => frame.type === 'ready')?.sessionId;
+    ptys[0]!.emitData('seen\r\n');
+    const seen = first.data[0]!.length;
+    first.emit('close');
+    ptys[0]!.emitData('missed\r\n');
+
+    const second = connect({ sessionId, seq: seen });
+    assert.equal(spawns.length, 1);
+    const ready = second.control.find((frame) => frame.type === 'ready');
+    assert.deepEqual([ready?.resumed, ready?.reset, ready?.seq], [true, false, seen]);
+    assert.equal(Buffer.concat(second.data).toString(), 'missed\r\n');
+
+    second.emit('message', Buffer.from('ls\r'), true);
+    assert.equal(ptys[0]!.written[0]?.toString(), 'ls\r');
+    second.emit('message', JSON.stringify({ type: 'close' }), false);
+  });
+
+  test('a cursor the buffer cannot satisfy resets the screen and replays everything kept', () => {
+    const { ptys, connect } = setup();
+    const first = connect({ cwd: process.cwd() });
+    const sessionId = first.control.find((frame) => frame.type === 'ready')?.sessionId;
+    ptys[0]!.emitData('history');
+    first.emit('close');
+
+    const second = connect({ sessionId, seq: 999_999 });
+    const ready = second.control.find((frame) => frame.type === 'ready');
+    assert.deepEqual([ready?.reset, ready?.seq], [true, 0]);
+    assert.equal(Buffer.concat(second.data).toString(), 'history');
+    second.emit('message', JSON.stringify({ type: 'close' }), false);
+  });
+
+  test('a second socket takes the shell from the first, and another user cannot attach at all', () => {
+    const { ptys, spawns, connect } = setup();
+    const first = connect({ cwd: process.cwd() });
+    const sessionId = first.control.find((frame) => frame.type === 'ready')?.sessionId;
+
+    const stranger = connect({ sessionId }, 2);
+    assert.equal(spawns.length, 2);
+    assert.equal(stranger.control.find((frame) => frame.type === 'ready')?.resumed, false);
+
+    const second = connect({ sessionId });
+    assert.equal(first.closedWith, 4409);
+    assert.equal(second.control.find((frame) => frame.type === 'ready')?.resumed, true);
+    ptys[0]!.emitData('to second');
+    assert.equal(Buffer.concat(second.data).toString(), 'to second');
+
+    for (const socket of [second, stranger]) {
+      socket.emit('message', JSON.stringify({ type: 'close' }), false);
+    }
   });
 });

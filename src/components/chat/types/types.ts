@@ -226,6 +226,8 @@ export interface ChatInterfaceProps {
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   sessionActions: SessionActions;
   onOpenBrowser?: (browserSessionId: string) => void;
+  /** Opens the open chat in its provider's own CLI. */
+  onOpenInCli?: () => void;
   /** Whether Chat is the visible view; it stays mounted while hidden. */
   isVisible: boolean;
   /** The page scrolls the conversation instead of the message pane (phones). */

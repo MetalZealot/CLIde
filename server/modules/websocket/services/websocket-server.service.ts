@@ -5,6 +5,7 @@ import { WebSocket, WebSocketServer, type VerifyClientCallbackSync } from 'ws';
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { verifyWebSocketClient } from '@/modules/websocket/services/websocket-auth.service.js';
 import { handleShellConnection } from '@/modules/websocket/services/shell-websocket.service.js';
+import { handleTerminalConnection } from '@/modules/websocket/services/terminal-websocket.service.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 
 type WebSocketServerDependencies = {
@@ -78,7 +79,7 @@ export function attachWebSocketHeartbeat(
 
 /**
  * Creates and wires the server-wide websocket gateway used for chat, shell, and
- * plugin proxy routes. Exported through the websocket module for server startup.
+ * terminal routes. Exported through the websocket module for server startup.
  */
 export function createWebSocketServer(
   server: HttpServer,
@@ -100,6 +101,11 @@ export function createWebSocketServer(
 
     if (pathname === '/shell') {
       handleShellConnection(ws, dependencies.shell);
+      return;
+    }
+
+    if (pathname === '/terminal') {
+      handleTerminalConnection(ws, incomingRequest);
       return;
     }
 

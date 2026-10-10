@@ -10,7 +10,7 @@ export type TabDefinition = {
 
 export const BASE_TABS: TabDefinition[] = [
   { id: 'chat',  labelKey: 'tabs.chat',  icon: MessageSquare },
-  { id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
+  { id: 'terminal', labelKey: 'tabs.terminal', icon: Terminal },
   { id: 'files', labelKey: 'tabs.files', icon: Folder },
   { id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
 ];

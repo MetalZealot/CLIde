@@ -94,7 +94,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0054 — Async question answers steer now or queue separately](0054-async-question-answer-delivery.md)
 - [0055 — Target size is contextual, with a WCAG floor](0055-target-size-is-contextual-with-a-wcag-floor.md)
 - [0056 — In the installed phone app, the chat scrolls as the page](0056-installed-phone-app-scrolls-the-chat-as-the-page.md)
-- [0057 — The mobile bar's fifth item is a swappable slot](0057-mobile-navbar-swappable-fifth-slot.md)
+- [0057 — The mobile bar's fifth item is a swappable slot](0057-mobile-navbar-swappable-fifth-slot.md) *(Shell's place superseded by 0077)*
 - [0058 — Stop lives in the send button; the usage ring lives in the header](0058-stop-in-send-button-ring-in-header.md)
 - [0059 — An activity's operation list expands inline on every screen](0059-activity-operations-expand-inline-on-every-screen.md) *(phone raw detail superseded by 0060)*
 - [0060 — A call's detail opens flat, in place, on every screen](0060-a-calls-detail-opens-flat-in-place.md)
@@ -114,3 +114,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0074 — No photo grid in the composer until Chrome can read its files](0074-no-photo-grid-in-the-composer.md) *(superseded by 0075)*
 - [0075 — Photos is back; attachments are read before anything asks their size](0075-photos-reads-before-asking-size.md)
 - [0076 — The plan pins under the header; running agents ride the Working line](0076-plan-pins-under-header-agents-ride-working-line.md)
+- [0077 — A plain Terminal tab takes Shell's place; Shell opens from the chat kebab](0077-terminal-tab-replaces-shell-open-in-cli.md)

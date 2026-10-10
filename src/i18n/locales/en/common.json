@@ -54,8 +54,40 @@
     "upload": "Upload",
     "browse": "Browse"
   },
+  "terminal": {
+    "status": {
+      "connecting": "Connecting…",
+      "connected": "Connected · {{shell}}",
+      "reconnecting": "Reconnecting…",
+      "exited": "Exited",
+      "error": "Terminal error"
+    },
+    "note": {
+      "reconnecting": "Reconnecting… what you missed will replay",
+      "exited": "{{shell}} exited (code {{code}})",
+      "pasteBlocked": "The browser won't share the clipboard here. Paste from your keyboard instead."
+    },
+    "actions": {
+      "clear": "Clear",
+      "restart": "Restart"
+    },
+    "keys": {
+      "ctrl": "Ctrl, for the next key you type",
+      "alt": "Alt, for the next key you type",
+      "keyboard": "Show keyboard",
+      "paste": "Paste",
+      "interrupt": "Ctrl+C (interrupt)",
+      "endOfInput": "Ctrl+D (end of input)",
+      "suspend": "Ctrl+Z (suspend)",
+      "up": "Up",
+      "down": "Down",
+      "left": "Left",
+      "right": "Right"
+    }
+  },
   "tabs": {
     "chat": "Chat",
+    "terminal": "Terminal",
     "shell": "Shell",
     "files": "Files",
     "git": "Source Control",

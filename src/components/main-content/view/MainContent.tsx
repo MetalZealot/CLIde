@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
+import TerminalPanel from '../../terminal/view/TerminalPanel';
 import GitPanel from '../../git-panel/view/GitPanel';
 import { BrowserUsePanel } from '../../browser-use';
 import type { MainContentProps } from '../types/types';
@@ -184,6 +185,8 @@ function MainContent({
     onNavigateToSession(sessionId, { replace: true });
   }, [onNavigateToSession, onSessionEstablished, selectedProject]);
 
+  const openInCli = useCallback(() => setActiveTab('shell'), [setActiveTab]);
+
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
       setActiveTab('files');
@@ -265,6 +268,7 @@ function MainContent({
                 onAdoptCheckout={onAdoptCheckout}
                 sessionActions={sessionActions}
                 onOpenBrowser={shouldShowBrowserTab ? openBrowserSession : undefined}
+                onOpenInCli={openInCli}
                 isVisible={activeTab === 'chat'}
                 pageScroll={chatPageScroll}
                 hasBottomNav={showBottomNav}
@@ -282,6 +286,12 @@ function MainContent({
                 onFilePathsChange={handleFilePathsChanged}
                 revealRequest={fileTreeReveal}
               />
+            </div>
+          )}
+
+          {selectedProject && activeTab === 'terminal' && (
+            <div className="h-full w-full overflow-hidden">
+              <TerminalPanel project={selectedProject} isMobile={isMobile} />
             </div>
           )}
 

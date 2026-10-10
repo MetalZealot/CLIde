@@ -1,7 +1,7 @@
 # 0057 — The mobile bar's fifth item is a swappable slot
 
 - Date: 2026-09-16
-- Status: Accepted; supersedes 0048's fifth role
+- Status: Accepted; supersedes 0048's fifth role; Shell's place superseded by 0077
 
 ## Decision
 

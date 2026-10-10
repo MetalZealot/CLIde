@@ -468,7 +468,8 @@
     "resumeSession": "Resume session: {{displayName}}...",
     "runCommand": "Run {{command}} in {{projectName}}",
     "startCli": "Starting Claude CLI in {{projectName}}",
-    "defaultCommand": "command"
+    "defaultCommand": "command",
+    "openInCli": "Open in CLI"
   },
   "claudeStatus": {
     "actions": {
