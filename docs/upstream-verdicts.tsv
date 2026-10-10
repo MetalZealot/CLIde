@@ -64,3 +64,10 @@
 #1385	declined	no \( or \[ math in the same sample; $$ already renders
 #1332	declined	Safari-only IME defect; CLIde is used on Android Chrome and desktop, and shares the bug if that changes
 #1428	declined	terminal colours are dark-only; matters only in light mode
+#1291	ours	the hold counts the CLI's own background_tasks_changed list, which includes agents and workflows, not a tool-name list
+#1395	ours	a held run stays running until its process ends, so a new message steers into it instead of spawning a second CLI
+#1434	ours	the queue dispatcher sees a held run as running, because complete is sent only when the process ends
+#1277	ours	user prompts come from response_item rows after turn_context since Codex 0.152.1; upstream reads the typed UserMessage item instead
+#1435	ours	Codex models are read live from models_cache.json or model/list; the hardcoded rows are only the fallback
+#1418	refused	CLIde has no custom-model library; it arrived with the declined #1206 restructure
+#1375	declined	CLIde has the same early return, but no API key is set in the service env or settings.json here
