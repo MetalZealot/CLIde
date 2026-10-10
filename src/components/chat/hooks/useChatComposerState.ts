@@ -35,6 +35,17 @@ import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../utils/messageKeys';
 import type { SessionStore } from '../../../stores/useSessionStore';
+import {
+  dispatchSend,
+  failSend,
+  getSend,
+  localSendMessageId,
+  mintRequestId,
+  openSend,
+  sendSignal,
+  takeOrphanedUnsent,
+  updateSend,
+} from '../../../stores/sendOutbox';
 
 import { useSideQuestion } from './useSideQuestion';
 import { MESSAGES_PER_PAGE } from './useChatSessionState';
@@ -362,6 +373,17 @@ export const isImageAttachment = (attachment: ChatAttachment) => {
   return /\.(gif|jpe?g|png|svg|webp)$/i.test(attachment.path || attachment.name || '');
 };
 
+/** A not-yet-uploaded file as the bubble shows it; images preview from memory. */
+const previewAttachment = (file: File): ChatImage => {
+  const isImage = file.type.startsWith('image/');
+  return {
+    name: file.name,
+    mimeType: file.type || undefined,
+    size: file.size,
+    ...(isImage ? { data: URL.createObjectURL(file) } : {}),
+  };
+};
+
 /** Rebuilds a sent or stored attachment as a File, so an edit can put it back in the composer. */
 export const fetchAttachmentFile = async (attachment: ChatImage): Promise<File | null> => {
   const storedName = attachment.path?.split(/[\\/]/).pop();
@@ -386,7 +408,7 @@ export const fetchAttachmentFile = async (attachment: ChatImage): Promise<File |
 };
 
 /** Also used when scheduling: a message sent later still needs durable descriptors. */
-export const uploadAttachmentFiles = async (files: File[]): Promise<unknown[]> => {
+export const uploadAttachmentFiles = async (files: File[], signal?: AbortSignal): Promise<unknown[]> => {
   if (files.length === 0) {
     return [];
   }
@@ -400,6 +422,7 @@ export const uploadAttachmentFiles = async (files: File[]): Promise<unknown[]> =
     method: 'POST',
     headers: {},
     body: formData,
+    signal,
   });
 
   if (!response.ok) {
@@ -1141,6 +1164,37 @@ export function useChatComposerState({
     sessionStore,
   ]);
 
+  /** Allocates a brand-new chat's session id; throws on failure. */
+  const createSession = useCallback(async (
+    draft: string,
+    request: { requestId?: string; signal?: AbortSignal } = {},
+  ): Promise<string> => {
+    if (!selectedProject) throw new Error('No project selected');
+    const response = await authenticatedFetch('/api/providers/sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        provider,
+        projectPath: selectedProject.fullPath || selectedProject.path || '',
+        // A retried create returns the session this id already made.
+        ...(request.requestId ? { requestId: request.requestId } : {}),
+      }),
+      signal: request.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to create session (${response.status})`);
+    }
+    const body = await response.json();
+    const created: string | null = body?.data?.sessionId || null;
+    if (!created) throw new Error('no session id returned.');
+
+    onSessionEstablished?.(created, {
+      provider,
+      project: selectedProject,
+      summary: getNotificationSessionSummary(selectedSession, draft),
+    });
+    return created;
+  }, [onSessionEstablished, provider, selectedProject, selectedSession]);
+
   /**
    * The session id this conversation will keep for its lifetime, allocating
    * one for a brand-new chat.
@@ -1153,21 +1207,8 @@ export function useChatComposerState({
     const existing = selectedSession?.id || currentSessionId || null;
     if (existing) return existing;
     if (!selectedProject) return null;
-
-    let created: string | null = null;
     try {
-      const response = await authenticatedFetch('/api/providers/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          provider,
-          projectPath: selectedProject.fullPath || selectedProject.path || '',
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to create session (${response.status})`);
-      }
-      const body = await response.json();
-      created = body?.data?.sessionId || null;
+      return await createSession(draft);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error('Session creation failed:', error);
@@ -1178,25 +1219,9 @@ export function useChatComposerState({
       });
       return null;
     }
+  }, [addMessage, createSession, currentSessionId, selectedProject, selectedSession]);
 
-    if (!created) {
-      addMessage({
-        type: 'error',
-        content: 'Failed to start a new session: no session id returned.',
-        timestamp: new Date(),
-      });
-      return null;
-    }
-
-    onSessionEstablished?.(created, {
-      provider,
-      project: selectedProject,
-      summary: getNotificationSessionSummary(selectedSession, draft),
-    });
-    return created;
-  }, [addMessage, currentSessionId, onSessionEstablished, provider, selectedProject, selectedSession]);
-
-  const handleSubmit = useCallback(
+  const submitMessage = useCallback(
     async (
       event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>,
       queuedSubmission?: QueuedDraft,
@@ -1345,70 +1370,75 @@ export function useChatComposerState({
       }
 
       const messageContent = currentInput;
-
+      const requestId = mintRequestId();
+      const knownSessionId = selectedSession?.id || currentSessionId || null;
+      // Read now: the composer state behind these clears below.
+      const sendOptions = queuedSubmission?.options ?? buildSendOptions(messageContent);
+      const filesToUpload = previouslyUploadedAttachments.length === 0 ? currentAttachments : [];
+      // Survive a Retry, so a finished upload or create is not repeated.
       let uploadedAttachments = previouslyUploadedAttachments;
-      if (uploadedAttachments.length === 0 && currentAttachments.length > 0) {
-        try {
-          uploadedAttachments = await uploadAttachmentFiles(currentAttachments);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('File upload failed:', error);
-          addMessage({
-            type: 'error',
-            content: `Failed to upload files: ${message}`,
-            timestamp: new Date(),
-          });
-          return;
-        }
-      }
-
-      const targetSessionId = await ensureSessionId(currentInput);
-      if (!targetSessionId) {
-        return;
-      }
+      let targetSessionId = knownSessionId;
 
       // A rewind send drops the edited message and its tail before the
       // replacement is appended; the post-turn refetch reconciles against the
       // server's branch-filtered transcript.
-      if (pendingRewind) {
-        sessionStore.truncateFromMessageId(targetSessionId, pendingRewind.anchorMessageId);
-        rewindReconcileSessionRef.current = targetSessionId;
+      if (pendingRewind && knownSessionId) {
+        sessionStore.truncateFromMessageId(knownSessionId, pendingRewind.anchorMessageId);
+        rewindReconcileSessionRef.current = knownSessionId;
         setPendingRewind(null);
       }
 
-      const attachmentRecords = uploadedAttachments as ChatAttachment[];
-      const userMessage: ChatMessage = {
+      // The bubble appears at the press; its label follows the send's stage.
+      const shownAttachments = uploadedAttachments.length > 0
+        ? uploadedAttachments as ChatAttachment[]
+        : filesToUpload.map(previewAttachment);
+      addMessage({
+        id: localSendMessageId(requestId),
         type: 'user',
         content: currentInput,
-        images: attachmentRecords.filter(isImageAttachment),
-        files: attachmentRecords.filter((attachment) => !isImageAttachment(attachment)),
+        images: shownAttachments.filter(isImageAttachment),
+        files: shownAttachments.filter((attachment) => !isImageAttachment(attachment)),
         timestamp: new Date(),
+      });
+
+      const run = async () => {
+        const signal = sendSignal(requestId);
+        try {
+          if (uploadedAttachments.length === 0 && filesToUpload.length > 0) {
+            updateSend(requestId, { stage: 'uploading' });
+            uploadedAttachments = await uploadAttachmentFiles(filesToUpload, signal);
+          }
+          if (!targetSessionId) {
+            updateSend(requestId, { stage: 'creating' });
+            targetSessionId = await createSession(messageContent, { requestId, signal });
+            updateSend(requestId, { sessionId: targetSessionId });
+          }
+          const entry = getSend(requestId);
+          if (!entry || entry.stage === 'failed') return;
+          updateSend(requestId, {
+            frame: {
+              type: 'chat.send',
+              sessionId: targetSessionId,
+              requestId,
+              content: messageContent,
+              options: { ...sendOptions, attachments: uploadedAttachments },
+            },
+          });
+          dispatchSend(requestId);
+        } catch (error) {
+          if (signal.aborted) return;
+          console.error('Send failed before delivery:', error);
+          failSend(requestId, error instanceof Error ? error.message : 'Unknown error');
+        }
       };
-
-      addMessage(userMessage);
-      // Mark this request as processing in the per-session activity map (the
-      // single source of truth the indicator derives from). The id is always
-      // concrete at this point — no pending placeholder exists anymore.
-      onSessionProcessing?.(targetSessionId, {
-        statusText: null,
-        canInterrupt: true,
-      });
-
-      setIsUserScrolledUp(false);
-      setTimeout(() => scrollToBottom(), 100);
-
-      // One message shape for every provider. The backend resolves the
-      // provider, project path, and provider-native resume id from the
-      // session row; `options` only carries composer-level preferences.
-      sendMessage({
-        type: 'chat.send',
-        sessionId: targetSessionId,
+      openSend({
+        requestId,
+        sessionId: knownSessionId,
+        projectId: selectedProject.projectId,
         content: messageContent,
-        options: {
-          ...(queuedSubmission?.options ?? buildSendOptions(messageContent)),
-          attachments: uploadedAttachments,
-        },
-      });
+        stage: filesToUpload.length > 0 ? 'uploading' : knownSessionId ? 'sending' : 'creating',
+        attachmentCount: filesToUpload.length,
+      }, run, filesToUpload);
 
       recordSentMessage(messageContent);
       setInput('');
@@ -1424,20 +1454,23 @@ export function useChatComposerState({
       }
 
       safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+      setIsUserScrolledUp(false);
+      setTimeout(() => scrollToBottom(), 100);
+
+      await run();
     },
     [
       selectedSession,
       attachedFiles,
       buildSendOptions,
+      createSession,
       currentSessionId,
       executeCommand,
       interceptSubmitRef,
       isLoading,
       recordSentMessage,
       onSessionProcessing,
-      onSessionEstablished,
       pendingRewind,
-      provider,
       resetCommandMenuState,
       scrollToBottom,
       selectedProject,
@@ -1448,6 +1481,31 @@ export function useChatComposerState({
       setIsUserScrolledUp,
       slashCommands,
     ],
+  );
+
+  // Chats with a submit still uploading or creating its session. The bubble is
+  // already up, but a second press in that window must not start a second send.
+  const submittingScopesRef = useRef(new Set<string>());
+
+  const handleSubmit = useCallback(
+    async (
+      event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>,
+      queuedSubmission?: QueuedDraft,
+    ) => {
+      const scope = sessionKey ?? `new:${selectedProject?.projectId ?? ''}`;
+      if (submittingScopesRef.current.has(scope)) {
+        // Still cancel the event: an ignored form submit must not reload the page.
+        event.preventDefault();
+        return;
+      }
+      submittingScopesRef.current.add(scope);
+      try {
+        await submitMessage(event, queuedSubmission);
+      } finally {
+        submittingScopesRef.current.delete(scope);
+      }
+    },
+    [selectedProject?.projectId, sessionKey, submitMessage],
   );
 
   useEffect(() => {
@@ -1548,6 +1606,18 @@ export function useChatComposerState({
       const restored = files.filter((file): file is File => file !== null);
       setAttachedFiles((previous) => [...restored, ...previous]);
     });
+  }, [setInput]);
+
+  /** Puts a send taken back from its bubble into the composer, ahead of anything typed since. */
+  const restoreUnsentDraft = useCallback((content: string, files: File[]) => {
+    if (content) {
+      const current = inputValueRef.current;
+      const next = current.trim() ? `${content}\n\n${current}` : content;
+      setInput(next);
+      inputValueRef.current = next;
+    }
+    if (files.length > 0) setAttachedFiles((previous) => [...files, ...previous]);
+    textareaRef.current?.focus();
   }, [setInput]);
 
   const cancelRewindEdit = useCallback(() => {
@@ -1656,7 +1726,10 @@ export function useChatComposerState({
     }
     const hadProject = lastRestoredProjectIdRef.current !== undefined;
     lastRestoredProjectIdRef.current = selectedProjectId;
-    const savedInput = safeLocalStorage.getItem(`draft_input_${selectedProjectId}`) || '';
+    // A send an earlier page never had confirmed comes back as the draft.
+    const savedInput = safeLocalStorage.getItem(`draft_input_${selectedProjectId}`)
+      || takeOrphanedUnsent(selectedProjectId)
+      || '';
     // Text typed before any project existed has nowhere to be keyed, so the
     // first project picked adopts it rather than restoring over it.
     if (!hadProject && !savedInput && inputValueRef.current) {
@@ -1995,6 +2068,7 @@ export function useChatComposerState({
     beginRewindEdit,
     cancelRewindEdit,
     restoreUndeliveredTurn,
+    restoreUnsentDraft,
     showRewindPicker,
     closeRewindPicker: () => setShowRewindPicker(false),
     showForkPicker,

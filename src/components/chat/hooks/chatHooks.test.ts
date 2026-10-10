@@ -13,7 +13,21 @@ import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSen
 import { useSessionProtection } from '../../../hooks/useSessionProtection';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import { streamingRowId, useSessionStore, type NormalizedMessage, type SessionStore } from '../../../stores/useSessionStore';
-import type { ProjectSession } from '../../../types/app';
+import type { Project, ProjectSession } from '../../../types/app';
+import { useSendOutboxDriver } from '../../../hooks/useSendOutboxDriver';
+import {
+  SEND_GIVE_UP_MS,
+  dispatchSend,
+  getSend,
+  openSend,
+  requestIdFromMessageId,
+  resetOutboxForTests,
+  retrySend,
+  setSendDispatcher,
+  takeOrphanedUnsent,
+  updateSend,
+  type ChatSendFrame,
+} from '../../../stores/sendOutbox';
 import type { ChatMessage, PendingPermissionRequest } from '../types/types';
 import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlayer';
 import { api } from '../../../utils/api';
@@ -30,6 +44,7 @@ import {
   resolveSessionSendSetting,
   resolveUsagePopoverView,
   selectPastedAttachments,
+  useChatComposerState,
 } from './useChatComposerState';
 import { resolveLiveLimitStop } from './useAutoContinue';
 import { normalizedToChatMessages } from './useChatMessages';
@@ -1484,4 +1499,166 @@ test('the turn clock starts when the runtime leaves its starting stage, once', a
   assert.equal(readyAt(), first, 'later stages keep the first ready time');
 
   await React.act(async () => root.unmount());
+});
+
+test('a new chat shows its bubble at the press and a second press cannot start a second session', async () => {
+  resetOutboxForTests();
+  const originalFetch = globalThis.fetch;
+  const creates: Array<{ body: Record<string, unknown>; resolve: (response: Response) => void }> = [];
+  globalThis.fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
+    if (String(url) === '/api/providers/sessions' && init?.method === 'POST') {
+      return new Promise<Response>((resolve) => creates.push({ body: JSON.parse(String(init.body)), resolve }));
+    }
+    return Promise.resolve(new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  }) as typeof fetch;
+  const dispatched: ChatSendFrame[] = [];
+  setSendDispatcher((requestId) => {
+    const frame = getSend(requestId)?.frame;
+    if (frame) dispatched.push(frame);
+  });
+
+  const project = { projectId: 'project-send', displayName: 'Send', fullPath: '/tmp/project-send', path: '/tmp/project-send' } as Project;
+  const added: ChatMessage[] = [];
+  let composer!: ReturnType<typeof useChatComposerState>;
+  function Harness() {
+    const sessionStore = useSessionStore();
+    composer = useChatComposerState({
+      selectedProject: project,
+      selectedSession: null,
+      currentSessionId: null,
+      provider: 'claude',
+      permissionMode: 'default',
+      collaborationMode: null,
+      togglePermissionMode: () => undefined,
+      resolvePermissionModeForProvider: () => 'default',
+      currentProviderModel: 'test-model',
+      currentProviderEffort: 'medium',
+      currentProviderFastMode: false,
+      isLoading: false,
+      canAbortSession: false,
+      tokenBudget: null,
+      sendMessage: () => true,
+      sessionStore,
+      scrollToBottom: () => undefined,
+      addMessage: (message) => { added.push(message); },
+      setIsUserScrolledUp: () => undefined,
+      pendingPermissionRequests: [],
+      setPendingPermissionRequests: () => undefined,
+    });
+    return null;
+  }
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const press = () => composer.handleSubmit({ preventDefault: () => undefined } as never);
+
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+    await React.act(async () => composer.setInput('hello'));
+    await React.act(async () => { void press(); });
+
+    const bubbles = added.filter((message) => message.type === 'user');
+    assert.equal(bubbles.length, 1, 'the bubble is up before the session exists');
+    const requestId = requestIdFromMessageId(bubbles[0].id);
+    assert.ok(requestId);
+    assert.equal(getSend(requestId)?.stage, 'creating');
+    assert.equal(composer.input, '', 'the composer clears at the press');
+
+    // A second message typed while the first chat is still being created is held, not sent.
+    await React.act(async () => composer.setInput('second'));
+    await React.act(async () => { void press(); });
+    assert.equal(creates.length, 1);
+    assert.equal(creates[0].body.requestId, requestId, 'the create can be retried safely');
+    assert.equal(composer.input, 'second');
+
+    await React.act(async () => {
+      creates[0].resolve(new Response(JSON.stringify({ data: { sessionId: 'session-send-1' } }), { status: 201 }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.deepEqual(dispatched.map(({ sessionId, requestId: id, content }) => ({ sessionId, id, content })), [
+      { sessionId: 'session-send-1', id: requestId, content: 'hello' },
+    ]);
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    globalThis.fetch = originalFetch;
+    resetOutboxForTests();
+    localStorage.clear();
+  }
+});
+
+test('a send is resent with its own id after a reconnect, settles on its receipt, and gives up after two minutes', async () => {
+  resetOutboxForTests();
+  const listeners = new Set<(event: ServerEvent) => void>();
+  const emit = (event: ServerEvent) => React.act(async () => { for (const listener of listeners) listener(event); });
+  const sent: ChatSendFrame[] = [];
+  let connected = true;
+  const processing: string[] = [];
+  const idled: string[] = [];
+  function Harness() {
+    useSendOutboxDriver({
+      sendMessage: (message) => {
+        if (!connected) return false;
+        sent.push(message as ChatSendFrame);
+        return true;
+      },
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      probeConnection: () => undefined,
+      isConnected: connected,
+      markSessionProcessing: (sessionId) => { if (sessionId) processing.push(sessionId); },
+      markSessionIdle: (sessionId) => { if (sessionId) idled.push(sessionId); },
+    });
+    return null;
+  }
+  const open = (requestId: string) => {
+    openSend({ requestId, sessionId: 's-out', projectId: 'p-out', content: requestId, stage: 'sending', attachmentCount: 0 }, async () => undefined);
+    updateSend(requestId, { frame: { type: 'chat.send', sessionId: 's-out', requestId, content: requestId, options: {} } });
+  };
+  const host = document.createElement('div');
+  const root = createRoot(host);
+
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+
+    open('request-one');
+    await React.act(async () => dispatchSend('request-one'));
+    assert.equal(getSend('request-one')?.stage, 'sending');
+    assert.deepEqual(processing, ['s-out'], 'a message typed meanwhile queues behind it');
+    assert.equal(takeOrphanedUnsent('p-out'), null, 'a send this page still tracks is not an orphan');
+
+    await emit({ kind: 'websocket_reconnected' });
+    assert.deepEqual(sent.map((frame) => frame.requestId), ['request-one', 'request-one']);
+    await emit({ kind: 'chat_input_accepted', requestId: 'request-one', sessionId: 's-out' });
+    assert.equal(getSend('request-one'), undefined);
+
+    connected = false;
+    open('request-two');
+    await React.act(async () => dispatchSend('request-two'));
+    assert.equal(getSend('request-two')?.stage, 'waiting');
+    await emit({ kind: 'protocol_error', requestId: 'request-two', code: 'RUN_IN_PROGRESS', sessionId: 's-out' });
+    assert.equal(getSend('request-two')?.stage, 'failed');
+    connected = true;
+    await React.act(async () => retrySend('request-two'));
+    assert.equal(sent.at(-1)?.requestId, 'request-two', 'Retry keeps the id, so a copy that arrived is not run twice');
+
+    updateSend('request-two', { startedAt: Date.now() - SEND_GIVE_UP_MS });
+    await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
+    assert.equal(getSend('request-two')?.stage, 'failed');
+    assert.deepEqual(idled, ['s-out']);
+
+    // A later page finds the unconfirmed text and hands it back once.
+    resetOutboxForTests();
+    localStorage.setItem('clide:unsent-sends:v1', JSON.stringify([
+      { requestId: 'request-gone', projectId: 'p-out', content: 'lost in a reload', at: Date.now() },
+    ]));
+    assert.equal(takeOrphanedUnsent('p-out'), 'lost in a reload');
+    assert.equal(takeOrphanedUnsent('p-out'), null);
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    resetOutboxForTests();
+    localStorage.clear();
+  }
 });

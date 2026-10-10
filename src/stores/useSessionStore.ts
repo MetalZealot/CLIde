@@ -1410,6 +1410,18 @@ export function useSessionStore() {
     return last;
   }, [notify]);
 
+  /** Removes one local echo (a `local_` row) by id; transcript rows are never touched. */
+  const removeLocalMessage = useCallback((sessionId: string, messageId: string): boolean => {
+    const slot = storeRef.current.get(sessionId);
+    if (!slot || !messageId.startsWith('local_')) return false;
+    const kept = slot.realtimeMessages.filter((message) => message.id !== messageId);
+    if (kept.length === slot.realtimeMessages.length) return false;
+    slot.realtimeMessages = kept;
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+    return true;
+  }, [notify]);
+
   /**
    * Get merged messages for a session (for rendering).
    */
@@ -1451,13 +1463,14 @@ export function useSessionStore() {
     patchToolResult,
     truncateFromMessageId,
     retractUndeliveredUserTurn,
+    removeLocalMessage,
   }), [
     getSlot, has, fetchFromServer, fetchMore, fetchAround, fetchNewer, fetchFindText,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, discardStreaming,
     clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort, setFastMode,
     patchToolResult,
-    truncateFromMessageId, retractUndeliveredUserTurn,
+    truncateFromMessageId, retractUndeliveredUserTurn, removeLocalMessage,
   ]);
 }
 

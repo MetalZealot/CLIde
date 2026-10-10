@@ -54,6 +54,7 @@ import type {
   ProviderSkillCreateInput,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
+import { readRequestId } from '@/shared/request-receipts.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
 const router = express.Router();
@@ -829,7 +830,7 @@ router.post(
     const body = (req.body ?? {}) as Record<string, unknown>;
     const provider = parseProvider(body.provider);
     const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
-    const result = sessionsService.createAppSession(provider, projectPath);
+    const result = sessionsService.createAppSession(provider, projectPath, readRequestId(body.requestId));
     res.status(201).json(createApiSuccessResponse(result));
   }),
 );

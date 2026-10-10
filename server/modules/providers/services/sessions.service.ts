@@ -13,6 +13,7 @@ import type {
   NormalizedMessage,
   SideQuestionExchange,
 } from '@/shared/types.js';
+import { createRequestReceipts } from '@/shared/request-receipts.js';
 import { AppError } from '@/shared/utils.js';
 
 import {
@@ -185,6 +186,9 @@ async function loadFullHistory(
   return { result, identity };
 }
 
+/** Sessions created per client request id, so a retried create returns the same session. */
+const createdAppSessions = createRequestReceipts<CreateAppSessionResult>({ ttlMs: 10 * 60_000, maxEntries: 200 });
+
 export const sessionsService = {
   /**
    * Lists provider ids that can load session history and normalize live messages.
@@ -245,7 +249,7 @@ export const sessionsService = {
    * for the lifetime of the conversation. The provider-native id is mapped to
    * this row later, when the provider runtime announces it mid-run.
    */
-  createAppSession(provider: LLMProvider, projectPath: string): CreateAppSessionResult {
+  createAppSession(provider: LLMProvider, projectPath: string, requestId: string | null = null): CreateAppSessionResult {
     const normalizedProjectPath = projectPath.trim();
     if (!normalizedProjectPath) {
       throw new AppError('projectPath is required.', {
@@ -254,14 +258,20 @@ export const sessionsService = {
       });
     }
 
+    const receiptKey = requestId ? `${provider}:${normalizedProjectPath}:${requestId}` : null;
+    const existing = receiptKey ? createdAppSessions.get(receiptKey) : undefined;
+    if (existing) return existing;
+
     const sessionId = randomUUID();
     sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath);
 
-    return {
+    const result = {
       sessionId,
       provider,
       projectPath: normalizedProjectPath,
     };
+    if (receiptKey) createdAppSessions.set(receiptKey, result);
+    return result;
   },
 
   /**

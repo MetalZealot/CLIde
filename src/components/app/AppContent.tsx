@@ -12,6 +12,7 @@ import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { useAsyncAnswerQueueAutoSend } from '../../hooks/useAsyncAnswerQueueAutoSend';
+import { useSendOutboxDriver } from '../../hooks/useSendOutboxDriver';
 import { useSyncedPreferences } from '../../hooks/useSyncedPreferences';
 import { api } from '../../utils/api';
 import { requestStaleClaudePluginUpdate } from '../skills/hooks/useClaudePluginUpdates';
@@ -57,7 +58,7 @@ function AppContentInner() {
   const location = useLocation();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { isMobile, isPWA } = useDeviceSettings();
-  const { ws, sendMessage, subscribe } = useWebSocket();
+  const { ws, sendMessage, subscribe, probeConnection, isConnected } = useWebSocket();
 
   useSyncedPreferences();
 
@@ -120,6 +121,14 @@ function AppContentInner() {
     ws,
     sendMessage,
     markSessionProcessing,
+  });
+  useSendOutboxDriver({
+    sendMessage,
+    subscribe,
+    probeConnection,
+    isConnected,
+    markSessionProcessing,
+    markSessionIdle,
   });
 
   const refreshRunningSessions = useCallback(async () => {

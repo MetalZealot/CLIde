@@ -549,5 +549,17 @@
     "cancel": "Cancel",
     "updateFailed": "CLI update failed.",
     "cancelFailed": "Could not cancel the update."
+  },
+  "send": {
+    "uploadingPhotos_one": "Uploading {{count}} photo…",
+    "uploadingPhotos_other": "Uploading {{count}} photos…",
+    "uploadingFiles_one": "Uploading {{count}} file…",
+    "uploadingFiles_other": "Uploading {{count}} files…",
+    "creating": "Creating chat…",
+    "waiting": "Waiting for connection…",
+    "sending": "Sending…",
+    "notSent": "Not sent",
+    "retry": "Retry",
+    "edit": "Edit"
   }
 }

@@ -31,6 +31,8 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import { TextDisclosure } from './DisclosureRow';
 import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
+import UserSendStatus from './UserSendStatus';
+import { failSend, localSendMessageId, openSend, resetOutboxForTests, updateSend } from '../../../../stores/sendOutbox';
 import ScrollToBottomButton from './ScrollToBottomButton';
 import { ChatExportOptions } from './ChatExportMenu';
 import ChatFindBar from './ChatFindBar';
@@ -646,6 +648,47 @@ describe('chatSubcomponents', () => {
         </I18nextProvider>,
       ));
       assert.equal(container.querySelector('button[aria-expanded]')?.textContent, 'Edit probe.txt· denied', 'the banner\'s Deny counts as a denial');
+    });
+
+    test('a user bubble names its send stage until confirmed, then shows its time', async () => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      resetOutboxForTests();
+      const message: ChatMessage = {
+        id: localSendMessageId('label-request'),
+        type: 'user',
+        content: 'hi',
+        timestamp: new Date(),
+        images: [{ name: 'a.png', mimeType: 'image/png' }, { name: 'b.png', mimeType: 'image/png' }],
+      };
+      const edited: ChatMessage[] = [];
+      const render = () => React.act(async () => (
+        root?.render(<I18nextProvider i18n={i18next}>
+          <UserSendStatus message={message} timeLabel="12:00" onEditUnsent={(m) => edited.push(m)} />
+        </I18nextProvider>)
+      ));
+
+      await render();
+      assert.equal(container.textContent, '12:00', 'no send on record: just the time');
+
+      await React.act(async () => openSend({
+        requestId: 'label-request', sessionId: 's', projectId: 'p', content: 'hi', stage: 'uploading', attachmentCount: 2,
+      }, async () => undefined));
+      assert.equal(container.textContent, 'Uploading 2 photos…');
+      await React.act(async () => updateSend('label-request', { stage: 'waiting' }));
+      assert.equal(container.textContent, 'Waiting for connection…');
+      await React.act(async () => updateSend('label-request', { stage: 'sending', sentAt: Date.now() }));
+      assert.equal(container.textContent, '12:00', 'a prompt receipt never flashes a label');
+      await React.act(async () => updateSend('label-request', { slow: true }));
+      assert.equal(container.textContent, 'Sending…');
+
+      await React.act(async () => failSend('label-request', 'Failed to upload files'));
+      assert.match(container.textContent ?? '', /^Not sent·Retry·EditFailed to upload files$/);
+      const edit = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Edit');
+      await React.act(async () => edit?.click());
+      assert.equal(edited.length, 1);
+      resetOutboxForTests();
     });
 
     test('the status row puts time and tokens first, then the reported stage or Working', async () => {

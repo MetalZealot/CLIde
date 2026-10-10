@@ -8,7 +8,7 @@ import test, { describe } from 'node:test';
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
-import { filterAttachmentsToUploadStore, filterImagesToUploadStore, handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
+import { clearAcceptedChatSends, filterAttachmentsToUploadStore, filterImagesToUploadStore, handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { handleShellConnection, isSessionOpenInShell } from '@/modules/websocket/services/shell-websocket.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
 import { getGlobalImageAssetsDir } from '@/shared/image-attachments.js';
@@ -54,6 +54,7 @@ describe('chat-session-addressing', () => {
     } finally {
       connectedClients.clear();
       chatRunRegistry.clearAll();
+      clearAcceptedChatSends();
       closeConnection();
       if (previousDatabasePath === undefined) {
         delete process.env.DATABASE_PATH;
@@ -408,6 +409,80 @@ describe('chat-session-addressing', () => {
    * letting the runtime fall back to a provider default — otherwise omitting the
    * value to avoid leaking one session's effort would silently discard it.
    */
+  test('chat.send confirms a request id once and never runs its resend', async () => {
+    await withIsolatedDatabase(async () => {
+      const appSessionId = 'app-receipt-1';
+      sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+
+      const commands: string[] = [];
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => true,
+          run: async (_provider, command) => {
+            commands.push(command);
+          },
+          abort: async () => true,
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+
+      // The first socket dies after the server read the frame; the resend comes on a new one.
+      const first = new FakeConnection();
+      const second = new FakeConnection();
+      handleChatConnection(first as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      handleChatConnection(second as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      const frame = JSON.stringify({ type: 'chat.send', sessionId: appSessionId, requestId: 'send-request-1', content: 'do it once' });
+
+      first.emit('message', frame);
+      await flush();
+      second.emit('message', frame);
+      await flush();
+
+      assert.deepEqual(commands, ['do it once']);
+      for (const connection of [first, second]) {
+        const ack = connection.frames.find((received) => received.kind === 'chat_input_accepted');
+        assert.equal(ack?.requestId, 'send-request-1');
+        assert.equal(ack?.sessionId, appSessionId);
+      }
+    });
+  });
+
+  test('chat.send names the request id when it refuses, so the same id can try again', async () => {
+    await withIsolatedDatabase(async () => {
+      const appSessionId = 'app-receipt-2';
+      sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+
+      const commands: string[] = [];
+      let available = false;
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => available,
+          run: async (_provider, command) => {
+            commands.push(command);
+          },
+          abort: async () => true,
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+
+      const connection = new FakeConnection();
+      handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      const frame = JSON.stringify({ type: 'chat.send', sessionId: appSessionId, requestId: 'send-request-2', content: 'retry me' });
+
+      connection.emit('message', frame);
+      await flush();
+      const refusal = connection.frames.find((received) => received.kind === 'protocol_error');
+      assert.equal(refusal?.requestId, 'send-request-2');
+
+      available = true;
+      connection.emit('message', frame);
+      await flush();
+      assert.deepEqual(commands, ['retry me']);
+    });
+  });
+
   test('chat.send resolves the session\'s own effort when the client sends none', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-effort-1';

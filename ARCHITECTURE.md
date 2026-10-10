@@ -353,6 +353,19 @@ Each provider's synchronizer reads the newest timestamped transcript row
 **Breaks:** opening a Claude session appends untimestamped rows, so it jumps to the
 top of the sidebar without having done anything.
 
+### Sending
+
+#### 21. A composer send runs once, and says where it is until the server has it
+
+Pressing Send shows the bubble at once and gives the send a request id. Session
+creation and `chat.send` both carry it; the server confirms each id with
+`chat_input_accepted` and never acts on one twice, so resends after a reconnect and
+Retry reuse it. The bubble's label and the activity line's wait both read
+`stores/sendOutbox.ts`; an unconfirmed send gives up after two minutes.
+
+**Breaks:** a slow network turns repeated presses or a reconnect into duplicate
+sessions or turns, or a press shows nothing until the network answers.
+
 ## Reviewing a change
 
 A change needs a second look if it would:
@@ -372,6 +385,7 @@ A change needs a second look if it would:
 - add a card above the composer for something not waiting on the user (16);
 - accept an executable path from the browser (19);
 - sort or date sessions by a file's modified time (20);
+- send a composer message without its request id, or retry one under a new id (21);
 - change the architecture without a check against the quality goals and a
   pre-mortem.
 

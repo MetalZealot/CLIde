@@ -46,6 +46,7 @@ export type FlightEventName =
   | 'ws.error'
   | 'ws.watchdog'
   | 'ws.wake'
+  | 'outbox' // a composer send changed stage; `kind` says how
   | 'page.hidden'
   | 'page.visible';
 

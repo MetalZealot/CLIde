@@ -165,6 +165,7 @@ export default tseslint.config(
             "server/shared/codex-token-usage.{js,ts}",
             "server/shared/project-accent-colors.ts",
             "server/shared/git-checkout.ts",
+            "server/shared/request-receipts.ts",
           ], // classify shared utility files so modules can depend on them explicitly
           mode: "file",
         },

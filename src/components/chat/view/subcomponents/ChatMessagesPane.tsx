@@ -10,6 +10,7 @@ import type { FileOpenOptions } from '../../../code-editor/types/types';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnSummaries } from '../../utils/turnDuration';
+import { useHasPendingSend } from '../../../../stores/sendOutbox';
 
 import ActivityIndicator from './ActivityIndicator';
 import MessageComponent from './MessageComponent';
@@ -53,6 +54,7 @@ interface ChatMessagesPaneProps {
   pendingPermissionRequests?: PendingPermissionRequest[];
   selectedProject: Project | null;
   onEditMessage?: (message: ChatMessage) => void;
+  onEditUnsent?: (message: ChatMessage) => void;
   canEditMessage?: boolean;
   /** Base transcript uuid of the message loaded in the rewind-edit composer. */
   rewindEditTargetUuid?: string | null;
@@ -98,6 +100,7 @@ function ChatMessagesPane({
   pendingPermissionRequests,
   selectedProject,
   onEditMessage,
+  onEditUnsent,
   canEditMessage = false,
   rewindEditTargetUuid = null,
   liveLimitStopMessage = null,
@@ -111,6 +114,8 @@ function ChatMessagesPane({
   onResumeScheduledMessage,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
+  // Until the server confirms the send, the bubble's label tells the story; the run has not started.
+  const sendPending = useHasPendingSend(selectedSession?.id || currentSessionId || null);
   const pendingToolIds = useMemo(
     () => new Set((pendingPermissionRequests ?? []).flatMap((request) => (request.toolId ? [request.toolId] : []))),
     [pendingPermissionRequests],
@@ -327,6 +332,7 @@ function ChatMessagesPane({
                   showThinking={showThinking}
                   selectedProject={selectedProject as Project}
                   onEditMessage={onEditMessage}
+                  onEditUnsent={onEditUnsent}
                   canEditMessage={canEditMessage}
                   isRewindEditTarget={
                     rewindEditTargetUuid !== null &&
@@ -344,9 +350,9 @@ function ChatMessagesPane({
       )}
       {!isLoadingSessionMessages && (
         <ActivityIndicator
-          activity={activity}
+          activity={sendPending ? null : activity}
           awaitingInput={(pendingPermissionRequests?.length ?? 0) > 0}
-          turnEnd={turnEnd}
+          turnEnd={sendPending ? null : turnEnd}
         />
       )}
       {!isLoadingSessionMessages && (

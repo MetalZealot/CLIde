@@ -33,6 +33,7 @@ import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
+import UserSendStatus from './UserSendStatus';
 
 type DiffLine = {
   type: string;
@@ -54,6 +55,8 @@ type MessageComponentProps = {
   selectedProject?: Project | null;
   /** Enters rewind-edit mode for this (user) message. */
   onEditMessage?: (message: ChatMessage) => void;
+  /** Takes an unconfirmed send back into the composer. */
+  onEditUnsent?: (message: ChatMessage) => void;
   /** Provider supports rewind and no turn is running. */
   canEditMessage?: boolean;
   /** This message is the one currently loaded in the rewind-edit composer. */
@@ -65,7 +68,7 @@ type MessageComponentProps = {
   hasResetMessage?: boolean;
 };
 
-const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, onEditMessage, onEditUnsent, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -181,7 +184,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                 </div>
                 {/* Copy + timestamp sit below the bubble, claude.ai-style */}
                 <div className="-mt-1 flex select-none items-center justify-end gap-1 px-1 text-chat-meta text-muted-foreground">
-                  <span>{formattedTime}</span>
+                  <UserSendStatus message={message} timeLabel={formattedTime} onEditUnsent={onEditUnsent} />
                   {shouldShowUserEditControl && (
                     <button
                       type="button"
@@ -201,7 +204,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
             ) : (
               /* Attachment-only turn: no text bubble, but the timestamp still shows */
               <div className="flex select-none items-center justify-end gap-1 text-chat-meta text-muted-foreground">
-                <span>{formattedTime}</span>
+                <UserSendStatus message={message} timeLabel={formattedTime} onEditUnsent={onEditUnsent} />
               </div>
             )}
           </div>

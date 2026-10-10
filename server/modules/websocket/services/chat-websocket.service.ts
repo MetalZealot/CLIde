@@ -13,6 +13,7 @@ import {
   normalizeAttachmentDescriptors,
   type ChatAttachmentDescriptor,
 } from '@/shared/image-attachments.js';
+import { createRequestReceipts, readRequestId } from '@/shared/request-receipts.js';
 import type {
   AnyRecord,
   AuthenticatedWebSocketRequest,
@@ -143,13 +144,37 @@ function sendProtocolError(
   ws: WebSocket,
   code: string,
   error: string,
-  sessionId?: string
+  sessionId?: string,
+  requestId?: string | null
 ): void {
+  if (requestId) console.log(`[chat] send session=${sessionId ?? 'none'} request=${requestId} rejected ${code}`);
   sendJson(ws, {
     kind: 'protocol_error',
     code,
     error,
     sessionId: sessionId ?? null,
+    ...(requestId ? { requestId } : {}),
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * `chat.send` request ids that already started a run, keyed by session. Outlives
+ * the client's two-minute resend window by a wide margin.
+ */
+const acceptedChatSends = createRequestReceipts<true>({ ttlMs: 10 * 60_000, maxEntries: 500 });
+
+/** Test-only: forget every accepted send. */
+export function clearAcceptedChatSends(): void {
+  acceptedChatSends.clear();
+}
+
+function sendChatSendAccepted(ws: WebSocket, sessionId: string, requestId: string): void {
+  sendJson(ws, {
+    kind: 'chat_input_accepted',
+    requestId,
+    sessionId,
+    delivery: 'run',
     timestamp: new Date().toISOString(),
   });
 }
@@ -389,8 +414,17 @@ async function handleChatSend(
   dependencies: ChatWebSocketDependencies
 ): Promise<void> {
   const sessionId = readRequiredSessionId(data);
+  const requestId = readRequestId(data.requestId);
   if (!sessionId) {
-    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.send requires a sessionId.');
+    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.send requires a sessionId.', undefined, requestId);
+    return;
+  }
+
+  // A resend of a message that already started a run: confirm it again, never run it twice.
+  const receiptKey = requestId ? `${sessionId}:${requestId}` : null;
+  if (receiptKey && acceptedChatSends.get(receiptKey)) {
+    console.log(`[chat] send session=${sessionId} request=${requestId} duplicate`);
+    sendChatSendAccepted(ws, sessionId, requestId!);
     return;
   }
 
@@ -400,14 +434,15 @@ async function handleChatSend(
       ws,
       'SESSION_NOT_FOUND',
       `Session "${sessionId}" was not found. Create it via POST /api/providers/sessions first.`,
-      sessionId
+      sessionId,
+      requestId
     );
     return;
   }
 
   const provider = session.provider as LLMProvider;
   if (!dependencies.runtime.hasRuntime(provider)) {
-    sendProtocolError(ws, 'UNSUPPORTED_PROVIDER', `Provider "${provider}" is not available.`, sessionId);
+    sendProtocolError(ws, 'UNSUPPORTED_PROVIDER', `Provider "${provider}" is not available.`, sessionId, requestId);
     return;
   }
 
@@ -422,7 +457,8 @@ async function handleChatSend(
       ws,
       'REWIND_UNSUPPORTED',
       `Provider "${provider}" does not support rewinding to an earlier message.`,
-      sessionId
+      sessionId,
+      requestId
     );
     return;
   }
@@ -433,7 +469,8 @@ async function handleChatSend(
       ws,
       'SESSION_OPEN_IN_SHELL',
       'This session is open in the Shell. Open the Shell and choose Disconnect first.',
-      sessionId
+      sessionId,
+      requestId
     );
     return;
   }
@@ -457,9 +494,16 @@ async function handleChatSend(
       ws,
       'RUN_IN_PROGRESS',
       `Session "${sessionId}" already has a run in progress.`,
-      sessionId
+      sessionId,
+      requestId
     );
     return;
+  }
+
+  console.log(`[chat] send session=${sessionId} request=${requestId ?? 'none'} accepted`);
+  if (receiptKey) {
+    acceptedChatSends.set(receiptKey, true);
+    sendChatSendAccepted(ws, sessionId, requestId!);
   }
 
   const clientOptions = (data.options ?? {}) as AnyRecord;

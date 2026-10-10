@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import type { ChatInterfaceProps, PermissionMode, TurnEnd } from '../types/types';
+import type { ChatInterfaceProps, ChatMessage, PermissionMode, TurnEnd } from '../types/types';
 import type { LLMProvider, ProviderModelOption } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
@@ -25,6 +25,7 @@ import {
 import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks/useProviderCapabilities';
 import { initialScheduleDraft, rememberScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../utils/scheduleDraft';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { requestIdFromMessageId, withdrawSend } from '../../../stores/sendOutbox';
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import { useProviderUsage } from '../../provider-usage/hooks/useProviderUsage';
@@ -181,6 +182,7 @@ function ChatInterface({
   const {
     chatMessages,
     addMessage,
+    discardLocalUserMessage,
     sessionActivity,
     isProcessing,
     canAbortSession,
@@ -313,6 +315,7 @@ function ChatInterface({
     pendingRewind,
     beginRewindEdit,
     restoreUndeliveredTurn,
+    restoreUnsentDraft,
     cancelRewindEdit,
     showRewindPicker,
     closeRewindPicker,
@@ -594,6 +597,22 @@ function ChatInterface({
       [...(message.images ?? []), ...(message.files ?? [])],
     );
   }, [selectedSession?.id, currentSessionId, restoreUndeliveredTurn]);
+
+  /** Edit on a send that never got through: the bubble goes, its text and files return to the composer. */
+  const handleEditUnsent = useCallback((message: ChatMessage) => {
+    const requestId = requestIdFromMessageId(message.id);
+    const withdrawn = requestId ? withdrawSend(requestId) : null;
+    if (!withdrawn) return;
+    discardLocalUserMessage(String(message.id));
+    restoreUnsentDraft(withdrawn.entry.content, withdrawn.files);
+    // Already uploaded (a queued send): rebuild the files from the server copies.
+    const stored = [...(message.images ?? []), ...(message.files ?? [])];
+    if (withdrawn.files.length === 0 && stored.length > 0) {
+      void Promise.all(stored.map(fetchAttachmentFile)).then((files) => {
+        restoreUnsentDraft('', files.filter((file): file is File => file !== null));
+      });
+    }
+  }, [discardLocalUserMessage, restoreUnsentDraft]);
 
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
   const {
@@ -1062,6 +1081,7 @@ function ChatInterface({
           pendingPermissionRequests={pendingPermissionRequests}
           selectedProject={selectedProject}
           onEditMessage={beginRewindEdit}
+          onEditUnsent={handleEditUnsent}
           canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
           liveLimitStopMessage={liveLimitStop}

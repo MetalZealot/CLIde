@@ -194,6 +194,19 @@ describe('provider-sessions', () => {
       });
     });
 
+    test('createAppSession returns the same session for a retried request id', async () => {
+      await withIsolatedDatabase(() => {
+        const first = sessionsService.createAppSession('claude', '/home/user/retry-project', 'retry-request-1');
+        const retried = sessionsService.createAppSession('claude', '/home/user/retry-project', 'retry-request-1');
+        const other = sessionsService.createAppSession('claude', '/home/user/retry-project', 'retry-request-2');
+        const unkeyed = sessionsService.createAppSession('claude', '/home/user/retry-project');
+
+        assert.equal(retried.sessionId, first.sessionId);
+        assert.notEqual(other.sessionId, first.sessionId);
+        assert.notEqual(unkeyed.sessionId, first.sessionId);
+      });
+    });
+
     test('getSessionDetailsById throws SESSION_NOT_FOUND for unknown ids', async () => {
       await withIsolatedDatabase(() => {
         assert.throws(
