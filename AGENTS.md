@@ -116,8 +116,8 @@ universal target floor.  Read [the design system](docs/design-system.md) first.
 
 ## Code comments
 
-Fork-authored comments run ~30% wordier than upstream's, and every stale path in one sat
-inside narrative that condensing removes anyway — so these rules target length.
+Fork comments run wordier than upstream's and hide stale paths, so these rules target
+length.
 
 - **State the invariant, not the incident.**  No "used to", "this replaced", "before
   the fix" — git holds that.  Describe what must stay true, not what went wrong.
@@ -163,8 +163,11 @@ inside narrative that condensing removes anyway — so these rules target length
   work is cherry-picked or reimplemented, never rebased or merged** — see
   [the upstream doc](docs/upstream.md).
 - Conventional commits are enforced by commitlint; eslint runs on staged files.
-  **Commit verified work in the same turn, unasked**, by path
-  (`git commit -- <paths>`): another agent may share the checkout, so never `stash`,
+  **One commit per finished task, made once Grayson has tested it — never per
+  edit.**  Leave the task uncommitted until he says it passes, so he can review and
+  `/code-review` it as one diff; its TODO flips, doc and probe updates ride in the
+  same commit.  On a topic branch, commit freely; it lands on `main` squashed.
+  Commit by path (`git commit -- <paths>`): another agent may share the checkout, so never `stash`,
   `reset`, `checkout --`, `add -A`, or `commit -a`.  A file already holding edits you
   did not make cannot be split between two commits — stop and say so.
 - Work on `main` by default.  Create a worktree/topic branch only for genuinely
@@ -195,11 +198,8 @@ inside narrative that condensing removes anyway — so these rules target length
 - Categorize fixes as fork-only or upstreamable in `docs/upstream.md`.
   Before calling a defect upstream-wide, inspect upstream code, not just issues/PRs.
   Never open, push, or update an upstream PR without the user's explicit approval.
-- **Never end a turn by asking "worth an ADR?"** — write one only when asked, or
-  when a decision is the kind a future session would otherwise undo (a deliberate
-  constraint that looks like a bug); then write it in the same batch as the work,
-  in five sentences.  Otherwise the commit message is the record.  ADRs
-  are append-only: supersede, never rewrite.
+- **Never end a turn by asking "worth an ADR?"** — write one only when asked or
+  it meets [the bar](docs/decisions/README.md), with the work, in five sentences.
 
 ## Keeping the guides honest
 
