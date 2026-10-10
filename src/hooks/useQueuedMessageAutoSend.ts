@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { clearQueuedMessage, readQueuedMessage } from '../components/chat/utils/chatStorage';
+import { deliverNow, mintRequestId } from '../stores/sendOutbox';
 
 import type { MarkSessionProcessing, SessionActivityMap } from './useSessionProtection';
 
@@ -13,7 +14,6 @@ interface UseQueuedMessageAutoSendArgs {
    */
   activeSessionId: string | null;
   ws: WebSocket | null;
-  sendMessage: (message: unknown) => boolean;
   markSessionProcessing: MarkSessionProcessing;
 }
 
@@ -31,7 +31,6 @@ export function useQueuedMessageAutoSend({
   processingSessions,
   activeSessionId,
   ws,
-  sendMessage,
   markSessionProcessing,
 }: UseQueuedMessageAutoSendArgs) {
   const prevProcessingRef = useRef<ReadonlySet<string>>(new Set());
@@ -58,13 +57,14 @@ export function useQueuedMessageAutoSend({
       }
 
       clearQueuedMessage(sessionId);
-      sendMessage({
+      deliverNow({
         type: 'chat.send',
         sessionId,
+        requestId: mintRequestId(),
         content: queued.content,
         options: { ...(queued.options ?? {}), attachments: queued.attachments ?? queued.images ?? [] },
-      });
+      }, null);
       markSessionProcessing(sessionId, { statusText: null, canInterrupt: true });
     }
-  }, [processingSessions, activeSessionId, ws, sendMessage, markSessionProcessing]);
+  }, [processingSessions, activeSessionId, ws, markSessionProcessing]);
 }

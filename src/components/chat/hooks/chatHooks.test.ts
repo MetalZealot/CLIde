@@ -17,13 +17,17 @@ import type { Project, ProjectSession } from '../../../types/app';
 import { useSendOutboxDriver } from '../../../hooks/useSendOutboxDriver';
 import {
   SEND_GIVE_UP_MS,
+  SEND_RETRY_WINDOW_MS,
+  canRetrySend,
   dispatchSend,
+  failSend,
   getSend,
   openSend,
   requestIdFromMessageId,
   resetOutboxForTests,
   retrySend,
   setSendDispatcher,
+  setSendFrame,
   takeOrphanedUnsent,
   updateSend,
   type ChatSendFrame,
@@ -44,6 +48,8 @@ import {
   resolveSessionSendSetting,
   resolveUsagePopoverView,
   selectPastedAttachments,
+  UPLOAD_STALL_MS,
+  uploadAttachmentFiles,
   useChatComposerState,
 } from './useChatComposerState';
 import { resolveLiveLimitStop } from './useAutoContinue';
@@ -578,11 +584,18 @@ test('a composer message dispatches before a queued async answer', async () => {
       return true;
     }, []);
 
+    useSendOutboxDriver({
+      sendMessage,
+      subscribe: () => () => undefined,
+      probeConnection: () => undefined,
+      isConnected: true,
+      markSessionProcessing,
+      markSessionIdle: () => undefined,
+    });
     useQueuedMessageAutoSend({
       processingSessions,
       activeSessionId: null,
       ws,
-      sendMessage,
       markSessionProcessing,
     });
     useAsyncAnswerQueueAutoSend({
@@ -1586,7 +1599,7 @@ test('a new chat shows its bubble at the press and a second press cannot start a
   }
 });
 
-test('a send is resent with its own id after a reconnect, settles on its receipt, and gives up after two minutes', async () => {
+test('a send is resent with its own id after a reconnect, settles on its receipt, and gives up after two minutes of delivery', async () => {
   resetOutboxForTests();
   const listeners = new Set<(event: ServerEvent) => void>();
   const emit = (event: ServerEvent) => React.act(async () => { for (const listener of listeners) listener(event); });
@@ -1613,8 +1626,8 @@ test('a send is resent with its own id after a reconnect, settles on its receipt
     return null;
   }
   const open = (requestId: string) => {
-    openSend({ requestId, sessionId: 's-out', projectId: 'p-out', content: requestId, stage: 'sending', attachmentCount: 0 }, async () => undefined);
-    updateSend(requestId, { frame: { type: 'chat.send', sessionId: 's-out', requestId, content: requestId, options: {} } });
+    openSend({ requestId, sessionId: 's-out', projectId: 'p-out', content: requestId, stage: 'sending', attachmentCount: 0 }, null);
+    setSendFrame(requestId, { type: 'chat.send', sessionId: 's-out', requestId, content: requestId, options: {} });
   };
   const host = document.createElement('div');
   const root = createRoot(host);
@@ -1643,15 +1656,39 @@ test('a send is resent with its own id after a reconnect, settles on its receipt
     await React.act(async () => retrySend('request-two'));
     assert.equal(sent.at(-1)?.requestId, 'request-two', 'Retry keeps the id, so a copy that arrived is not run twice');
 
+    // An upload is never on the clock; delivery is.
+    openSend({ requestId: 'request-upload', sessionId: 's-up', projectId: 'p-out', content: 'big', stage: 'uploading', attachmentCount: 3 }, null);
+    updateSend('request-upload', { startedAt: Date.now() - SEND_GIVE_UP_MS });
     updateSend('request-two', { startedAt: Date.now() - SEND_GIVE_UP_MS });
+    const idledBefore = idled.length;
     await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
     assert.equal(getSend('request-two')?.stage, 'failed');
-    assert.deepEqual(idled, ['s-out']);
+    assert.equal(getSend('request-upload')?.stage, 'uploading');
+    assert.equal(idled.length, idledBefore, 'a send a socket had may be running, so its session is not called idle');
 
-    // A later page finds the unconfirmed text and hands it back once.
+    // Asking after a reconnect, never resending, settles it without marking a run that may be long over.
+    const processingBefore = processing.length;
+    await emit({ kind: 'websocket_reconnected' });
+    assert.deepEqual(sent.at(-1), { type: 'chat.receipt', sessionId: 's-out', requestId: 'request-two' });
+    await emit({ kind: 'chat_input_accepted', requestId: 'request-two', sessionId: 's-out' });
+    assert.equal(getSend('request-two'), undefined);
+    assert.equal(processing.length, processingBefore);
+
+    // A send that failed before any socket had it frees its session.
+    openSend({ requestId: 'request-three', sessionId: 's-new', projectId: 'p-out', content: 'x', stage: 'uploading', attachmentCount: 1 }, null);
+    await React.act(async () => failSend('request-three', 'Upload stalled'));
+    assert.equal(idled.at(-1), 's-new');
+
+    // Past the server's memory of the id, Retry is withdrawn.
+    const late = { ...getSend('request-three')!, firstSentAt: Date.now() - SEND_RETRY_WINDOW_MS };
+    assert.equal(canRetrySend(late), false);
+    assert.equal(canRetrySend({ ...late, firstSentAt: null }), true);
+
+    // A later page finds the unconfirmed text and hands it back once; a live tab's record stays put.
     resetOutboxForTests();
     localStorage.setItem('clide:unsent-sends:v1', JSON.stringify([
-      { requestId: 'request-gone', projectId: 'p-out', content: 'lost in a reload', at: Date.now() },
+      { requestId: 'request-gone', projectId: 'p-out', content: 'lost in a reload', at: Date.now() - 300_000, ownerId: 'dead-page', seenAt: Date.now() - 300_000 },
+      { requestId: 'request-live', projectId: 'p-out', content: 'another tab sending', at: Date.now(), ownerId: 'live-page', seenAt: Date.now() },
     ]));
     assert.equal(takeOrphanedUnsent('p-out'), 'lost in a reload');
     assert.equal(takeOrphanedUnsent('p-out'), null);
@@ -1660,5 +1697,46 @@ test('a send is resent with its own id after a reconnect, settles on its receipt
     host.remove();
     resetOutboxForTests();
     localStorage.clear();
+  }
+});
+
+test('an upload fails only once it stops moving, however long it takes', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const originalXhr = globalThis.XMLHttpRequest;
+  const opened: FakeXhr[] = [];
+  class FakeXhr {
+    upload: { onprogress: (() => void) | null } = { onprogress: null };
+    onprogress: (() => void) | null = null;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    aborted = false;
+    constructor() { opened.push(this); }
+    open() {}
+    setRequestHeader() {}
+    send() {}
+    abort() { this.aborted = true; }
+    getResponseHeader() { return null; }
+  }
+  globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+  try {
+    let outcome: string | null = null;
+    void uploadAttachmentFiles([new File(['x'], 'a.png', { type: 'image/png' })]).then(
+      () => { outcome = 'resolved'; },
+      (error: Error) => { outcome = error.message; },
+    );
+    // Five minutes of steady progress is a slow upload, not a stalled one.
+    const [xhr] = opened;
+    for (let minute = 0; minute < 10; minute += 1) {
+      t.mock.timers.tick(30_000);
+      xhr.upload.onprogress?.();
+    }
+    await Promise.resolve();
+    assert.equal(outcome, null);
+    t.mock.timers.tick(UPLOAD_STALL_MS);
+    await Promise.resolve();
+    assert.match(String(outcome), /stalled/);
+    assert.equal(xhr.aborted, true);
+  } finally {
+    globalThis.XMLHttpRequest = originalXhr;
   }
 });

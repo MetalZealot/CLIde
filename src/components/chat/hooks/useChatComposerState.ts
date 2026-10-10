@@ -11,7 +11,8 @@ import type {
 } from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
 
-import { authenticatedFetch } from '../../../utils/api';
+import { IS_PLATFORM } from '../../../constants/config';
+import { authenticatedFetch, expireAuthSession, getStoredAuthToken, storeAuthToken } from '../../../utils/api';
 import { isTouchPrimaryDevice } from '../../../utils/pointer';
 import type { MarkSessionProcessing, SessionActivityMap } from '../../../hooks/useSessionProtection';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
@@ -34,15 +35,18 @@ import type {
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../utils/messageKeys';
-import type { SessionStore } from '../../../stores/useSessionStore';
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
 import {
+  deliverNow,
   dispatchSend,
   failSend,
   getSend,
   localSendMessageId,
   mintRequestId,
   openSend,
+  releaseSendFiles,
   sendSignal,
+  setSendFrame,
   takeOrphanedUnsent,
   updateSend,
 } from '../../../stores/sendOutbox';
@@ -93,6 +97,8 @@ interface UseChatComposerStateArgs {
   onShowSettings?: () => void;
   scrollToBottom: () => void;
   addMessage: (msg: ChatMessage) => void;
+  /** Points an optimistic bubble at its uploaded files; false when the bubble is not found. */
+  patchLocalUserMessage?: (sessionId: string | null, messageId: string, patch: Pick<ChatMessage, 'images' | 'files'>) => boolean;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
   pendingPermissionRequests: PendingPermissionRequest[];
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
@@ -384,6 +390,13 @@ const previewAttachment = (file: File): ChatImage => {
   };
 };
 
+/** Frees in-memory previews once nothing shows them. */
+export const revokePreviews = (attachments: readonly ChatImage[]) => {
+  for (const attachment of attachments) {
+    if (attachment.data?.startsWith('blob:')) URL.revokeObjectURL(attachment.data);
+  }
+};
+
 /** Rebuilds a sent or stored attachment as a File, so an edit can put it back in the composer. */
 export const fetchAttachmentFile = async (attachment: ChatImage): Promise<File | null> => {
   const storedName = attachment.path?.split(/[\\/]/).pop();
@@ -408,9 +421,16 @@ export const fetchAttachmentFile = async (attachment: ChatImage): Promise<File |
 };
 
 /** Also used when scheduling: a message sent later still needs durable descriptors. */
-export const uploadAttachmentFiles = async (files: File[], signal?: AbortSignal): Promise<unknown[]> => {
+/** An upload that reports no progress for this long has stalled; a slow one that moves never does. */
+export const UPLOAD_STALL_MS = 60_000;
+
+/**
+ * Uploads over XHR rather than fetch: only XHR reports upload progress, which
+ * tells a stalled upload from a slow one.
+ */
+export const uploadAttachmentFiles = (files: File[], signal?: AbortSignal): Promise<unknown[]> => {
   if (files.length === 0) {
-    return [];
+    return Promise.resolve([]);
   }
 
   const formData = new FormData();
@@ -418,23 +438,64 @@ export const uploadAttachmentFiles = async (files: File[], signal?: AbortSignal)
     formData.append('files', file);
   });
 
-  const response = await authenticatedFetch('/api/assets/files', {
-    method: 'POST',
-    headers: {},
-    body: formData,
-    signal,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+    const finish = (outcome: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(stallTimer);
+      signal?.removeEventListener('abort', onAbort);
+      outcome();
+    };
+    const armStall = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        xhr.abort();
+        finish(() => reject(new Error('Upload stalled: no progress for a minute')));
+      }, UPLOAD_STALL_MS);
+    };
+    const onAbort = () => {
+      xhr.abort();
+      finish(() => reject(new DOMException('Upload cancelled', 'AbortError')));
+    };
+
+    xhr.open('POST', '/api/assets/files');
+    const token = IS_PLATFORM ? null : getStoredAuthToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = armStall;
+    xhr.onprogress = armStall;
+    xhr.onerror = () => finish(() => reject(new Error('Failed to upload files')));
+    xhr.onload = () => finish(() => {
+      const refreshedToken = xhr.getResponseHeader('X-Refreshed-Token');
+      if (refreshedToken) storeAuthToken(refreshedToken);
+      if (xhr.getResponseHeader('X-Auth-Error')) expireAuthSession();
+      let body: { error?: string; attachments?: unknown[] } | null = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        body = null;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(body?.error || 'Failed to upload files'));
+        return;
+      }
+      if (!Array.isArray(body?.attachments) || body.attachments.length !== files.length) {
+        reject(new Error('File upload returned an incomplete result'));
+        return;
+      }
+      resolve(body.attachments);
+    });
+
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+    signal?.addEventListener('abort', onAbort);
+    armStall();
+    xhr.send(formData);
   });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error || 'Failed to upload files');
-  }
-
-  const result = await response.json();
-  if (!Array.isArray(result.attachments) || result.attachments.length !== files.length) {
-    throw new Error('File upload returned an incomplete result');
-  }
-  return result.attachments;
 };
 
 export type QueuedDraft = {
@@ -509,6 +570,7 @@ export function useChatComposerState({
   onShowSettings,
   scrollToBottom,
   addMessage,
+  patchLocalUserMessage,
   setIsUserScrolledUp,
   pendingPermissionRequests,
   setPendingPermissionRequests: _setPendingPermissionRequests,
@@ -1298,16 +1360,29 @@ export function useChatComposerState({
             && !processingSessionsRef.current.has(queuedSessionKey)
           ) {
             clearQueuedMessage(queuedSessionKey);
-            sendMessage({
+            const queuedRequestId = mintRequestId();
+            const records = (durableDraft.uploadedAttachments ?? []) as ChatAttachment[];
+            sessionStore.appendRealtime(queuedSessionKey, {
+              id: localSendMessageId(queuedRequestId),
+              sessionId: queuedSessionKey,
+              timestamp: new Date().toISOString(),
+              provider,
+              kind: 'text',
+              role: 'user',
+              content: durableDraft.content,
+              images: records.filter(isImageAttachment),
+              files: records.filter((attachment) => !isImageAttachment(attachment)),
+            } as NormalizedMessage);
+            deliverNow({
               type: 'chat.send',
               sessionId: queuedSessionKey,
+              requestId: queuedRequestId,
               content: durableDraft.content,
               options: {
                 ...(durableDraft.options ?? {}),
                 attachments: durableDraft.uploadedAttachments ?? [],
               },
-            });
-            onSessionProcessing?.(queuedSessionKey, { statusText: null, canInterrupt: true });
+            }, selectedProject.projectId);
           }
           return;
         }
@@ -1371,6 +1446,7 @@ export function useChatComposerState({
 
       const messageContent = currentInput;
       const requestId = mintRequestId();
+      const bubbleId = localSendMessageId(requestId);
       const knownSessionId = selectedSession?.id || currentSessionId || null;
       // Read now: the composer state behind these clears below.
       const sendOptions = queuedSubmission?.options ?? buildSendOptions(messageContent);
@@ -1378,6 +1454,8 @@ export function useChatComposerState({
       // Survive a Retry, so a finished upload or create is not repeated.
       let uploadedAttachments = previouslyUploadedAttachments;
       let targetSessionId = knownSessionId;
+      // Edit re-arms it if this send never gets through.
+      const rewind = pendingRewind;
 
       // A rewind send drops the edited message and its tail before the
       // replacement is appended; the post-turn refetch reconciles against the
@@ -1389,11 +1467,12 @@ export function useChatComposerState({
       }
 
       // The bubble appears at the press; its label follows the send's stage.
+      const previews = filesToUpload.map(previewAttachment);
       const shownAttachments = uploadedAttachments.length > 0
         ? uploadedAttachments as ChatAttachment[]
-        : filesToUpload.map(previewAttachment);
+        : previews;
       addMessage({
-        id: localSendMessageId(requestId),
+        id: bubbleId,
         type: 'user',
         content: currentInput,
         images: shownAttachments.filter(isImageAttachment),
@@ -1401,28 +1480,39 @@ export function useChatComposerState({
         timestamp: new Date(),
       });
 
+      // Busy from the press, so a follow-up queues behind this send; Stop has no run to stop yet.
+      const markBusy = (sessionId: string) => onSessionProcessing?.(sessionId, { statusText: null, canInterrupt: false });
+
       const run = async () => {
         const signal = sendSignal(requestId);
         try {
-          if (uploadedAttachments.length === 0 && filesToUpload.length > 0) {
-            updateSend(requestId, { stage: 'uploading' });
-            uploadedAttachments = await uploadAttachmentFiles(filesToUpload, signal);
-          }
+          // A new chat gets its session first, so it is busy through its upload too.
           if (!targetSessionId) {
             updateSend(requestId, { stage: 'creating' });
             targetSessionId = await createSession(messageContent, { requestId, signal });
             updateSend(requestId, { sessionId: targetSessionId });
           }
+          markBusy(targetSessionId);
+          if (uploadedAttachments.length === 0 && filesToUpload.length > 0) {
+            updateSend(requestId, { stage: 'uploading' });
+            uploadedAttachments = await uploadAttachmentFiles(filesToUpload, signal);
+            releaseSendFiles(requestId);
+            // The bubble moves to the server copies, so the in-memory previews can go.
+            const records = uploadedAttachments as ChatAttachment[];
+            const moved = patchLocalUserMessage?.(targetSessionId, bubbleId, {
+              images: records.filter(isImageAttachment),
+              files: records.filter((attachment) => !isImageAttachment(attachment)),
+            });
+            if (moved) revokePreviews(previews);
+          }
           const entry = getSend(requestId);
           if (!entry || entry.stage === 'failed') return;
-          updateSend(requestId, {
-            frame: {
-              type: 'chat.send',
-              sessionId: targetSessionId,
-              requestId,
-              content: messageContent,
-              options: { ...sendOptions, attachments: uploadedAttachments },
-            },
+          setSendFrame(requestId, {
+            type: 'chat.send',
+            sessionId: targetSessionId,
+            requestId,
+            content: messageContent,
+            options: { ...sendOptions, attachments: uploadedAttachments },
           });
           dispatchSend(requestId);
         } catch (error) {
@@ -1436,9 +1526,9 @@ export function useChatComposerState({
         sessionId: knownSessionId,
         projectId: selectedProject.projectId,
         content: messageContent,
-        stage: filesToUpload.length > 0 ? 'uploading' : knownSessionId ? 'sending' : 'creating',
+        stage: !knownSessionId ? 'creating' : filesToUpload.length > 0 ? 'uploading' : 'sending',
         attachmentCount: filesToUpload.length,
-      }, run, filesToUpload);
+      }, run, { files: filesToUpload, rewind });
 
       recordSentMessage(messageContent);
       setInput('');
@@ -1474,17 +1564,19 @@ export function useChatComposerState({
       resetCommandMenuState,
       scrollToBottom,
       selectedProject,
-      sendMessage,
       sessionKey,
       sessionStore,
       addMessage,
+      patchLocalUserMessage,
+      provider,
       setIsUserScrolledUp,
       slashCommands,
     ],
   );
 
-  // Chats with a submit still uploading or creating its session. The bubble is
-  // already up, but a second press in that window must not start a second send.
+  // Chats with a submit still in its first await. A known session is busy from
+  // the press, so its follow-ups queue; this closes the moment before that state
+  // lands, and a new chat's wait for its session id.
   const submittingScopesRef = useRef(new Set<string>());
 
   const handleSubmit = useCallback(
@@ -1608,8 +1700,20 @@ export function useChatComposerState({
     });
   }, [setInput]);
 
-  /** Puts a send taken back from its bubble into the composer, ahead of anything typed since. */
-  const restoreUnsentDraft = useCallback((content: string, files: File[]) => {
+  /**
+   * Puts a send taken back from its bubble into the composer, ahead of anything
+   * typed since; a rewind it was making is re-armed and its hidden tail reloaded.
+   */
+  const restoreUnsentDraft = useCallback((
+    content: string,
+    files: File[],
+    rewind: PendingRewind | null = null,
+    sessionId: string | null = null,
+  ) => {
+    if (rewind) {
+      setPendingRewind(rewind);
+      if (sessionId) void sessionStore.refreshFromServer(sessionId);
+    }
     if (content) {
       const current = inputValueRef.current;
       const next = current.trim() ? `${content}\n\n${current}` : content;
@@ -1618,7 +1722,7 @@ export function useChatComposerState({
     }
     if (files.length > 0) setAttachedFiles((previous) => [...files, ...previous]);
     textareaRef.current?.focus();
-  }, [setInput]);
+  }, [sessionStore, setInput]);
 
   const cancelRewindEdit = useCallback(() => {
     if (!pendingRewind) {

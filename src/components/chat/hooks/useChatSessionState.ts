@@ -409,6 +409,24 @@ export function useChatSessionState({
     }
   }, [activeSessionId, sessionStore]);
 
+  // Read by callbacks that outlive the render they were made in (an upload finishing later).
+  const pendingUserMessageRef = useRef(pendingUserMessage);
+  pendingUserMessageRef.current = pendingUserMessage;
+
+  /** Updates an optimistic bubble wherever it is held: still pending, or in its session's rows. */
+  const patchLocalUserMessage = useCallback((
+    sessionId: string | null,
+    messageId: string,
+    patch: Pick<ChatMessage, 'images' | 'files'>,
+  ): boolean => {
+    const pending = pendingUserMessageRef.current;
+    if (pending?.id === messageId) {
+      setPendingUserMessage({ ...pending, ...patch });
+      return true;
+    }
+    return sessionId ? sessionStore.patchLocalMessage(sessionId, messageId, patch) : false;
+  }, [sessionStore]);
+
   /** Takes back a bubble the server never confirmed, wherever it is held. */
   const discardLocalUserMessage = useCallback((messageId: string) => {
     if (pendingUserMessage?.id === messageId) {
@@ -1231,6 +1249,7 @@ export function useChatSessionState({
     chatMessages,
     addMessage,
     discardLocalUserMessage,
+    patchLocalUserMessage,
     clearMessages,
     rewindMessages,
     sessionActivity,

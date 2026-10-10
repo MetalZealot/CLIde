@@ -1422,6 +1422,22 @@ export function useSessionStore() {
     return true;
   }, [notify]);
 
+  /** Updates one local echo (a `local_` row) in place; false when it is not there. */
+  const patchLocalMessage = useCallback((
+    sessionId: string,
+    messageId: string,
+    patch: Partial<NormalizedMessage>,
+  ): boolean => {
+    const slot = storeRef.current.get(sessionId);
+    if (!slot || !messageId.startsWith('local_')) return false;
+    const index = slot.realtimeMessages.findIndex((message) => message.id === messageId);
+    if (index < 0) return false;
+    slot.realtimeMessages = slot.realtimeMessages.map((message, i) => (i === index ? { ...message, ...patch } as NormalizedMessage : message));
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+    return true;
+  }, [notify]);
+
   /**
    * Get merged messages for a session (for rendering).
    */
@@ -1464,13 +1480,14 @@ export function useSessionStore() {
     truncateFromMessageId,
     retractUndeliveredUserTurn,
     removeLocalMessage,
+    patchLocalMessage,
   }), [
     getSlot, has, fetchFromServer, fetchMore, fetchAround, fetchNewer, fetchFindText,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, discardStreaming,
     clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort, setFastMode,
     patchToolResult,
-    truncateFromMessageId, retractUndeliveredUserTurn, removeLocalMessage,
+    truncateFromMessageId, retractUndeliveredUserTurn, removeLocalMessage, patchLocalMessage,
   ]);
 }
 

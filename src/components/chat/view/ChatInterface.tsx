@@ -10,7 +10,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import type { StreamBuffer } from '../hooks/useChatRealtimeHandlers';
-import { fetchAttachmentFile, isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
+import { fetchAttachmentFile, isImageAttachment, revokePreviews, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
 import { safeLocalStorage } from '../utils/chatStorage';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useSendQueuedNow } from '../hooks/useSendQueuedNow';
@@ -183,6 +183,7 @@ function ChatInterface({
     chatMessages,
     addMessage,
     discardLocalUserMessage,
+    patchLocalUserMessage,
     sessionActivity,
     isProcessing,
     canAbortSession,
@@ -375,6 +376,7 @@ function ChatInterface({
     onShowSettings,
     scrollToBottom,
     addMessage,
+    patchLocalUserMessage,
     setIsUserScrolledUp,
     pendingPermissionRequests,
     setPendingPermissionRequests,
@@ -604,12 +606,15 @@ function ChatInterface({
     const withdrawn = requestId ? withdrawSend(requestId) : null;
     if (!withdrawn) return;
     discardLocalUserMessage(String(message.id));
-    restoreUnsentDraft(withdrawn.entry.content, withdrawn.files);
-    // Already uploaded (a queued send): rebuild the files from the server copies.
+    const { files, rewind } = withdrawn.context;
+    restoreUnsentDraft(withdrawn.entry.content, files, rewind, withdrawn.entry.sessionId);
     const stored = [...(message.images ?? []), ...(message.files ?? [])];
-    if (withdrawn.files.length === 0 && stored.length > 0) {
-      void Promise.all(stored.map(fetchAttachmentFile)).then((files) => {
-        restoreUnsentDraft('', files.filter((file): file is File => file !== null));
+    if (files.length > 0) {
+      revokePreviews(stored);
+    } else if (stored.length > 0) {
+      // Already uploaded: rebuild the files from the server copies.
+      void Promise.all(stored.map(fetchAttachmentFile)).then((rebuilt) => {
+        restoreUnsentDraft('', rebuilt.filter((file): file is File => file !== null));
       });
     }
   }, [discardLocalUserMessage, restoreUnsentDraft]);

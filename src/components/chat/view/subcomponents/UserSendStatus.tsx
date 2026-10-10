@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { requestIdFromMessageId, retrySend, useOutboxEntry } from '../../../../stores/sendOutbox';
+import { canRetrySend, requestIdFromMessageId, retrySend, useOutboxEntry } from '../../../../stores/sendOutbox';
 import type { ChatMessage } from '../../types/types';
 
 type UserSendStatusProps = {
@@ -28,14 +28,19 @@ export default function UserSendStatus({ message, timeLabel, onEditUnsent }: Use
         <span className="text-red-600 dark:text-red-400" title={reason ?? undefined}>
           {t('send.notSent')}
         </span>
-        <span aria-hidden="true">·</span>
-        <button
-          type="button"
-          onClick={() => retrySend(requestId)}
-          className="rounded px-1 py-0.5 font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          {t('send.retry')}
-        </button>
+        {/* Past the server's memory of the id, Retry could run it twice; Edit is the honest choice. */}
+        {canRetrySend(entry) && (
+          <>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              onClick={() => retrySend(requestId)}
+              className="rounded px-1 py-0.5 font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              {t('send.retry')}
+            </button>
+          </>
+        )}
         {onEditUnsent && (
           <>
             <span aria-hidden="true">·</span>

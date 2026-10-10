@@ -186,8 +186,8 @@ async function loadFullHistory(
   return { result, identity };
 }
 
-/** Sessions created per client request id, so a retried create returns the same session. */
-const createdAppSessions = createRequestReceipts<CreateAppSessionResult>({ ttlMs: 10 * 60_000, maxEntries: 200 });
+/** Sessions created per client request id, so a retried create returns the same session; outlives the client's Retry window. */
+const createdAppSessions = createRequestReceipts<CreateAppSessionResult>({ ttlMs: 24 * 60 * 60_000, maxEntries: 500 });
 
 export const sessionsService = {
   /**

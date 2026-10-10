@@ -357,11 +357,13 @@ top of the sidebar without having done anything.
 
 #### 21. A composer send runs once, and says where it is until the server has it
 
-Pressing Send shows the bubble at once and gives the send a request id. Session
-creation and `chat.send` both carry it; the server confirms each id with
-`chat_input_accepted` and never acts on one twice, so resends after a reconnect and
-Retry reuse it. The bubble's label and the activity line's wait both read
-`stores/sendOutbox.ts`; an unconfirmed send gives up after two minutes.
+Pressing Send shows the bubble at once and gives the send a request id; queued
+sends get one too. Session creation and `chat.send` both carry it; the server
+confirms each id with `chat_input_accepted`, remembers it for 24 hours, and never
+acts on one twice, so resends after a reconnect and Retry (offered for 12 hours)
+reuse it. After a give-up the client only asks (`chat.receipt`), never resends.
+The bubble's label and the activity line's wait both read `stores/sendOutbox.ts`;
+delivery gives up after two minutes, an upload only after a minute without progress.
 
 **Breaks:** a slow network turns repeated presses or a reconnect into duplicate
 sessions or turns, or a press shows nothing until the network answers.

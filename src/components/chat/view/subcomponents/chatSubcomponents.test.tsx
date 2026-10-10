@@ -685,6 +685,9 @@ describe('chatSubcomponents', () => {
 
       await React.act(async () => failSend('label-request', 'Failed to upload files'));
       assert.match(container.textContent ?? '', /^Not sent·Retry·EditFailed to upload files$/);
+      // Once the server may have forgotten the id, only Edit is offered.
+      await React.act(async () => updateSend('label-request', { firstSentAt: Date.now() - 13 * 60 * 60_000 }));
+      assert.match(container.textContent ?? '', /^Not sent·EditFailed to upload files$/);
       const edit = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Edit');
       await React.act(async () => edit?.click());
       assert.equal(edited.length, 1);

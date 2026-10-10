@@ -160,9 +160,9 @@ function sendProtocolError(
 
 /**
  * `chat.send` request ids that already started a run, keyed by session. Outlives
- * the client's two-minute resend window by a wide margin.
+ * the client's Retry window (12 h) so a late Retry is still confirmed, not rerun.
  */
-const acceptedChatSends = createRequestReceipts<true>({ ttlMs: 10 * 60_000, maxEntries: 500 });
+const acceptedChatSends = createRequestReceipts<true>({ ttlMs: 24 * 60 * 60_000, maxEntries: 2_000 });
 
 /** Test-only: forget every accepted send. */
 export function clearAcceptedChatSends(): void {
@@ -533,6 +533,20 @@ async function handleChatSend(
 }
 
 /**
+ * Handles `chat.receipt`: did this request id start a run? Answers only "yes"
+ * (`chat_input_accepted`); an id it does not know gets no reply, so asking can
+ * never run anything.
+ */
+function handleChatReceipt(ws: WebSocket, data: AnyRecord): void {
+  const sessionId = readRequiredSessionId(data);
+  const requestId = readRequestId(data.requestId);
+  if (!sessionId || !requestId) return;
+  if (acceptedChatSends.get(`${sessionId}:${requestId}`)) {
+    sendChatSendAccepted(ws, sessionId, requestId);
+  }
+}
+
+/**
  * Handles `chat.abort`: cancels the run for one app session and emits the
  * terminal `complete` on its behalf (runtimes skip their own complete for
  * aborted runs, and the registry drops any duplicate).
@@ -818,6 +832,9 @@ export function handleChatConnection(
           return;
         case 'chat.permission-response':
           await handlePermissionResponse(ws, data, dependencies);
+          return;
+        case 'chat.receipt':
+          handleChatReceipt(ws, data);
           return;
         case 'chat.ping':
           handleChatPing(ws, data);

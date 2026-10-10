@@ -401,14 +401,6 @@ describe('chat-session-addressing', () => {
     });
   });
 
-  /**
-   * Effort reaching the runtime is a session-scoped decision, not a client one.
-   *
-   * The composer sends an effort only when it knows the open session's own, so
-   * the gateway has to fill the gap from the session's stored pick rather than
-   * letting the runtime fall back to a provider default — otherwise omitting the
-   * value to avoid leaking one session's effort would silently discard it.
-   */
   test('chat.send confirms a request id once and never runs its resend', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-receipt-1';
@@ -445,6 +437,15 @@ describe('chat-session-addressing', () => {
         assert.equal(ack?.requestId, 'send-request-1');
         assert.equal(ack?.sessionId, appSessionId);
       }
+
+      // Asking about an id confirms one that ran and is silent about one that did not, running neither.
+      const asker = new FakeConnection();
+      handleChatConnection(asker as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      asker.emit('message', JSON.stringify({ type: 'chat.receipt', sessionId: appSessionId, requestId: 'send-request-1' }));
+      asker.emit('message', JSON.stringify({ type: 'chat.receipt', sessionId: appSessionId, requestId: 'never-sent-1' }));
+      await flush();
+      assert.deepEqual(asker.frames.map((received) => [received.kind, received.requestId]), [['chat_input_accepted', 'send-request-1']]);
+      assert.deepEqual(commands, ['do it once']);
     });
   });
 
@@ -483,6 +484,14 @@ describe('chat-session-addressing', () => {
     });
   });
 
+  /**
+   * Effort reaching the runtime is a session-scoped decision, not a client one.
+   *
+   * The composer sends an effort only when it knows the open session's own, so
+   * the gateway has to fill the gap from the session's stored pick rather than
+   * letting the runtime fall back to a provider default — otherwise omitting the
+   * value to avoid leaking one session's effort would silently discard it.
+   */
   test('chat.send resolves the session\'s own effort when the client sends none', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-effort-1';

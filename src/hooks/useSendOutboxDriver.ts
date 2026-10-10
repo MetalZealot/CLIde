@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { ServerEvent } from '../contexts/WebSocketContext';
 import {
   SEND_GIVE_UP_MS,
+  UNSENT_HEARTBEAT_MS,
   dispatchSend,
   failSend,
   getSend,
@@ -10,6 +11,7 @@ import {
   setSendDispatcher,
   settleSend,
   subscribeOutbox,
+  touchUnsent,
   updateSend,
 } from '../stores/sendOutbox';
 import { flightRecorder } from '../utils/flightRecorder';
@@ -53,8 +55,9 @@ export function useSendOutboxDriver({
       // Marked before the receipt so a message typed meanwhile queues behind this one.
       markSessionProcessing(entry.frame.sessionId, { statusText: null, canInterrupt: true });
       const handedOver = sendMessage(entry.frame);
+      const now = Date.now();
       updateSend(requestId, handedOver
-        ? { stage: 'sending', sentAt: Date.now(), slow: false, probed: false }
+        ? { stage: 'sending', sentAt: now, firstSentAt: entry.firstSentAt ?? now, slow: false, probed: false }
         : { stage: 'waiting', sentAt: null, slow: false, probed: false });
       flightRecorder()?.event('outbox', { kind: handedOver ? 'dispatch' : 'waiting', sessionId: entry.frame.sessionId });
     };
@@ -63,9 +66,13 @@ export function useSendOutboxDriver({
     const unsubscribe = subscribe((event) => {
       if (event.kind === 'websocket_reconnected') {
         for (const entry of listSends()) {
-          if (entry.frame && (entry.stage === 'sending' || entry.stage === 'waiting')) {
+          if (!entry.frame) continue;
+          if (entry.stage === 'sending' || entry.stage === 'waiting') {
             flightRecorder()?.event('outbox', { kind: 'resend', sessionId: entry.frame.sessionId });
             dispatch(entry.requestId);
+          } else if (entry.stage === 'failed' && entry.firstSentAt !== null) {
+            // A send given up on may have run with only its receipt lost; asking never runs it.
+            sendMessage({ type: 'chat.receipt', sessionId: entry.frame.sessionId, requestId: entry.requestId });
           }
         }
         return;
@@ -76,8 +83,8 @@ export function useSendOutboxDriver({
 
       if (event.kind === 'chat_input_accepted') {
         settleSend(requestId);
-        // Also covers a receipt that beat the give-up by a moment: the run is on.
-        if (entry.sessionId) markSessionProcessing(entry.sessionId, { canInterrupt: true });
+        // A failed send confirmed later may have finished long ago; `chat_subscribed` reports its run.
+        if (entry.sessionId && entry.stage !== 'failed') markSessionProcessing(entry.sessionId, { canInterrupt: true });
         flightRecorder()?.event('outbox', { kind: 'accepted', sessionId: entry.sessionId ?? undefined });
       } else if (event.kind === 'protocol_error' || event.kind === 'chat_input_rejected') {
         failSend(requestId, typeof event.error === 'string' ? event.error : null);
@@ -94,6 +101,42 @@ export function useSendOutboxDriver({
     };
   }, [markSessionProcessing, sendMessage, subscribe]);
 
+  // A send that failed before any socket had it never started a run, so its session is idle again.
+  // One that did may be running with only its receipt lost; `chat_subscribed` decides that.
+  useEffect(() => {
+    const idled = new Set<string>();
+    return subscribeOutbox(() => {
+      for (const entry of listSends()) {
+        if (entry.stage !== 'failed') {
+          idled.delete(entry.requestId);
+        } else if (entry.firstSentAt === null && entry.sessionId && !idled.has(entry.requestId)) {
+          idled.add(entry.requestId);
+          markSessionIdle(entry.sessionId);
+        }
+      }
+    });
+  }, [markSessionIdle]);
+
+  // Keeps this page's unconfirmed sends from being taken by another tab.
+  useEffect(() => {
+    let timer: number | null = null;
+    const sync = () => {
+      const holding = listSends().length > 0;
+      if (holding && timer === null) {
+        timer = window.setInterval(() => touchUnsent(), UNSENT_HEARTBEAT_MS);
+      } else if (!holding && timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    sync();
+    const unsubscribe = subscribeOutbox(sync);
+    return () => {
+      unsubscribe();
+      if (timer !== null) window.clearInterval(timer);
+    };
+  }, []);
+
   // A clock only while something is in flight.
   useEffect(() => {
     let timer: number | null = null;
@@ -101,10 +144,10 @@ export function useSendOutboxDriver({
     const tick = () => {
       const now = Date.now();
       for (const entry of listSends()) {
-        if (entry.stage === 'failed') continue;
+        // An upload has its own stall check; a slow but moving one is never cut off.
+        if (entry.stage === 'failed' || entry.stage === 'uploading') continue;
         if (now - entry.startedAt >= SEND_GIVE_UP_MS) {
           failSend(entry.requestId);
-          if (entry.sessionId) markSessionIdle(entry.sessionId);
           flightRecorder()?.event('outbox', { kind: `gave-up:${entry.stage}`, sessionId: entry.sessionId ?? undefined });
           continue;
         }
@@ -140,5 +183,5 @@ export function useSendOutboxDriver({
       unsubscribe();
       if (timer !== null) window.clearInterval(timer);
     };
-  }, [markSessionIdle, probeConnection]);
+  }, [probeConnection]);
 }

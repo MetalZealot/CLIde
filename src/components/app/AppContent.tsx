@@ -109,19 +109,7 @@ function AppContentInner() {
   // Queued messages for sessions that finish while another session (or none)
   // is being viewed are sent from here; the viewed session's composer handles
   // its own queue.
-  useQueuedMessageAutoSend({
-    processingSessions,
-    activeSessionId: selectedSession?.id ?? sessionId ?? null,
-    ws,
-    sendMessage,
-    markSessionProcessing,
-  });
-  useAsyncAnswerQueueAutoSend({
-    processingSessions,
-    ws,
-    sendMessage,
-    markSessionProcessing,
-  });
+  // Before the queued auto-send, so its deliveries find the driver mounted.
   useSendOutboxDriver({
     sendMessage,
     subscribe,
@@ -129,6 +117,18 @@ function AppContentInner() {
     isConnected,
     markSessionProcessing,
     markSessionIdle,
+  });
+  useQueuedMessageAutoSend({
+    processingSessions,
+    activeSessionId: selectedSession?.id ?? sessionId ?? null,
+    ws,
+    markSessionProcessing,
+  });
+  useAsyncAnswerQueueAutoSend({
+    processingSessions,
+    ws,
+    sendMessage,
+    markSessionProcessing,
   });
 
   const refreshRunningSessions = useCallback(async () => {

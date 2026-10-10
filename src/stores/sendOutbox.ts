@@ -7,6 +7,7 @@
  */
 import { useSyncExternalStore } from 'react';
 
+import type { PendingRewind } from '../components/chat/hooks/useChatComposerState';
 import { safeLocalStorage } from '../components/chat/utils/chatStorage';
 
 export type SendStage = 'uploading' | 'creating' | 'waiting' | 'sending' | 'failed';
@@ -27,8 +28,10 @@ export type OutboxEntry = {
   content: string;
   stage: SendStage;
   attachmentCount: number;
-  /** Start of the give-up window; Retry restarts it. */
+  /** Start of the give-up window: the press, restarted when an upload finishes and on Retry. Uploads are not on it. */
   startedAt: number;
+  /** First time the frame went to a socket: from here the server may have run it. */
+  firstSentAt: number | null;
   /** Ready once uploads and the session id are in hand. */
   frame: ChatSendFrame | null;
   /** When the frame last went to the socket. */
@@ -41,14 +44,18 @@ export type OutboxEntry = {
 };
 
 export const SEND_GIVE_UP_MS = 2 * 60_000;
+/** Retry stays safe while the server still remembers the id (24 h); after this only Edit is offered. */
+export const SEND_RETRY_WINDOW_MS = 12 * 60 * 60_000;
+
+/** What Edit puts back: the composer's files until they are uploaded, and the rewind the send was making. */
+export type SendEditContext = { files: File[]; rewind: PendingRewind | null };
 
 const entries = new Map<string, OutboxEntry>();
 const listeners = new Set<() => void>();
-/** Re-runs a send that failed before its frame existed (upload or session creation). */
+/** Re-runs a send that failed before its frame existed (upload or session creation); dropped once it does. */
 const runners = new Map<string, () => Promise<void>>();
 const aborters = new Map<string, AbortController>();
-/** The composer's own files, so Edit hands back exactly what was attached. */
-const attachedFiles = new Map<string, File[]>();
+const editContexts = new Map<string, SendEditContext>();
 let dispatcher: ((requestId: string) => void) | null = null;
 
 const emit = () => {
@@ -81,20 +88,21 @@ export function listSends(): OutboxEntry[] {
 
 export function openSend(
   entry: Pick<OutboxEntry, 'requestId' | 'sessionId' | 'projectId' | 'content' | 'stage' | 'attachmentCount'>,
-  run: () => Promise<void>,
-  files: File[] = [],
+  run: (() => Promise<void>) | null,
+  editContext: SendEditContext = { files: [], rewind: null },
 ): void {
   entries.set(entry.requestId, {
     ...entry,
     startedAt: Date.now(),
+    firstSentAt: null,
     frame: null,
     sentAt: null,
     slow: false,
     probed: false,
     error: null,
   });
-  runners.set(entry.requestId, run);
-  if (files.length > 0) attachedFiles.set(entry.requestId, files);
+  if (run) runners.set(entry.requestId, run);
+  editContexts.set(entry.requestId, editContext);
   rememberUnsent(entry.requestId);
   emit();
 }
@@ -105,6 +113,18 @@ export function updateSend(requestId: string, patch: Partial<Omit<OutboxEntry, '
   entries.set(requestId, { ...current, ...patch });
   if (patch.sessionId !== undefined) rememberUnsent(requestId);
   emit();
+}
+
+/** The frame is ready: the give-up clock restarts and the re-run closure is no longer needed. */
+export function setSendFrame(requestId: string, frame: ChatSendFrame): void {
+  runners.delete(requestId);
+  updateSend(requestId, { frame, startedAt: Date.now() });
+}
+
+/** The files are on the server now; Edit rebuilds them from the uploaded copies. */
+export function releaseSendFiles(requestId: string): void {
+  const context = editContexts.get(requestId);
+  if (context) editContexts.set(requestId, { ...context, files: [] });
 }
 
 /** Aborted when the send gives up, so a hung upload or create stops with it. */
@@ -132,7 +152,7 @@ export function settleSend(requestId: string): OutboxEntry | undefined {
   if (!current) return undefined;
   entries.delete(requestId);
   runners.delete(requestId);
-  attachedFiles.delete(requestId);
+  editContexts.delete(requestId);
   aborters.get(requestId)?.abort();
   aborters.delete(requestId);
   forgetUnsent(requestId);
@@ -140,28 +160,48 @@ export function settleSend(requestId: string): OutboxEntry | undefined {
   return current;
 }
 
-/** Takes a send back for editing: its text and files, and it is forgotten. */
-export function withdrawSend(requestId: string): { entry: OutboxEntry; files: File[] } | null {
-  const files = attachedFiles.get(requestId) ?? [];
+/** Takes a send back for editing: its text, files and rewind, and it is forgotten. */
+export function withdrawSend(requestId: string): { entry: OutboxEntry; context: SendEditContext } | null {
+  const context = editContexts.get(requestId) ?? { files: [], rewind: null };
   const entry = settleSend(requestId);
-  return entry ? { entry, files } : null;
+  return entry ? { entry, context } : null;
+}
+
+export function canRetrySend(entry: OutboxEntry, now = Date.now()): boolean {
+  return entry.firstSentAt === null || now - entry.firstSentAt < SEND_RETRY_WINDOW_MS;
 }
 
 export function setSendDispatcher(next: ((requestId: string) => void) | null): void {
   dispatcher = next;
 }
 
+/** Without a driver mounted (mid re-render), the send waits; the driver's clock picks it up. */
 export function dispatchSend(requestId: string): void {
-  dispatcher?.(requestId);
+  if (dispatcher) dispatcher(requestId);
+  else updateSend(requestId, { stage: 'waiting' });
+}
+
+/** A send whose frame is ready at once, such as a queued message: opened, framed and delivered. */
+export function deliverNow(frame: ChatSendFrame, projectId: string | null): void {
+  openSend({
+    requestId: frame.requestId,
+    sessionId: frame.sessionId,
+    projectId,
+    content: frame.content,
+    stage: 'waiting',
+    attachmentCount: 0,
+  }, null);
+  setSendFrame(frame.requestId, frame);
+  dispatchSend(frame.requestId);
 }
 
 /** Retry keeps the request id, so a copy that did arrive is confirmed rather than run again. */
 export function retrySend(requestId: string): void {
   const current = entries.get(requestId);
-  if (!current || current.stage !== 'failed') return;
+  if (!current || current.stage !== 'failed' || !canRetrySend(current)) return;
   entries.set(requestId, {
     ...current,
-    stage: current.frame ? 'sending' : current.attachmentCount > 0 ? 'uploading' : 'creating',
+    stage: current.frame ? 'sending' : current.sessionId ? 'uploading' : 'creating',
     startedAt: Date.now(),
     sentAt: null,
     slow: false,
@@ -201,12 +241,26 @@ export function useHasPendingSend(sessionId: string | null): boolean {
   });
 }
 
-/* Unconfirmed text survives the page: a send Android killed mid-flight comes back in the composer. */
+/*
+ * Unconfirmed text survives the page: a send Android killed mid-flight comes back
+ * in the composer. Records are shared by every tab, so the owning page refreshes
+ * `seenAt` while it lives; only a record nobody has refreshed is an orphan.
+ */
 
 const UNSENT_KEY = 'clide:unsent-sends:v1';
 const UNSENT_MAX_AGE_MS = 24 * 60 * 60_000;
+export const UNSENT_HEARTBEAT_MS = 30_000;
+const UNSENT_ORPHAN_AFTER_MS = 3 * UNSENT_HEARTBEAT_MS;
+const PAGE_ID = mintRequestId();
 
-type UnsentRecord = { requestId: string; projectId: string | null; content: string; at: number };
+type UnsentRecord = {
+  requestId: string;
+  projectId: string | null;
+  content: string;
+  at: number;
+  ownerId?: string;
+  seenAt?: number;
+};
 
 function readUnsent(): UnsentRecord[] {
   try {
@@ -227,10 +281,30 @@ function writeUnsent(records: UnsentRecord[]): void {
 
 function rememberUnsent(requestId: string): void {
   const entry = entries.get(requestId);
-  if (!entry || !entry.content.trim()) return;
+  if (!entry || !entry.projectId || !entry.content.trim()) return;
   const records = readUnsent().filter((record) => record.requestId !== requestId);
-  records.push({ requestId, projectId: entry.projectId, content: entry.content, at: entry.startedAt });
+  records.push({
+    requestId,
+    projectId: entry.projectId,
+    content: entry.content,
+    at: entry.startedAt,
+    ownerId: PAGE_ID,
+    seenAt: Date.now(),
+  });
   writeUnsent(records);
+}
+
+/** The owning page is alive: keeps its records from being taken by another tab. */
+export function touchUnsent(now = Date.now()): void {
+  const records = readUnsent();
+  let changed = false;
+  for (const record of records) {
+    if (record.ownerId === PAGE_ID && entries.has(record.requestId)) {
+      record.seenAt = now;
+      changed = true;
+    }
+  }
+  if (changed) writeUnsent(records);
 }
 
 function forgetUnsent(requestId: string): void {
@@ -240,12 +314,14 @@ function forgetUnsent(requestId: string): void {
 }
 
 /**
- * Text of this project's sends left unconfirmed by an earlier page, removed as
- * it is returned. Sends still tracked by this page are not orphans.
+ * Text of this project's sends left unconfirmed by a page that is gone, removed
+ * as it is returned. A send another live tab still refreshes is not an orphan.
  */
-export function takeOrphanedUnsent(projectId: string): string | null {
+export function takeOrphanedUnsent(projectId: string, now = Date.now()): string | null {
   const records = readUnsent();
-  const orphans = records.filter((record) => record.projectId === projectId && !entries.has(record.requestId));
+  const orphans = records.filter((record) => record.projectId === projectId
+    && !entries.has(record.requestId)
+    && (record.ownerId === PAGE_ID || now - (record.seenAt ?? record.at) >= UNSENT_ORPHAN_AFTER_MS));
   if (orphans.length === 0) return null;
   writeUnsent(records.filter((record) => !orphans.includes(record)));
   return orphans.map((record) => record.content).join('\n\n');
@@ -255,7 +331,7 @@ export function takeOrphanedUnsent(projectId: string): string | null {
 export function resetOutboxForTests(): void {
   entries.clear();
   runners.clear();
-  attachedFiles.clear();
+  editContexts.clear();
   for (const controller of aborters.values()) controller.abort();
   aborters.clear();
   dispatcher = null;
