@@ -358,6 +358,8 @@
     "resetsIn": "Resets in {{time}}",
     "warning": "{{window}}: {{percent}}% used · resets {{time}}",
     "warningNoReset": "{{window}}: {{percent}}% used",
+    "calloutPercent": "{{percent}}% used",
+    "calloutResets": "Resets {{time}}",
     "dismissWarning": "Dismiss",
     "windowReset": "Reset",
     "loading": "Loading plan usage…",

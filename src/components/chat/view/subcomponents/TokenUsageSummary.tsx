@@ -9,6 +9,7 @@ import { cn } from '../../../../lib/utils';
 import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/ui';
 import { HEADER_MENU_CLASS_NAME } from '../../../main-content/constants/menu';
 import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
+import { UsageLimitCallout } from '../../../provider-usage/UsageLimitNotice';
 import { UsageActivitySection } from '../../../provider-usage/UsageWindowList';
 import { formatResetsIn } from '../../../provider-usage/format';
 import {
@@ -494,6 +495,7 @@ export default function TokenUsageSummary({
   const sessionKeyRef = useRef(sessionKey);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
+  const [triggerElement, setTriggerElement] = useState<HTMLButtonElement | null>(null);
   const { openSettings, openUsage } = usePaletteOps();
   const openAutoCompactSettings = useCallback(() => {
     setIsOpen(false);
@@ -745,22 +747,22 @@ export default function TokenUsageSummary({
       })
     : title;
 
+  const openPopover = () => {
+    setView('summary');
+    updateAnchor();
+    setIsOpen(true);
+    refreshPlanUsageIfStale();
+  };
+
   return (
     <>
       <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => {
-          if (isOpen) {
-            close();
-            return;
-          }
-
-          setView('summary');
-          updateAnchor();
-          setIsOpen(true);
-          refreshPlanUsageIfStale();
+        ref={(element) => {
+          triggerRef.current = element;
+          setTriggerElement(element);
         }}
+        type="button"
+        onClick={() => (isOpen ? close() : openPopover())}
         className={inHeader
           ? cn(
             'touch-menu-trigger inline-flex h-11 min-w-8 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-lg px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -788,6 +790,9 @@ export default function TokenUsageSummary({
         )}
         <span className="hidden font-medium text-foreground md:inline">{formatTokenCount(usedTokens)}</span>
       </button>
+      {inHeader && usageProvider && (
+        <UsageLimitCallout provider={usageProvider} anchor={triggerElement} hidden={isOpen} onOpen={openPopover} />
+      )}
       {isOpen && (inHeader ? triggerRef.current : anchor) && (
         <UsagePopoverSurface
           id={popoverId}

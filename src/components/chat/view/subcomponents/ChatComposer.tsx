@@ -489,7 +489,8 @@ function ChatComposer({
         </ComposerNotice>
       )}
 
-      <UsageLimitNotice provider={provider} />
+      {/* With a header the warning hangs from the ring there instead. */}
+      {!headerSlot && <UsageLimitNotice provider={provider} />}
 
       {pendingRewind && (
         <RewindEditCard onCancel={onCancelRewindEdit} />

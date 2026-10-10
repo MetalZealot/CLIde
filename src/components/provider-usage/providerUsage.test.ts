@@ -14,7 +14,7 @@ import {
   usageWarningKey,
 } from './format';
 import { useProviderUsage } from './hooks/useProviderUsage';
-import UsageLimitNotice from './UsageLimitNotice';
+import UsageLimitNotice, { UsageLimitCallout } from './UsageLimitNotice';
 import { UsageResetCreditsRow } from './UsageWindowList';
 import { supportsProviderUsageReset } from './types';
 
@@ -450,6 +450,66 @@ describe('UsageLimitNotice', () => {
       // A remount (a reload, another session) reads the dismissal back.
       assert.equal((await render()).textContent, '');
     } finally {
+      globalThis.fetch = originalFetch;
+      localStorage.removeItem('usage-warning-dismissed');
+    }
+  });
+
+  test('header callout hangs under the ring, steps aside for the panel, and shares the dismissal', async () => {
+    const originalFetch = globalThis.fetch;
+    const resetsAt = new Date(Date.now() + 3_600_000).toISOString();
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      success: true,
+      data: { provider: 'claude', supported: true, windows: [{ id: 'five_hour', utilization: 92, resetsAt }] },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+    localStorage.removeItem('usage-warning-dismissed');
+
+    const originalResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const bar = document.createElement('div');
+    bar.className = 'app-bar';
+    const ring = document.createElement('button');
+    bar.appendChild(ring);
+    document.body.appendChild(bar);
+    ring.getBoundingClientRect = () => ({ top: 8, bottom: 52, left: 300, right: 340, width: 40, height: 44, x: 300, y: 8, toJSON: () => ({}) });
+    let opened = 0;
+    const callout = () => document.body.querySelector<HTMLElement>('[role="status"]');
+    const render = async (hidden: boolean) => {
+      await React.act(async () => {
+        root?.render(React.createElement(UsageLimitCallout, { provider: 'claude', anchor: ring, hidden, onOpen: () => { opened += 1; } }));
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      });
+    };
+
+    try {
+      root = createRoot(document.createElement('div'));
+      await render(false);
+      assert.match(callout()?.textContent ?? '', /^5-hour limit 92% used\s*Resets /);
+      assert.equal(callout()?.style.top, '58px');
+
+      await React.act(async () => callout()?.querySelector('button')?.click());
+      assert.equal(opened, 1);
+
+      await render(true);
+      assert.equal(callout(), null);
+
+      await render(false);
+      await React.act(async () => callout()?.querySelector<HTMLButtonElement>('button[aria-label="Dismiss"]')?.click());
+      assert.equal(callout(), null);
+
+      // The composer form reads the same dismissal.
+      await React.act(async () => root?.unmount());
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      await React.act(async () => {
+        root?.render(React.createElement(UsageLimitNotice, { provider: 'claude' }));
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      });
+      assert.equal(container.textContent, '');
+    } finally {
+      bar.remove();
+      globalThis.ResizeObserver = originalResizeObserver;
       globalThis.fetch = originalFetch;
       localStorage.removeItem('usage-warning-dismissed');
     }
