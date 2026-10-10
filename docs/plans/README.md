@@ -31,6 +31,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main`; the chat-path core is runtime rebuild phase 1b |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
 | [Browser video clips](browser-video-clips.md) | not started | Phase 0: live recording proof on a branch-test slot, with CPU and clip-size numbers |
+| [Video attachments as frames](video-attachments-as-frames.md) | not started | Phase 0: measure three real S20 screen recordings |
 | [Environments](environments.md) | not started | Phase 0: CLIde on the laptop, reachable from the phone over HTTPS |
 | [Threads with no project](no-project-threads.md) | not started | Phase 0: prove each provider runs and resumes in an empty, non-git folder |
 | [CLIde harness](clide-harness.md) | not started | Phase 0: inventory what each adapter injects and what each provider already tells its agent |

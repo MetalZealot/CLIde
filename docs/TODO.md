@@ -37,6 +37,7 @@ main checkout only).
 
 - [ ] **Check the chat's Browser preview on the installed phone app with a queue and a question open.** A 320×568 component harness passes; no human check on the PWA yet. **S**
 - [ ] **Record short Browser clips an agent can inspect.** Start/stop within one turn, frames for the agent via ffmpeg; no timer or download in the first version. [Plan](plans/browser-video-clips.md). **M — Phase 0 proof first**
+- [ ] **Attach a screen recording or animated GIF and the agent sees timestamped frames.** Claude reads only a GIF's first frame today, and a video arrives as an opaque file. The extractor it builds is the one Browser clips phase 2 reuses. [Plan](plans/video-attachments-as-frames.md). **M — real S20 clips first**
 
 ## Bugs
 

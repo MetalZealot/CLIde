@@ -47,11 +47,15 @@ Facts this rests on, read from Playwright MCP 0.0.80's source:
   path. New ADR superseding 0053's tool-set clause, in the same commit.
 - [ ] 2. **The agent inspects a clip as frames.** A CLIde-authored tool takes a
   clip id plus a frame count or timestamps and returns timestamped, downscaled
-  JPEG frames extracted with `ffmpeg`, with duration and dimensions as text.
-  Frames per call and per clip are capped from Phase 0's numbers; one
-  extraction runs at a time, with a timeout. Frames use the same image result
+  JPEG frames with duration and dimensions as text, using the extractor from
+  [video attachments](video-attachments-as-frames.md) phase 1, which carries
+  the caps, timeout and one-at-a-time rule. Frames use the same image result
   path as `browser_take_screenshot`, so providers handle them the same way.
-- [ ] 3. **Durable facts move to the Browser map;** this plan is archived.
+- [ ] 3. **Grayson watches a clip the agent recorded, in the chat.** The stop
+  result renders as an inline video player on the agent's message, played
+  from the clip store; agree the end state before building. A clip the store
+  has expired shows as expired, not broken.
+- [ ] 4. **Durable facts move to the Browser map;** this plan is archived.
 
 ## Done when
 
@@ -66,7 +70,7 @@ Facts this rests on, read from Playwright MCP 0.0.80's source:
 
 - A duration timer. The turn's end already stops a recording, and stopping one
   from the host mid-turn has no proven path.
-- Downloading clips from the Browser tab, until frames prove the feature is used.
+- Downloading clips, or converting them to GIF; the in-chat player covers watching.
 - Recording that spans turns, the phone screen, CLIde's own interface, or audio.
 - Tracing, the action recorder, highlight/annotate, and chapter overlays.
 - Agent-chosen file names or paths, for recording or for frames.
