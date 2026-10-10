@@ -17,8 +17,8 @@ today's two-row footer. Agreed with Grayson on 2026-10-02.
   badge styles (dot, ring, tint), and two sheet heights. Agree the end state before building.
 - [ ] 2. A mobile bottom sheet holds every next-message setting: provider (where
   switching is allowed), model, effort slider, fast mode, permission mode and plan
-  mode. It reuses the menus' data and handlers, not their popover visuals, and the
-  sheet pattern `SideQuestionSheet` already uses.
+  mode. It reuses the menus' data and handlers, not their popover visuals, and is a
+  `BottomSheet`.
 - [ ] 3. The row. The provider's logo opens the sheet and carries a badge when the
   permission or plan mode differs from the provider default. The placeholder is the
   short model and effort ("Opus 5.5 · High", plus "· Fast"); the no-project

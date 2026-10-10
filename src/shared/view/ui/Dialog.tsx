@@ -95,12 +95,13 @@ interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   onEscapeKeyDown?: () => void;
   onPointerDownOutside?: () => void;
   wrapperClassName?: string;
+  overlayRef?: React.Ref<HTMLDivElement>;
 }
 
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, onEscapeKeyDown, onPointerDownOutside, wrapperClassName, ...props }, ref) => {
+  ({ className, children, onEscapeKeyDown, onPointerDownOutside, wrapperClassName, overlayRef, ...props }, ref) => {
     const { open, onOpenChange, triggerRef } = useDialog();
     const contentRef = React.useRef<HTMLDivElement | null>(null);
     const previousFocusRef = React.useRef<HTMLElement | null>(null);
@@ -178,6 +179,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
         <PageScrollLock />
         {/* Overlay */}
         <div
+          ref={overlayRef}
           className="fixed inset-0 animate-dialog-overlay-show bg-black/50"
           onClick={() => {
             onPointerDownOutside?.();

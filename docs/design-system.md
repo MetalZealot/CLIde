@@ -119,6 +119,11 @@ Overrulable; say so when citing one.
 - **A resizable panel gets a 4–6px visible handle with a wider hit zone and
   double-click to reset**, following VS Code and JetBrains.
 - **Desktop rows answer right-click.**
+- **Every bottom sheet is `BottomSheet`.** Handle, drag down anywhere once the
+  content under the finger is at its top, a swipe that scrolls back to the top
+  carries on into the sheet, release past ⅓ or a flick closes, back closes.
+  Material and iOS both drag-to-dismiss; the mid-swipe handoff and ⅓ were
+  picked on the phone.
 - **Reduced motion is honoured** (`prefers-reduced-motion`). WCAG 2.3.3 is AAA,
   so this is a house floor rather than a required one.
 - **Target comfort is contextual.** Review size together with separation,

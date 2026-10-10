@@ -15,7 +15,7 @@ import ChatBrowserPreview from '../../../browser-use/view/ChatBrowserPreview';
 import { HeaderMenuProvider, useRegisterHeaderMenu, type HeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
 import { PaletteOpsProvider, usePaletteOpsRegister } from '../../../../contexts/PaletteOpsContext';
 import MainContentHeaderMenu from '../../../main-content/view/subcomponents/MainContentHeaderMenu';
-import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
+import { BottomSheet, PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
 import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/QuestionAnswerContent';
 import { adaptUserInputAnswers } from '../../tools/components/InteractiveRenderers/user-input-request.adapter';
 import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers/UserInputRequestPanel';
@@ -3386,6 +3386,78 @@ describe('side question sheet', () => {
     const failed = { ...sent, status: 'failed' as const, error: 'offline' };
     assert.deepEqual(mergeSideQuestionEntries([onServer], [failed]).map((entry) => entry.id), ['q1', 'local-1'],
       'a send that failed locally is never hidden');
+  });
+
+  // jsdom has no layout or Touch constructor, so heights and touches are set by hand.
+  const renderBottomSheet = async (listScrollTop: number) => {
+    let closed = 0;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await React.act(async () => root.render(
+      <BottomSheet open title="Test sheet" onClose={() => { closed += 1; }}>
+        <div data-testid="list" style={{ overflowY: 'auto' }}>answers</div>
+      </BottomSheet>,
+    ));
+    const sheet = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const list = document.querySelector<HTMLElement>('[data-testid="list"]')!;
+    Object.defineProperty(sheet, 'offsetHeight', { value: 600 });
+    Object.defineProperty(list, 'scrollHeight', { value: 2000 });
+    Object.defineProperty(list, 'clientHeight', { value: 500 });
+    list.scrollTop = listScrollTop;
+    const touch = (target: HTMLElement, type: string, y: number, t: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const points = type === 'touchend' ? [] : [{ clientX: 100, clientY: y }];
+      Object.defineProperty(event, 'touches', { value: points });
+      Object.defineProperty(event, 'timeStamp', { value: t });
+      target.dispatchEvent(event);
+    };
+    /** A slow swipe from `from` to `to`, 10 ms per 10 px. */
+    const swipe = (target: HTMLElement, from: number, to: number) => {
+      touch(target, 'touchstart', from, 0);
+      const step = to > from ? 10 : -10;
+      let t = 0;
+      for (let y = from + step; step > 0 ? y <= to : y >= to; y += step) touch(target, 'touchmove', y, (t += 50));
+      touch(target, 'touchend', to, t);
+    };
+    const cleanup = async () => {
+      await React.act(async () => root.unmount());
+      container.remove();
+    };
+    return { sheet, list, swipe, closed: () => closed, cleanup };
+  };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 260));
+
+  test('a bottom sheet closes when dragged down past a third, and springs back short of it', async () => {
+    const view = await renderBottomSheet(0);
+    view.swipe(view.list, 100, 200);
+    await settle();
+    assert.equal(view.closed(), 0, 'a short drag springs back');
+    assert.equal(view.sheet.style.translate, '');
+
+    view.swipe(view.list, 100, 400);
+    await settle();
+    assert.equal(view.closed(), 1, 'a long drag closes');
+    await view.cleanup();
+  });
+
+  test('a bottom sheet lets scrolled content scroll, and freezes it once the sheet takes the swipe', async () => {
+    const view = await renderBottomSheet(300);
+    view.swipe(view.list, 100, 400);
+    await settle();
+    assert.equal(view.closed(), 0, 'scrolled content takes the swipe');
+
+    view.list.scrollTop = 0;
+    let frozenDuringDrag = false;
+    const watch = () => { frozenDuringDrag ||= view.list.style.overflowY === 'hidden'; };
+    document.addEventListener('touchmove', watch);
+    view.swipe(view.list, 100, 400);
+    document.removeEventListener('touchmove', watch);
+    assert.ok(frozenDuringDrag);
+    assert.equal(view.list.style.overflowY, 'auto', 'the content scrolls again after the swipe');
+    await settle();
+    assert.equal(view.closed(), 1);
+    await view.cleanup();
   });
 });
 

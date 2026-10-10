@@ -12,6 +12,7 @@ export type { ContextMenuAnchor } from './ContextMenuOverlay';
 export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from './Command';
 export { default as DarkModeToggle } from './DarkModeToggle';
 export { Dialog, DialogTrigger, DialogContent, DialogTitle } from './Dialog';
+export { default as BottomSheet } from './BottomSheet';
 export { Input } from './Input';
 export { MENU_LIST_MAX_HEIGHT, READING_SURFACE_MAX_HEIGHT } from './menuSizing';
 export { default as RowActionsTrigger } from './RowActionsTrigger';
