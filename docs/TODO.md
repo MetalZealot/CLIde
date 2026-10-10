@@ -66,7 +66,7 @@ main checkout only).
 ## Mobile UX polish
 
 - [~] **Jump-to-bottom button carries the activity dots while scrolled up**, chevron below the circle; a turn's ending holds until you're back at the bottom (probe variant G). Awaiting a look on phone. **S**
-- [ ] **Single-row composer on mobile**, settings in a sheet. [Plan](plans/composer-single-row.md). **M — probe first**
+- [~] **Single-row composer on mobile**, settings in a sheet. [Plan](plans/composer-single-row.md). **M — probe first**
 - [~] **Context & Usage popover redesign, with a Claude prompt-cache countdown.** Big session %, cache pill, auto-compact/breakdown buttons, limits as open columns with pace ticks (probe variant F, `~/Projects/mockups/usage-popover`); breakdown is its own view. Tests pass; awaiting phone check. **M**
 
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**

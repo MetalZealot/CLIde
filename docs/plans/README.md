@@ -20,7 +20,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
 | [Claude permission default](claude-permission-default.md) | not started | Phase 1: read `permissions.defaultMode` into Claude's capability default |
-| [Single-row mobile composer](composer-single-row.md) | not started | Phase 1: probe page on the S20 for row, badge and sheet |
+| [Single-row mobile composer](composer-single-row.md) | 0/4 | Phase 1: probe at `dist/composer-row-probe.html` awaiting S20 verdict |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
 | [Plan and agents out of the chat](plan-and-agents-out-of-chat.md) | not started | Phase 0: confirm each provider's plan and agent sources |
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript; waits on runtime rebuild phase 7 |

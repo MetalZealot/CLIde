@@ -1,7 +1,7 @@
 # A single-row composer on mobile
 
-- Status: not started
-- Next: Phase 1 — probe page on the S20 for the row, badge styles and sheet height
+- Status: 0/4
+- Next: Phase 1 — probe built (layouts Today/A/B/C, badges, sheet heights); pick on the S20
 - Context: [design system](../design-system.md) ("Placement around the
   composer"); [composer anchors](../code-anchors.md);
   [permission default plan](claude-permission-default.md) for the badge baseline;
