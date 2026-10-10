@@ -66,7 +66,7 @@ main checkout only).
 ## Mobile UX polish
 
 - [~] **Jump-to-bottom button carries the activity dots while scrolled up**, chevron below the circle; a turn's ending holds until you're back at the bottom (probe variant G). Awaiting a look on phone. **S**
-- [~] **Bottom sheets drag down to close, from anywhere once the list is at the top**, with a handle and Android back closing them; one shared sheet, `/btw` first. Probe (`~/Projects/mockups/bottom-sheet`) on the S20 picks next-swipe vs mid-swipe handoff and the release distance. **M — probe first**
+- [~] **Bottom sheets drag down to close, from anywhere once the list is at the top**, with a handle and Android back closing them; one shared sheet, `/btw` first. Probe (`~/Projects/mockups/bottom-sheet`): mid-swipe handoff, release at ⅓ chosen; confirming the jump fix on the S20. **M**
 - [~] **The 90% usage warning hangs under the header ring** (probe variant A, `~/Projects/mockups/usage-warning`); stays until × or reset, the composer notice remains only where there is no header. Built; awaiting a phone look once a window passes 90%. **S**
 - [~] **Single-row composer on mobile**, settings in a sheet. [Plan](plans/composer-single-row.md). **M — probe first**
 - [~] **Context & Usage popover redesign, with a Claude prompt-cache countdown.** Big session %, cache pill, auto-compact/breakdown buttons, limits as open columns with pace ticks (probe variant F, `~/Projects/mockups/usage-popover`); breakdown is its own view. Tests pass; awaiting phone check. **M**
