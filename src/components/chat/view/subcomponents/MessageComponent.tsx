@@ -30,6 +30,7 @@ import TurnSummaryRow from './TurnSummaryRow';
 import { DISCLOSED_TEXT_CLASS, StaticRow, TextDisclosure } from './DisclosureRow';
 import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
+import CollapsibleMessageText from './CollapsibleMessageText';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
@@ -170,17 +171,19 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                     isRewindEditTarget ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
                   }`}
                 >
-                  <div dir="auto" className="break-words" data-chat-find-content>
-                    {/* `breaks` keeps a typed single newline meaningful now that
-                        user turns render as Markdown rather than pre-wrapped text. */}
-                    <Markdown
-                      breaks
-                      readingTypography
-                      className="chat-reading prose-on-accent prose prose-sm prose-invert max-w-none font-prose [&_a]:text-blue-100 [&_a]:underline"
-                    >
-                      {message.content}
-                    </Markdown>
-                  </div>
+                  <CollapsibleMessageText>
+                    <div dir="auto" className="break-words" data-chat-find-content>
+                      {/* `breaks` keeps a typed single newline meaningful now that
+                          user turns render as Markdown rather than pre-wrapped text. */}
+                      <Markdown
+                        breaks
+                        readingTypography
+                        className="chat-reading prose-on-accent prose prose-sm prose-invert max-w-none font-prose [&_a]:text-blue-100 [&_a]:underline"
+                      >
+                        {message.content}
+                      </Markdown>
+                    </div>
+                  </CollapsibleMessageText>
                 </div>
                 {/* Copy + timestamp sit below the bubble, claude.ai-style */}
                 <div className="-mt-1 flex select-none items-center justify-end gap-1 px-1 text-chat-meta text-muted-foreground">

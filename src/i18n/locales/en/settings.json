@@ -207,6 +207,10 @@
         "label": "Wrap command output",
         "description": "Wrap long lines in command rows instead of scrolling sideways. The wrap button on a row flips it for that row."
       },
+      "collapseLongMessages": {
+        "label": "Collapse long messages",
+        "description": "Shorten your long messages in chat. Tap the chevron to expand."
+      },
       "copyFormat": {
         "label": "Copy format",
         "description": "Which format the copy button uses for agent messages.",

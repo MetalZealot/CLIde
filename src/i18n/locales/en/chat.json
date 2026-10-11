@@ -520,6 +520,10 @@
   "connection": {
     "reconnecting": "Connection lost — reconnecting…"
   },
+  "collapsedMessage": {
+    "expand": "Show full message",
+    "collapse": "Show less"
+  },
   "rewind": {
     "editMessage": "Edit & rewind from here",
     "pickerEyebrow": "Rewind",

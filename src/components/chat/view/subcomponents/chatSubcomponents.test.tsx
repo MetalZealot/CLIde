@@ -37,6 +37,8 @@ import ScrollToBottomButton from './ScrollToBottomButton';
 import { ChatExportOptions } from './ChatExportMenu';
 import ChatFindBar from './ChatFindBar';
 import ChatMessageFiles from './ChatMessageFiles';
+import CollapsibleMessageText from './CollapsibleMessageText';
+import { CHAT_FIND_REVEAL_EVENT } from '../../hooks/useChatFind';
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
@@ -327,6 +329,55 @@ describe('chatSubcomponents', () => {
       localStorage.clear();
       root = null;
       container = null;
+    });
+
+    test('a long message collapses behind a chevron per the setting, and find\'s reveal event opens it', async () => {
+      let height = 300;
+      const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+      const computedStyle = globalThis.getComputedStyle;
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => height });
+      globalThis.getComputedStyle = (() => ({ lineHeight: '20px' })) as unknown as typeof getComputedStyle;
+      const setCollapse = (value: boolean) => {
+        localStorage.setItem('uiPreferences', JSON.stringify({ collapseLongMessages: value }));
+        window.dispatchEvent(new CustomEvent('ui-preferences:sync', { detail: { storageKey: 'uiPreferences', sourceId: 'test' } }));
+      };
+      const render = () => React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <CollapsibleMessageText><p>Long message</p></CollapsibleMessageText>
+        </I18nextProvider>,
+      ));
+      const clip = () => container!.firstElementChild as HTMLElement;
+      const chevron = () => container!.querySelector('button[aria-expanded]') as HTMLButtonElement | null;
+      try {
+        container = document.createElement('div');
+        document.body.append(container);
+        root = createRoot(container);
+        await render();
+        assert.ok(clip().hasAttribute('data-collapsed-message'), '15 lines collapses');
+        assert.equal(clip().style.maxHeight, '160px', 'to 8 lines');
+        assert.equal(chevron()?.getAttribute('aria-expanded'), 'false');
+        await React.act(async () => chevron()!.click());
+        assert.equal(clip().hasAttribute('data-collapsed-message'), false);
+        assert.equal(clip().style.maxHeight, '');
+        assert.equal(chevron()?.getAttribute('aria-label'), 'Show less');
+        await React.act(async () => chevron()!.click());
+        assert.ok(clip().hasAttribute('data-collapsed-message'));
+        await React.act(async () => { clip().dispatchEvent(new Event(CHAT_FIND_REVEAL_EVENT)); });
+        assert.equal(clip().hasAttribute('data-collapsed-message'), false, 'find opens it');
+
+        await React.act(async () => setCollapse(false));
+        assert.equal(chevron(), null, 'setting off shows the whole message');
+        await React.act(async () => root?.unmount());
+        height = 190;
+        root = createRoot(container);
+        await React.act(async () => setCollapse(true));
+        await render();
+        assert.equal(chevron(), null, 'under 10 lines stays whole');
+        assert.equal(clip().hasAttribute('data-collapsed-message'), false);
+      } finally {
+        if (offsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight);
+        globalThis.getComputedStyle = computedStyle;
+      }
     });
 
     test('a tool activity row reads as facets, as its one call, or as the call still running, plus failures', () => {

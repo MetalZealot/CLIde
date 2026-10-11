@@ -63,6 +63,16 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
           />
         </SettingsRow>
         <SettingsRow
+          label={t('chat.messageDisplay.collapseLongMessages.label')}
+          description={t('chat.messageDisplay.collapseLongMessages.description')}
+        >
+          <SettingsToggle
+            checked={preferences.collapseLongMessages}
+            onChange={(value) => setPreference('collapseLongMessages', value)}
+            ariaLabel={t('chat.messageDisplay.collapseLongMessages.label')}
+          />
+        </SettingsRow>
+        <SettingsRow
           stacked
           label={t('chat.messageDisplay.copyFormat.label')}
           description={t('chat.messageDisplay.copyFormat.description')}

@@ -14,6 +14,9 @@ const SEARCH_IDLE_MS = 200;
 const MATCH_HIGHLIGHT = 'chat-find-match';
 const CURRENT_HIGHLIGHT = 'chat-find-current';
 const FALLBACK_CURRENT_CLASS = 'chat-find-current-fallback';
+/** A collapsed message expands when it receives this event. */
+export const CHAT_FIND_REVEAL_EVENT = 'chat-find:reveal';
+export const COLLAPSED_MESSAGE_SELECTOR = '[data-collapsed-message]';
 
 export type ChatFindOccurrence = {
   range: Range;
@@ -393,7 +396,15 @@ export function useChatFind({
 
     if (row && key && scrolledKeyRef.current !== key) {
       scrolledKeyRef.current = key;
-      scrollToOccurrence(currentOccurrence ?? row, scrollContainerRef.current);
+      const target = currentOccurrence ?? row;
+      const collapsed = currentOccurrence?.range.startContainer.parentElement?.closest(COLLAPSED_MESSAGE_SELECTOR);
+      if (collapsed) {
+        collapsed.dispatchEvent(new Event(CHAT_FIND_REVEAL_EVENT));
+        // Scroll once the expanded layout has painted; the live range then measures its new position.
+        requestAnimationFrame(() => requestAnimationFrame(() => scrollToOccurrence(target, scrollContainerRef.current)));
+      } else {
+        scrollToOccurrence(target, scrollContainerRef.current);
+      }
     }
     return () => clearHighlights(root);
   }, [currentIndex, isOpen, jumpToMessage, matches, messagesContentRef, query, renderedMessages, scrollContainerRef]);

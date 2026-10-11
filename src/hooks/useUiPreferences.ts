@@ -13,6 +13,7 @@ type UiPreferences = {
   sttEnabled: boolean;
   copyMessageFormat: CopyMessageFormat;
   wrapToolOutput: boolean;
+  collapseLongMessages: boolean;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -48,6 +49,7 @@ const DEFAULTS: UiPreferences = {
   sttEnabled: false,
   copyMessageFormat: 'markdown',
   wrapToolOutput: false,
+  collapseLongMessages: true,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
