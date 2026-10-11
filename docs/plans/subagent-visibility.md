@@ -67,4 +67,4 @@ constraint holds for every phase below.
   design — separate TODO item.
 - A sidebar entry or session row per agent, or an Agents tab. Besides the chat
   row, agents show in the activity line's background-work list and as a count on the
-  session's sidebar row ([plan](plan-and-agents-out-of-chat.md)).
+  session's sidebar row ([ADR 0080](../decisions/0080-background-work-rides-the-activity-line.md)).

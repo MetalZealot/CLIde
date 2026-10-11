@@ -19,7 +19,6 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Claude permission default](claude-permission-default.md) | not started | Phase 1: read `permissions.defaultMode` into Claude's capability default |
 | [Single-row mobile composer](composer-single-row.md) | 0/4 | Phase 1: probe at `dist/composer-row-probe.html` awaiting S20 verdict |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
-| [Plan and agents out of the chat](plan-and-agents-out-of-chat.md) | 10/10 | Live check on slot B, then merge |
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript; waits on runtime rebuild phase 7 |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Markdown-native project board](markdown-project-board.md) | 2/6 | Phase 2: plan-format contract (phase sizes, `Needs:`) enforced by check:docs |
