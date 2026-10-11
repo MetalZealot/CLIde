@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
+import { ChatBrowserContext, type ChatBrowserState } from '../../browser-use';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, ChatMessage, PermissionMode, TurnEnd } from '../types/types';
@@ -83,6 +83,7 @@ function ChatInterface({
   sessionActions,
   isVisible,
   onOpenBrowser,
+  chatBrowser,
   onOpenInCli,
   pageScroll = false,
   hasBottomNav = false,
@@ -1055,10 +1056,15 @@ function ChatInterface({
     limitStopLive: liveLimitStop !== null,
   });
 
-  const browser = useChatBrowser(selectedSession?.id || currentSessionId || null, isVisible && Boolean(onOpenBrowser));
+  const browserState = useMemo<ChatBrowserState>(() => ({
+    session: chatBrowser?.session ?? null,
+    unavailable: Boolean(chatBrowser?.unavailable),
+    onOpen: onOpenBrowser,
+  }), [chatBrowser, onOpenBrowser]);
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
+    <ChatBrowserContext.Provider value={browserState}>
       <div className={pageScroll ? 'flex flex-1 flex-col' : 'flex h-full min-h-0 flex-col'}>
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
@@ -1145,35 +1151,21 @@ function ChatInterface({
             />
           )}
 
-          <div
-            className="overflow-y-auto overscroll-contain"
-            style={{ maxHeight: browser?.session ? 'calc((100dvh - var(--keyboard-height, 0px)) / 2)' : undefined }}
-          >
-            {browser?.session && onOpenBrowser && (
-              <ChatBrowserPreview
-                session={browser.session}
-                unavailable={browser.unavailable}
-                compact={Boolean(queuedDraft || asyncQuestions.pendingQuestion || asyncQuestions.queued.length || pendingPermissionRequests.length || pendingRewind)}
-                onOpen={onOpenBrowser}
+          {asyncQuestions.pendingQuestion && (currentSessionId || selectedSession?.id) && (
+            <div className="px-4 md:px-6">
+              <AsyncQuestionPanel
+                key={`${currentSessionId || selectedSession?.id}:${asyncQuestions.pendingQuestion.id}`}
+                sessionId={(currentSessionId || selectedSession?.id)!}
+                question={asyncQuestions.pendingQuestion}
+                pendingCount={asyncQuestions.pendingCount}
+                isProcessing={isProcessing}
+                isSending={asyncQuestions.sendingQuestionId === asyncQuestions.pendingQuestion.id}
+                error={asyncQuestions.error}
+                onSubmit={(answer, delivery) =>
+                  asyncQuestions.submit(asyncQuestions.pendingQuestion!, answer, delivery)}
               />
-            )}
-
-            {asyncQuestions.pendingQuestion && (currentSessionId || selectedSession?.id) && (
-              <div className="px-4 md:px-6">
-                <AsyncQuestionPanel
-                  key={`${currentSessionId || selectedSession?.id}:${asyncQuestions.pendingQuestion.id}`}
-                  sessionId={(currentSessionId || selectedSession?.id)!}
-                  question={asyncQuestions.pendingQuestion}
-                  pendingCount={asyncQuestions.pendingCount}
-                  isProcessing={isProcessing}
-                  isSending={asyncQuestions.sendingQuestionId === asyncQuestions.pendingQuestion.id}
-                  error={asyncQuestions.error}
-                  onSubmit={(answer, delivery) =>
-                    asyncQuestions.submit(asyncQuestions.pendingQuestion!, answer, delivery)}
-                />
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <ChatComposer
             disabled={!selectedProject}
@@ -1315,6 +1307,7 @@ function ChatInterface({
       />
 
       {headerMenuDialogs}
+    </ChatBrowserContext.Provider>
     </PermissionContext.Provider>
   );
 }

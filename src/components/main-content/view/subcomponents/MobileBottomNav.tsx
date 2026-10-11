@@ -22,6 +22,8 @@ type MobileBottomNavProps = {
   shouldShowBrowserTab: boolean;
   /** The open session's status in the sidebar's shapes; the spinner is left off the bar. */
   chatStatus: Exclude<ActivityState, 'running'> | null;
+  /** The open chat has a browser session running a page. */
+  isBrowserOpen?: boolean;
 };
 
 // A fifth of a phone's width holds one short word, so long names get a bar label.
@@ -58,6 +60,7 @@ export default function MobileBottomNav({
   setActiveTab,
   shouldShowBrowserTab,
   chatStatus,
+  isBrowserOpen = false,
 }: MobileBottomNavProps) {
   const { t } = useTranslation();
   const {
@@ -164,6 +167,12 @@ export default function MobileBottomNav({
             >
               <span className={indicatorClassName(isSlotActive)}>
                 <slotTab.icon className="h-5 w-5" strokeWidth={isSlotActive ? 2.2 : 1.8} aria-hidden="true" />
+                {slotTab.id === 'browser' && isBrowserOpen && !isSlotActive && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
+                  />
+                )}
               </span>
               <span className="flex max-w-full items-center gap-0.5 px-1">
                 <span className="truncate">{t(slotTab.labelKey)}</span>

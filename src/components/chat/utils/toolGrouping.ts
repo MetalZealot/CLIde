@@ -1,3 +1,4 @@
+import { isBrowserCall } from '../../browser-use/browserSteps';
 import type { ChatMessage } from '../types/types';
 
 import { isStandaloneTool } from './toolActivity';
@@ -7,6 +8,8 @@ export interface ToolActivityItem {
   /** Tool calls in order, with any shown thinking between, before or after them. */
   messages: ChatMessage[];
   timestamp: ChatMessage['timestamp'];
+  /** A run of browser calls, drawn as one browser card. */
+  browser?: true;
 }
 
 export type MessageListItem = ChatMessage | ToolActivityItem;
@@ -33,11 +36,11 @@ function isActivityMember(message: ChatMessage, pendingToolIds?: ReadonlySet<str
 
 const activityCache = new WeakMap<ChatMessage, ToolActivityItem>();
 
-function toActivity(members: ChatMessage[]): ToolActivityItem {
+function toActivity(members: ChatMessage[], browser = false): ToolActivityItem {
   const cached = activityCache.get(members[0]);
-  const activity = cached && cached.messages.length === members.length
+  const activity = cached && cached.messages.length === members.length && Boolean(cached.browser) === browser
     && cached.messages.every((member, position) => member === members[position])
-    ? cached : { _isGroup: true as const, messages: members, timestamp: members[0].timestamp };
+    ? cached : { _isGroup: true as const, messages: members, timestamp: members[0].timestamp, ...(browser && { browser: true as const }) };
   activityCache.set(members[0], activity);
   return activity;
 }
@@ -47,11 +50,45 @@ const otherTurn = (a: ChatMessage, b: ChatMessage): boolean =>
 
 /**
  * An activity is every tool call between two rendered non-tool rows, plus the thinking
- * either side of them. Thinking never ends one; a different Codex `turnId` does.
+ * either side of them. Thinking never ends one; a different Codex `turnId` does, and so
+ * does a switch between browser and other calls, so a browser run is its own card.
+ * A turn's browser runs then fold into one card at its latest run.
  */
 export function groupToolActivities(
   messages: ChatMessage[],
-  { showThinking = true, pendingToolIds, holdTrailingThinking = false }: GroupToolActivitiesOptions = {},
+  options: GroupToolActivitiesOptions = {},
+): MessageListItem[] {
+  const items = groupRuns(messages, options);
+  // Latest run's first call → every browser run's members in its turn, in order.
+  const folded = new Map<ChatMessage, ChatMessage[]>();
+  const absorbed = new Set<ChatMessage>();
+  let turnRuns: ToolActivityItem[] = [];
+  const closeTurn = () => {
+    if (turnRuns.length > 1) {
+      const all = turnRuns.flatMap((run) => run.messages);
+      folded.set(turnRuns[turnRuns.length - 1].messages[0], all);
+      for (const run of turnRuns.slice(0, -1)) for (const member of run.messages) absorbed.add(member);
+    }
+    turnRuns = [];
+  };
+  for (const item of items) {
+    if (isToolActivityItem(item)) {
+      if (!item.browser) continue;
+      const previous = turnRuns[turnRuns.length - 1];
+      if (previous && otherTurn(previous.messages[previous.messages.length - 1], item.messages[0])) closeTurn();
+      turnRuns.push(item);
+    } else if (item.type === 'user') {
+      closeTurn();
+    }
+  }
+  closeTurn();
+  return folded.size ? groupRuns(messages.filter((message) => !absorbed.has(message)), options, folded) : items;
+}
+
+function groupRuns(
+  messages: ChatMessage[],
+  { showThinking = true, pendingToolIds, holdTrailingThinking = false }: GroupToolActivitiesOptions,
+  folded?: ReadonlyMap<ChatMessage, ChatMessage[]>,
 ): MessageListItem[] {
   const items: MessageListItem[] = [];
   let index = 0;
@@ -71,7 +108,10 @@ export function groupToolActivities(
       continue;
     }
 
-    const members: ChatMessage[] = [...(showThinking ? leading : []), opener];
+    const browser = isBrowserCall(opener);
+    // A browser card lists actions only, so the thinking before it keeps its own row.
+    if (browser && showThinking) items.push(...leading);
+    const members: ChatMessage[] = [...(showThinking && !browser ? leading : []), opener];
     let lastCall = opener;
     let nextIndex = openerIndex + 1;
 
@@ -80,7 +120,7 @@ export function groupToolActivities(
       if (otherTurn(lastCall, candidate)) break;
       if (candidate.isThinking) {
         if (showThinking) members.push(candidate);
-      } else if (isActivityMember(candidate, pendingToolIds)) {
+      } else if (isActivityMember(candidate, pendingToolIds) && isBrowserCall(candidate) === browser) {
         members.push(candidate);
         lastCall = candidate;
       } else {
@@ -89,8 +129,12 @@ export function groupToolActivities(
       nextIndex += 1;
     }
 
-    items.push(toActivity(members));
-    index = nextIndex;
+    // Thinking after a browser run's last call belongs to whatever follows it.
+    let end = members.length;
+    if (browser) while (members[end - 1].isThinking) end -= 1;
+    const run = members.slice(0, end);
+    items.push(toActivity((browser && folded?.get(run[0])) || run, browser));
+    index = nextIndex - (members.length - end);
   }
 
   return items;

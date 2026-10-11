@@ -1,5 +1,6 @@
 import type { Project, ProjectSession, LLMProvider, SessionActions } from '../../../types/app';
 import type { FileOpenOptions } from '../../code-editor/types/types';
+import type { BrowserSessionSummary } from '../../../../shared/browser-use';
 import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
@@ -226,6 +227,8 @@ export interface ChatInterfaceProps {
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   sessionActions: SessionActions;
   onOpenBrowser?: (browserSessionId: string) => void;
+  /** This chat's browser session, polled by the page that also badges the Browser tab. */
+  chatBrowser?: { session: BrowserSessionSummary | null; unavailable: boolean } | null;
   /** Opens the open chat in its provider's own CLI. */
   onOpenInCli?: () => void;
   /** Whether Chat is the visible view; it stays mounted while hidden. */

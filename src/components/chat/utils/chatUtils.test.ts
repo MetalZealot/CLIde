@@ -10,6 +10,7 @@ import type { ChatMessage } from '../types/types';
 
 import { buildOperationDetail } from './operationDetail';
 import { describeOperation, summarizeActivity } from './toolActivity';
+import { browserToolOf, describeBrowserStep, isBrowserCall, lastBrowserUrl } from '../../browser-use/browserSteps';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem, revealStartForBudget } from './toolGrouping';
 import {
   extractInternalMemoryCitation,
@@ -470,6 +471,36 @@ test('tool activities reuse unchanged groups and update changed members or membe
   assert.notEqual(updated[0], initial[0]);
   assert.ok(isToolActivityItem(updated[0]));
   assert.equal(updated[0].messages[1].toolResult?.content, 'finished');
+});
+
+test('browser runs in one turn fold into one card at the latest, named by every provider, and read as steps', () => {
+  const at = '2026-10-10T00:00:00Z';
+  const call = (id: string, toolName: string, toolInput: unknown = {}): ChatMessage => (
+    { id, timestamp: at, type: 'assistant', content: '', isToolUse: true, toolName, toolInput: JSON.stringify(toolInput) });
+  const thought = (id: string): ChatMessage => ({ id, timestamp: at, type: 'assistant', content: 'hm', isThinking: true });
+  const items = groupToolActivities([
+    call('r', 'Read'),
+    thought('t1'),
+    call('b1', 'mcp__cloudcli-browser__browser_navigate', { url: 'http://localhost:5174/settings' }),
+    thought('t2'),
+    call('b2', 'browser_click', { element: 'Appearance' }),
+    call('b3', 'cloudcli-browser_browser_type', { element: 'Search', text: 'secret' }),
+    thought('t3'),
+    call('e', 'Edit'),
+    { id: 'say', timestamp: at, type: 'assistant', content: 'Checking the page' },
+    call('b4', 'browser_take_screenshot'),
+    { id: 'ask', timestamp: at, type: 'user', content: 'Again' },
+    call('b5', 'browser_snapshot'),
+  ]);
+  const shape = items.map((item) => (isToolActivityItem(item)
+    ? `${item.browser ? 'browser' : 'tools'}:${item.messages.map((m) => m.id).join(',')}` : item.id));
+  assert.deepEqual(shape, ['tools:r,t1,t3,e', 'say', 'browser:b1,t2,b2,b3,b4', 'ask', 'browser:b5']);
+  assert.equal(browserToolOf('mcp__other__browser_click'), null);
+  const run = items[2];
+  assert.ok(isToolActivityItem(run));
+  const steps = run.messages.filter(isBrowserCall).map(describeBrowserStep);
+  assert.deepEqual(steps, ['Opened localhost:5174/settings', 'Clicked “Appearance”', 'Typed into “Search”', 'Took a screenshot']);
+  assert.equal(lastBrowserUrl(run.messages), 'localhost:5174/settings');
 });
 
 test('older rows are revealed within a mount-cost budget, a tool run counting once', () => {

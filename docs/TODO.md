@@ -36,7 +36,7 @@ main checkout only).
 
 ## Browser
 
-- [ ] **Check the chat's Browser preview on the installed phone app with a queue and a question open.** A 320×568 component harness passes; no human check on the PWA yet. **S**
+- [~] **Browser use is a card in the chat, not a banner above the composer.** A turn's browser calls fold into one card at its latest browser use: live screenshot + last three steps while running, a folded step list after. The Browser tab gets a dot while the chat's session is open. Probe variant G (2026-10-10); built on main, awaiting his check. **M**
 - [ ] **Record short Browser clips an agent can inspect.** Start/stop within one turn, frames for the agent via ffmpeg; no timer or download in the first version. [Plan](plans/browser-video-clips.md). **M — Phase 0 proof first**
 - [ ] **Attach a screen recording or animated GIF and the agent sees timestamped frames.** Claude reads only a GIF's first frame today, and a video arrives as an opaque file. The extractor it builds is the one Browser clips phase 2 reuses. [Plan](plans/video-attachments-as-frames.md). **M — real S20 clips first**
 

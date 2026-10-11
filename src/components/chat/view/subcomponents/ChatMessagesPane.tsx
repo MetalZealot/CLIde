@@ -11,6 +11,7 @@ import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/me
 import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnSummaries } from '../../utils/turnDuration';
 import { useHasPendingSend } from '../../../../stores/sendOutbox';
+import ChatBrowserActivity from '../../../browser-use/view/ChatBrowserActivity';
 
 import ActivityIndicator from './ActivityIndicator';
 import MessageComponent from './MessageComponent';
@@ -290,6 +291,18 @@ function ChatMessagesPane({
               if (isToolActivityItem(item)) {
                 const activityPrevMessage = prevMessage;
                 prevMessage = item.messages[item.messages.length - 1] || prevMessage;
+
+                if (item.browser) {
+                  return (
+                    <ChatBrowserActivity
+                      key={activityKeys.keys.get(item)}
+                      activity={item}
+                      isLive={item === liveActivity}
+                      getMessageKey={getMessageKey}
+                      onFileOpen={onFileOpen}
+                    />
+                  );
+                }
 
                 return (
                   <ToolActivity

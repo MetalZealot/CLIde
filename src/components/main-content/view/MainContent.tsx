@@ -6,7 +6,7 @@ import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import TerminalPanel from '../../terminal/view/TerminalPanel';
 import GitPanel from '../../git-panel/view/GitPanel';
-import { BrowserUsePanel } from '../../browser-use';
+import { BrowserUsePanel, isBrowserOpen, useChatBrowser } from '../../browser-use';
 import type { MainContentProps } from '../types/types';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
@@ -79,6 +79,8 @@ function MainContent({
   const [fileTreeReveal, setFileTreeReveal] = useState<{ path: string } | null>(null);
 
   const shouldShowBrowserTab = browserUseEnabled;
+  // The Browser tab polls for itself while open.
+  const chatBrowser = useChatBrowser(selectedSession?.id ?? null, shouldShowBrowserTab && activeTab !== 'browser');
 
   const {
     editingFile,
@@ -268,6 +270,7 @@ function MainContent({
                 onAdoptCheckout={onAdoptCheckout}
                 sessionActions={sessionActions}
                 onOpenBrowser={shouldShowBrowserTab ? openBrowserSession : undefined}
+                chatBrowser={chatBrowser}
                 onOpenInCli={openInCli}
                 isVisible={activeTab === 'chat'}
                 pageScroll={chatPageScroll}
@@ -352,6 +355,7 @@ function MainContent({
           hasSelectedProject={Boolean(selectedProject)}
           setActiveTab={setActiveTab}
           shouldShowBrowserTab={shouldShowBrowserTab}
+          isBrowserOpen={isBrowserOpen(chatBrowser)}
           chatStatus={chatStatus}
         />
         </div>
