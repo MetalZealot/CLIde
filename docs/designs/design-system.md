@@ -6,8 +6,8 @@
   [architecture](../../ARCHITECTURE.md) quality goals, ADRs 0001 and 0062
 
 This design fixes where CLIde's screens get their look: colour, corners, depth,
-stacking, text size, motion, the shared components, and the layouts built from
-them. When the plan closes, every screen draws from one named set, a check stops
+stacking, text size, icon size, motion, the shared components, and the layouts
+built from them. When the plan closes, every screen draws from one named set, a check stops
 new raw values at commit, and the app can be rethemed. Spacing values, the Shell
 and code highlighting stay as they are.
 
@@ -33,6 +33,10 @@ Labels: **measured** = counted with grep over `src/**/*.{ts,tsx}` on 2026-10-07;
 - **Type is mostly settled** ([reference](../design-system.md#typography)), but
   134 arbitrary sizes across 9 values remain, 107 of them 10px or 11px — below
   Tailwind's smallest step, 12px (measured).
+- **Icons: 13 sizes over 505 `lucide-react` uses** — 16px 233, 14px 127,
+  12px 62, 20px 36, the rest under 11 each; 17 more are sized at runtime
+  (measured 2026-10-11). Nothing says which size a header, button or inline icon
+  takes, so a size settled on a probe is re-picked by hand when built.
 - **Motion: 7 durations**, 56 of 68 uses at 150 or 200 ms (measured).
 - **Shared components live in `src/shared/view/ui/`** (24 files, source), and
   nothing stops a screen building its own look-alike.
@@ -52,6 +56,8 @@ Labels: **measured** = counted with grep over `src/**/*.{ts,tsx}` on 2026-10-07;
   one; four presets instead: square, min, medium, large.
 - 2026-08-13: `rounded-full` stays literal; pills and avatars do not follow the
   radius setting.
+- 2026-10-11: icons get a named size set, chosen by what the icon is for,
+  so a size agreed on a probe carries into the build unchanged.
 - 2026-10-07: the design system is one design and one plan; the colour theming
   plan folds in. The reference doc gains a section as each area lands.
 
@@ -126,14 +132,16 @@ counts are fixed here.
 | Elevation | Surfaces `background` < `card` < `popover`; `shadow-raised`, `shadow-overlay`, `shadow-dialog` |
 | Stacking | `z-sticky` < `z-dropdown` < `z-overlay` (sheets, scrims) < `z-dialog` < `z-toast`; a dialog opened from a dialog shares its layer and wins by portal order |
 | Type | Tailwind `xs`–`3xl`, `text-2xs`, and the chat roles (ADR 0062) |
+| Icon size | `size-icon-inline` (beside text), `size-icon-control` (buttons, header and toolbar), `size-icon-nav` (bottom nav), `size-icon-hero` (empty states) |
 | Motion | `duration-fast` 150 ms (hover, press), `duration-base` 200 ms (open, close); named animations such as the activity indicator are exempt; reduced motion honoured |
 
 ### Enforcement
 
 - `check:design` runs in the pre-commit hook beside lint-staged and holds one
   baseline per pattern: raw palette class, hex outside token files, arbitrary
-  font size, arbitrary z-index, radius, shadow or duration outside its set.
-  Upstream work arriving with raw classes fails it, and is mapped on the way in.
+  font size, arbitrary z-index, icon size, radius, shadow or duration outside its
+  set. Upstream work arriving with raw classes fails it, and is mapped on the
+  way in.
 - The contrast script runs whenever a primitive or preset changes.
 
 ### A phase's lifecycle

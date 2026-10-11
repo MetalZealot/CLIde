@@ -29,21 +29,22 @@ find-and-replace. Re-measure before a phase starts; the design's counts are a
 - [ ] 5. No font size sits outside the scale: arbitrary sizes move to
       `text-2xs` or a scale step, and the older tool panels (to-do and task
       lists, plans, question forms) adopt the chat text roles.
-- [ ] 6. Motion uses the two named durations.
-- [ ] 7. The shared components are listed in the reference with their
+- [ ] 6. Every icon takes one of the four icon-size roles.
+- [ ] 7. Motion uses the two named durations.
+- [ ] 8. The shared components are listed in the reference with their
       variants, sizes and states, and look-alike copies fold into
       `src/shared/view/ui/`.
-- [ ] 8. Patterns are written into the reference, each naming a live screen to
+- [ ] 9. Patterns are written into the reference, each naming a live screen to
       copy, with spacing settled per pattern.
-- [ ] 9. Tokens are OKLCH: the ~40 definitions in `src/index.css` change format
+- [ ] 10. Tokens are OKLCH: the ~40 definitions in `src/index.css` change format
       and Tailwind's `hsl(var(--x))` wrappers become `oklch(var(--x))`, matching
       today's colours exactly.
-- [ ] 10. Theme presets and their Settings picker — monochrome, single-accent,
+- [ ] 11. Theme presets and their Settings picker — monochrome, single-accent,
       full-colour — with dark derived, the contrast script passing every preset,
       and `theme-color` following the theme.
-- [ ] 11. The radius preset (square, min, medium, large) scales the three radius
+- [ ] 12. The radius preset (square, min, medium, large) scales the three radius
       roles.
-- [ ] 12. Provider accent presets (Anthropic, Codex, Cursor, OpenCode, DeepSeek,
+- [ ] 13. Provider accent presets (Anthropic, Codex, Cursor, OpenCode, DeepSeek,
       Antigravity) on the per-repo accent mechanism.
 
 ## Done when
