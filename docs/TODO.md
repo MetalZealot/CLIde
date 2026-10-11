@@ -11,6 +11,7 @@ main checkout only).
 
 ## Operations
 
+- [~] **Probe harness: probes build from CLIde's own components.** `probe.html` lists them; real header, composer and nav on fake data; options on a left-edge tab. Awaiting Grayson's phone check. [Guide](../src/probes/README.md). **S**
 - [~] **Repo cleanup: CLIde presents and builds as itself.** New README, one CI workflow; upstream's desktop, Docker and release tooling, CloudCLI's plugin system and non-English locales removed on `chore/repo-cleanup`. Awaiting Grayson's check on the branch-test slot, then merge. Refusals in [the verdicts file](upstream-verdicts.tsv). **M**
 
 ## Provider maintenance

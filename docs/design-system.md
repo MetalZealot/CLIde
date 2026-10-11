@@ -9,6 +9,9 @@ Every rule is labelled external standard, house convention, or maintainer taste.
 A convention stated confidently reads exactly like a published standard to anyone
 who cannot check — so every UI proposal names its bucket before it is built.
 
+An unsettled visual choice goes to Grayson as a probe built with
+[the probe harness](../src/probes/README.md), from the components it will ship in.
+
 ## Tokens
 
 ### Typography

@@ -55,6 +55,11 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
+        // probe.html is the design-probe harness; it builds with the app so probes share its styles.
+        input: {
+          index: fileURLToPath(new URL('./index.html', import.meta.url)),
+          probe: fileURLToPath(new URL('./probe.html', import.meta.url)),
+        },
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],

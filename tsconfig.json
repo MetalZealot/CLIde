@@ -26,5 +26,7 @@
     "types": ["vite/client"],
     "ignoreDeprecations": "5.0"
   },
-  "include": ["src", "shared", "vite.config.js"]
+  "include": ["src", "shared", "vite.config.js"],
+  // Probes are untracked throwaways; an old one must not fail typecheck.
+  "exclude": ["src/probes/*.probe.tsx"]
 }
