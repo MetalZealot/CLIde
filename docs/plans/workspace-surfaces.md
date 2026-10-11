@@ -1,7 +1,7 @@
 # The workspace tabs offer what the desktop agent apps' side panels offer
 
-- Status: 2/3
-- Next: phase 3's second cut (tabs, search, settings) awaits Grayson's live check
+- Status: 3/3
+- Next: check the Done-when list on the phone, then delete this plan
 - Context: [subagent visibility](subagent-visibility.md) owns how agents show
   in the chat; [provider capabilities](../providers.md)
 
@@ -25,7 +25,7 @@ set.
   the phone bar has exactly five places.
 - [x] 2. **A running subagent updates without a reload.** Built as
   [subagent visibility](subagent-visibility.md) phase 3.
-- [ ] 3. **Terminal is rebuilt on upstream's terminal plugin** (MIT,
+- [x] 3. **Terminal is rebuilt on upstream's terminal plugin** (MIT,
   `cloudcli-ai/cloudcli-plugin-terminal`), whose plugin host CLIde removed. Its
   framework-free `session.ts` (reconnect with exact replay) and `shell.ts`
   (shell and working-directory resolution) come across nearly verbatim; the
@@ -33,7 +33,7 @@ set.
   header menu, a tab row only with two or more terminals) with the pinned key
   bar, picked from the probe. First cut verified live: the `/terminal` socket,
   reconnect with exact replay, the key bar, light/dark, Clear and Restart.
-  Second cut built: terminal tabs with an 8-second undo on close, output search,
+  Second cut seen live: terminal tabs with an 8-second undo on close, output search,
   and a per-device settings sheet (font size, cursor, copy on select).
 
 ## Done when

@@ -11,7 +11,6 @@ main checkout only).
 
 ## Operations
 
-- [~] **Probe harness: probes build from CLIde's own components.** `probe.html` lists them; real header, composer and nav on fake data; options on a left-edge tab. Awaiting Grayson's phone check. [Guide](../src/probes/README.md). **S**
 - [~] **Repo cleanup: CLIde presents and builds as itself.** New README, one CI workflow; upstream's desktop, Docker and release tooling, CloudCLI's plugin system and non-English locales removed on `chore/repo-cleanup`. Awaiting Grayson's check on the branch-test slot, then merge. Refusals in [the verdicts file](upstream-verdicts.tsv). **M**
 
 ## Provider maintenance
@@ -36,7 +35,6 @@ main checkout only).
 
 ## Browser
 
-- [~] **Browser use is a card in the chat, not a banner above the composer.** A turn's browser calls fold into one card at its latest browser use: live screenshot + last three steps while running, a folded step list after. The Browser tab gets a dot while the chat's session is open. Probe variant G (2026-10-10); built on main, awaiting his check. **M**
 - [ ] **Record short Browser clips an agent can inspect.** Start/stop within one turn, frames for the agent via ffmpeg; no timer or download in the first version. [Plan](plans/browser-video-clips.md). **M — Phase 0 proof first**
 - [ ] **Attach a screen recording or animated GIF and the agent sees timestamped frames.** Claude reads only a GIF's first frame today, and a video arrives as an opaque file. The extractor it builds is the one Browser clips phase 2 reuses. [Plan](plans/video-attachments-as-frames.md). **M — real S20 clips first**
 
@@ -140,7 +138,7 @@ new work.
 - [ ] Audit which Codex commands and config keys CLIde lacks; give each a destination. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [~] **Workspace tabs like the desktop apps** — Terminal for Shell, rebuilt on upstream's terminal plugin; Tasks and Agents tabs dropped. Phase 1 and the Terminal's first cut verified; its tabs, search and settings built, awaiting live check. [Plan](plans/workspace-surfaces.md). **M/L**
+- [~] **Workspace tabs like the desktop apps** — Terminal for Shell, rebuilt on upstream's terminal plugin; Tasks and Agents tabs dropped. All three phases built and seen live; the plan's Done-when list is left to check. [Plan](plans/workspace-surfaces.md). **M/L**
 - [ ] **Claude's terminal in the Terminal tab.** A read-only feed of every command the agent runs, with its output and running state, beside Your shell behind a switch, as in the mobile-agent mockup. Built from the Bash calls Chat already receives; needs no PTY. Not yet planned. **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
