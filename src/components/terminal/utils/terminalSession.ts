@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal, type ITheme } from '@xterm/xterm';
@@ -13,11 +14,14 @@ import {
 import { createTerminalClipboardAddon } from '../../shell/utils/terminalClipboard';
 import { ensureXtermFocusStyles } from '../../shell/utils/terminalStyles';
 
+import { MAX_FONT_SIZE, MIN_FONT_SIZE, terminalPrefs, type TerminalPrefs } from './terminalPrefs';
+
 // Ported from upstream's cloudcli-plugin-terminal (session.ts, protocol 2): binary
 // frames are PTY bytes, text frames are JSON control, and `seq` counts bytes
 // rendered so a reconnect asks the server for only what it missed.
 
-export type TerminalStatus = 'connecting' | 'connected' | 'reconnecting' | 'exited' | 'error';
+/** `idle` until the terminal is first shown; a restored background tab connects when picked. */
+export type TerminalStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'exited' | 'error';
 
 export type TerminalSnapshot = {
   status: TerminalStatus;
@@ -26,6 +30,8 @@ export type TerminalSnapshot = {
   shell: string | null;
   pendingCtrl: boolean;
   pendingAlt: boolean;
+  /** Matches for the last search; null when no search is showing. */
+  search: { index: number; count: number } | null;
 };
 
 type ServerMessage =
@@ -41,7 +47,6 @@ const PING_INTERVAL_MS = 25_000;
 const FIT_DEBOUNCE_MS = 60;
 /** Close code the server sends when another socket took this PTY. */
 const CLAIMED_ELSEWHERE_CODE = 4409;
-const STORAGE_PREFIX = 'clide-terminal-session:';
 
 const encoder = new TextEncoder();
 
@@ -73,25 +78,15 @@ function buildSocketUrl(): string | null {
   return token ? `${protocol}//${window.location.host}/terminal?token=${encodeURIComponent(token)}` : null;
 }
 
-function readStoredSessionId(cwd: string): string | null {
-  try {
-    return localStorage.getItem(`${STORAGE_PREFIX}${cwd}`);
-  } catch {
-    return null;
-  }
-}
+const DARK_SEARCH: ISearchOptions['decorations'] = {
+  matchBackground: '#5f5f00', matchBorder: '#e5e510', matchOverviewRuler: '#e5e510',
+  activeMatchBackground: '#e5e510', activeMatchBorder: '#ffffff', activeMatchColorOverviewRuler: '#ffffff',
+};
 
-function writeStoredSessionId(cwd: string, id: string | null): void {
-  try {
-    if (id) {
-      localStorage.setItem(`${STORAGE_PREFIX}${cwd}`, id);
-    } else {
-      localStorage.removeItem(`${STORAGE_PREFIX}${cwd}`);
-    }
-  } catch {
-    // Storage unavailable; a reload starts a new shell.
-  }
-}
+const LIGHT_SEARCH: ISearchOptions['decorations'] = {
+  matchBackground: '#fde68a', matchBorder: '#d97706', matchOverviewRuler: '#d97706',
+  activeMatchBackground: '#f59e0b', activeMatchBorder: '#383a42', activeMatchColorOverviewRuler: '#383a42',
+};
 
 /**
  * One plain shell for one checkout: an xterm plus the socket feeding it. The socket
@@ -102,16 +97,21 @@ export class TerminalSession {
   readonly element: HTMLDivElement;
 
   private readonly cwd: string;
+  private readonly onServerSessionChange: () => void;
   private terminal: Terminal | null = null;
   private fitAddon: FitAddon | null = null;
+  private searchAddon: SearchAddon | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private unsubscribePrefs: (() => void) | null = null;
+  private disposed = false;
   private mobileSelection: MobileTerminalSelectionManager | null = null;
   private readonly listeners = new Set<() => void>();
   private snapshot: TerminalSnapshot = {
-    status: 'connecting', exitCode: null, error: null, shell: null, pendingCtrl: false, pendingAlt: false,
+    status: 'idle', exitCode: null, error: null, shell: null, pendingCtrl: false, pendingAlt: false, search: null,
   };
 
   private ws: WebSocket | null = null;
-  private serverSessionId: string | null;
+  serverSessionId: string | null;
   private seq = 0;
   private everConnected = false;
   private restarting = false;
@@ -133,9 +133,11 @@ export class TerminalSession {
     if (document.visibilityState === 'visible' && this.snapshot.status === 'reconnecting') this.connect();
   };
 
-  constructor(cwd: string) {
+  /** `serverSessionId` resumes an existing PTY; `onServerSessionChange` fires whenever it changes, for persisting. */
+  constructor(cwd: string, serverSessionId: string | null, onServerSessionChange: () => void) {
     this.cwd = cwd;
-    this.serverSessionId = readStoredSessionId(cwd);
+    this.serverSessionId = serverSessionId;
+    this.onServerSessionChange = onServerSessionChange;
     this.element = document.createElement('div');
     this.element.className = 'h-full w-full';
   }
@@ -158,6 +160,7 @@ export class TerminalSession {
 
   /** xterm measures its cells on open, so it opens on the first attach, once the element is in the page. */
   attachTo(container: HTMLElement): void {
+    if (this.disposed) return;
     container.appendChild(this.element);
     if (!this.terminal) {
       this.open();
@@ -177,9 +180,11 @@ export class TerminalSession {
 
   private open(): void {
     ensureXtermFocusStyles();
+    const prefs = terminalPrefs.get();
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: prefs.fontSize,
+      cursorStyle: prefs.cursorStyle,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       allowProposedApi: true,
       scrollback: 10_000,
@@ -193,23 +198,45 @@ export class TerminalSession {
     terminal.loadAddon(this.fitAddon);
     terminal.loadAddon(new WebLinksAddon());
     terminal.loadAddon(createTerminalClipboardAddon());
+    this.searchAddon = new SearchAddon();
+    terminal.loadAddon(this.searchAddon);
+    this.searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
+      if (this.snapshot.search) this.update({ search: { index: resultIndex, count: resultCount } });
+    });
     terminal.open(this.element);
     this.loadWebgl();
 
+    // Pinch-zoom writes the shared preference, so the settings sheet and other terminals follow.
     this.mobileSelection = installMobileTerminalSelection(terminal, this.element, {
-      onFontSizeChange: (fontSize) => {
-        terminal.options.fontSize = fontSize;
-        this.fit(true);
-      },
+      minFontSize: MIN_FONT_SIZE,
+      maxFontSize: MAX_FONT_SIZE,
+      onFontSizeChange: (fontSize) => terminalPrefs.set({ fontSize }),
     });
+    this.unsubscribePrefs = terminalPrefs.subscribe(() => this.applyPrefs(terminalPrefs.get()));
 
     terminal.onData((data) => this.handleInput(data));
     terminal.onBinary((data) => this.sendBytes(latin1ToBytes(data)));
+    // Search highlights its match by selecting it, which must not copy.
+    terminal.onSelectionChange(() => {
+      if (terminalPrefs.get().copyOnSelect && !this.snapshot.search && terminal.hasSelection()) {
+        void copyTextToClipboard(terminal.getSelection());
+      }
+    });
     terminal.attachCustomKeyEventHandler((event) => this.handleKey(event));
 
-    new ResizeObserver(() => this.scheduleFit()).observe(this.element);
+    this.resizeObserver = new ResizeObserver(() => this.scheduleFit());
+    this.resizeObserver.observe(this.element);
     window.addEventListener('online', this.onOnline);
     document.addEventListener('visibilitychange', this.onVisible);
+  }
+
+  private applyPrefs(prefs: TerminalPrefs): void {
+    if (!this.terminal) return;
+    this.terminal.options.cursorStyle = prefs.cursorStyle;
+    if (this.terminal.options.fontSize !== prefs.fontSize) {
+      this.terminal.options.fontSize = prefs.fontSize;
+      this.fit(true);
+    }
   }
 
   private loadWebgl(): void {
@@ -226,7 +253,7 @@ export class TerminalSession {
   // ── Connection ─────────────────────────────────────────────────────────────
 
   private connect(): void {
-    if (!this.terminal) return;
+    if (!this.terminal || this.disposed) return;
     this.clearTimers();
     this.dropSocket();
     this.update({ status: this.everConnected && !this.restarting ? 'reconnecting' : 'connecting', error: null });
@@ -321,8 +348,10 @@ export class TerminalSession {
         this.restarting = false;
         if (message.reset || expired) this.terminal.reset();
         this.seq = message.seq;
-        this.serverSessionId = message.sessionId;
-        writeStoredSessionId(this.cwd, message.sessionId);
+        if (this.serverSessionId !== message.sessionId) {
+          this.serverSessionId = message.sessionId;
+          this.onServerSessionChange();
+        }
         this.reconnectAttempts = 0;
         this.everConnected = true;
         this.clearTimers();
@@ -359,9 +388,10 @@ export class TerminalSession {
   }
 
   private forgetServerSession(): void {
+    const had = this.serverSessionId !== null;
     this.serverSessionId = null;
     this.seq = 0;
-    writeStoredSessionId(this.cwd, null);
+    if (had) this.onServerSessionChange();
   }
 
   /** Abandons the current PTY and starts a fresh shell. */
@@ -373,6 +403,26 @@ export class TerminalSession {
     this.terminal?.reset();
     this.update({ exitCode: null });
     this.connect();
+  }
+
+  /** Ends the PTY and releases everything this terminal holds; the instance is dead afterwards. */
+  dispose(): void {
+    if (this.disposed) return;
+    if (this.serverSessionId) this.send({ type: 'close' });
+    this.disposed = true;
+    this.clearTimers();
+    this.stopPing();
+    this.dropSocket();
+    if (this.fitTimer) clearTimeout(this.fitTimer);
+    this.resizeObserver?.disconnect();
+    this.unsubscribePrefs?.();
+    window.removeEventListener('online', this.onOnline);
+    document.removeEventListener('visibilitychange', this.onVisible);
+    this.mobileSelection?.dispose();
+    this.terminal?.dispose();
+    this.terminal = null;
+    this.element.remove();
+    this.listeners.clear();
   }
 
   // ── Input ──────────────────────────────────────────────────────────────────
@@ -460,6 +510,26 @@ export class TerminalSession {
     this.focus();
   }
 
+  /** Steps to the next or previous match; `incremental` re-runs from the current match as the query is typed. */
+  search(query: string, direction: 'next' | 'prev', incremental = false): void {
+    if (!this.searchAddon) return;
+    if (!query) {
+      this.clearSearch(true);
+      return;
+    }
+    if (!this.snapshot.search) this.update({ search: { index: -1, count: 0 } });
+    const options: ISearchOptions = { incremental, decorations: this.dark ? DARK_SEARCH : LIGHT_SEARCH };
+    if (direction === 'next') this.searchAddon.findNext(query, options);
+    else this.searchAddon.findPrevious(query, options);
+  }
+
+  /** `keepOpen` blanks the count while the search bar stays up. */
+  clearSearch(keepOpen = false): void {
+    this.searchAddon?.clearDecorations();
+    this.terminal?.clearSelection();
+    this.update({ search: keepOpen ? { index: -1, count: 0 } : null });
+  }
+
   focus(): void {
     this.terminal?.focus();
   }
@@ -519,16 +589,4 @@ function latin1ToBytes(data: string): Uint8Array {
   const bytes = new Uint8Array(data.length);
   for (let i = 0; i < data.length; i += 1) bytes[i] = data.charCodeAt(i) & 0xff;
   return bytes;
-}
-
-const sessions = new Map<string, TerminalSession>();
-
-/** One live terminal per checkout, kept across tab switches so its scrollback and socket survive. */
-export function getTerminalSession(cwd: string): TerminalSession {
-  let session = sessions.get(cwd);
-  if (!session) {
-    session = new TerminalSession(cwd);
-    sessions.set(cwd, session);
-  }
-  return session;
 }

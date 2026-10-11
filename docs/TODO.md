@@ -140,7 +140,7 @@ new work.
 - [ ] Audit which Codex commands and config keys CLIde lacks; give each a destination. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [~] **Workspace tabs like the desktop apps** — Terminal for Shell, rebuilt on upstream's terminal plugin; Tasks and Agents tabs dropped. Phase 1 and the Terminal's first cut built, awaiting live check. [Plan](plans/workspace-surfaces.md). **M/L**
+- [~] **Workspace tabs like the desktop apps** — Terminal for Shell, rebuilt on upstream's terminal plugin; Tasks and Agents tabs dropped. Phase 1 and the Terminal's first cut verified; its tabs, search and settings built, awaiting live check. [Plan](plans/workspace-surfaces.md). **M/L**
 - [ ] **Claude's terminal in the Terminal tab.** A read-only feed of every command the agent runs, with its output and running state, beside Your shell behind a switch, as in the mobile-agent mockup. Built from the Bash calls Chat already receives; needs no PTY. Not yet planned. **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**

@@ -56,6 +56,7 @@
   },
   "terminal": {
     "status": {
+      "idle": "Not started",
       "connecting": "Connecting…",
       "connected": "Connected · {{shell}}",
       "reconnecting": "Reconnecting…",
@@ -68,8 +69,38 @@
       "pasteBlocked": "The browser won't share the clipboard here. Paste from your keyboard instead."
     },
     "actions": {
+      "new": "New terminal",
+      "search": "Search output",
       "clear": "Clear",
-      "restart": "Restart"
+      "settings": "Settings…",
+      "restart": "Restart",
+      "close": "Close terminal"
+    },
+    "tabs": {
+      "close": "Close {{name}}"
+    },
+    "search": {
+      "placeholder": "Search output",
+      "none": "No results",
+      "close": "Close search"
+    },
+    "toast": {
+      "closed": "Closed {{name}}",
+      "undo": "Undo",
+      "last": "Last terminal — Restart instead"
+    },
+    "settings": {
+      "title": "Terminal settings",
+      "fontSize": "Font size",
+      "smaller": "Smaller text",
+      "larger": "Larger text",
+      "cursor": "Cursor",
+      "cursorBlock": "Block",
+      "cursorBar": "Bar",
+      "cursorUnderline": "Line",
+      "copyOnSelect": "Copy on select",
+      "off": "Off",
+      "on": "On"
     },
     "keys": {
       "ctrl": "Ctrl, for the next key you type",

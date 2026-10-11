@@ -1,7 +1,7 @@
 # The workspace tabs offer what the desktop agent apps' side panels offer
 
-- Status: 1/3
-- Next: Phases 1 and 3's first cut await Grayson's live check; then terminal tabs, output search and settings
+- Status: 2/3
+- Next: phase 3's second cut (tabs, search, settings) awaits Grayson's live check
 - Context: [subagent visibility](subagent-visibility.md) owns how agents show
   in the chat; [provider capabilities](../providers.md)
 
@@ -17,7 +17,7 @@ set.
 
 ## Phases
 
-- [ ] 1. **Terminal replaces Shell in the bar.** A new `terminal` tab runs a
+- [x] 1. **Terminal replaces Shell in the bar.** A new `terminal` tab runs a
   plain shell in the selected checkout, reusing the Shell view's plain-shell
   mode; the server starts an interactive shell when given no command, under
   its own PTY key. Shell view leaves the bar and becomes "Open in CLI" in the
@@ -31,9 +31,10 @@ set.
   (shell and working-directory resolution) come across nearly verbatim; the
   screen is rewritten in CLIde's React components. Layout B (actions in the
   header menu, a tab row only with two or more terminals) with the pinned key
-  bar, picked from the probe. First cut built: the `/terminal` socket, reconnect
-  with exact replay, the key bar, light/dark, Clear and Restart. Next: terminal
-  tabs, output search (needs `@xterm/addon-search`) and the settings sheet.
+  bar, picked from the probe. First cut verified live: the `/terminal` socket,
+  reconnect with exact replay, the key bar, light/dark, Clear and Restart.
+  Second cut built: terminal tabs with an 8-second undo on close, output search,
+  and a per-device settings sheet (font size, cursor, copy on select).
 
 ## Done when
 
