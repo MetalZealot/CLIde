@@ -7,10 +7,12 @@ import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
 import type {
+  BackgroundOutput,
   FetchHistoryOptions,
   FetchHistoryResult,
   LLMProvider,
   NormalizedMessage,
+  SessionPlan,
   SideQuestionExchange,
 } from '@/shared/types.js';
 import { createRequestReceipts } from '@/shared/request-receipts.js';
@@ -24,6 +26,30 @@ import {
   slimHistoryMessage,
 } from './history-payload.service.js';
 import { paginateHistory } from './history-pagination.service.js';
+
+/** Tools that launch a subagent, across providers. */
+const BACKGROUND_AGENT_TOOLS = new Set(['Agent', 'Task', 'spawn_agent']);
+
+/** Agent and background-command calls with their results, status rows, and completion notices; nothing a subagent did itself. */
+export function selectBackgroundRecords(messages: NormalizedMessage[]): NormalizedMessage[] {
+  const backgroundTaskOf = (message: NormalizedMessage) => (
+    (message.kind === 'tool_result' ? message.toolUseResult : message.toolResult?.toolUseResult) as { backgroundTaskId?: unknown } | undefined
+  )?.backgroundTaskId;
+  const callIds = new Set<string>();
+  for (const message of messages) {
+    if (message.parentToolUseId || !message.toolId) continue;
+    if ((message.kind === 'tool_use' && BACKGROUND_AGENT_TOOLS.has(String(message.toolName)))
+      || ((message.kind === 'tool_use' || message.kind === 'tool_result') && typeof backgroundTaskOf(message) === 'string')) {
+      callIds.add(message.toolId);
+    }
+  }
+  return messages.filter((message) => (
+    (!message.parentToolUseId && message.toolId && callIds.has(message.toolId) && (message.kind === 'tool_use' || message.kind === 'tool_result'))
+    || message.kind === 'agent_status'
+    || (message.kind === 'text' && message.role === 'user' && typeof message.content === 'string'
+      && message.content.trimStart().startsWith('<task-notification>'))
+  ));
+}
 
 type CreateAppSessionResult = {
   sessionId: string;
@@ -189,6 +215,15 @@ async function loadFullHistory(
 /** Sessions created per client request id, so a retried create returns the same session; outlives the client's Retry window. */
 const createdAppSessions = createRequestReceipts<CreateAppSessionResult>({ ttlMs: 24 * 60 * 60_000, maxEntries: 500 });
 
+/** The last stored plan read per running session, kept until its run's plan changes again. */
+const runningPlanCache = new Map<string, { revision: number; plan: SessionPlan | null }>();
+
+const summarizePlan = (plan: SessionPlan | null): { done: number; total: number } | null => (
+  plan?.steps.length
+    ? { done: plan.steps.filter((step) => step.status === 'completed').length, total: plan.steps.length }
+    : null
+);
+
 export const sessionsService = {
   /**
    * Lists provider ids that can load session history and normalize live messages.
@@ -209,7 +244,37 @@ export const sessionsService = {
     startedAt: number;
     lastSeq: number;
   }> {
-    return chatRunRegistry.listRunningRuns();
+    return chatRunRegistry.listRunningRuns().map(({ sessionId, provider, startedAt, lastSeq }) => ({
+      sessionId, provider, startedAt, lastSeq,
+    }));
+  },
+
+  /** Running sessions with their agents still at work and how far their plan has got, for the sidebar. */
+  async listRunningSessionsWithWork(): Promise<Array<{
+    sessionId: string;
+    provider: LLMProvider;
+    startedAt: number;
+    lastSeq: number;
+    agents: number;
+    plan: { done: number; total: number } | null;
+  }>> {
+    const runs = chatRunRegistry.listRunningRuns();
+    for (const sessionId of runningPlanCache.keys()) {
+      if (!runs.some((run) => run.sessionId === sessionId)) runningPlanCache.delete(sessionId);
+    }
+    return Promise.all(runs.map(async ({ planRevision, pushedPlan, ...run }) => {
+      let plan = pushedPlan;
+      if (!plan) {
+        const cached = runningPlanCache.get(run.sessionId);
+        if (cached?.revision === planRevision) {
+          plan = cached.plan;
+        } else {
+          plan = await this.readSessionPlan(run.sessionId).catch(() => null);
+          runningPlanCache.set(run.sessionId, { revision: planRevision, plan });
+        }
+      }
+      return { ...run, plan: summarizePlan(plan) };
+    }));
   },
 
   /**
@@ -408,6 +473,46 @@ export const sessionsService = {
       throw new AppError('Message not found in this session.', { code: 'HISTORY_MESSAGE_NOT_FOUND', statusCode: 404 });
     }
     return { ...message, sessionId };
+  },
+
+  /** The session's checklist from its provider's own store; null when it keeps none. */
+  async readSessionPlan(sessionId: string): Promise<SessionPlan | null> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, { code: 'SESSION_NOT_FOUND', statusCode: 404 });
+    }
+    if (!session.provider_session_id) return null;
+    const providerSessions = providerRegistry.resolveProvider(session.provider as LLMProvider).sessions;
+    return await providerSessions.readPlan?.(session.provider_session_id, { jsonlPath: session.jsonl_path }) ?? null;
+  },
+
+  /**
+   * The records the background-work list is built from, across the whole
+   * history: agent and background-command calls with their results, status
+   * rows, and completion notices. Slimmed like a page, so a call opens in full
+   * through its detail request.
+   */
+  async fetchBackgroundRecords(sessionId: string): Promise<NormalizedMessage[]> {
+    const { result, identity } = await loadFullHistory(sessionId, false);
+    return selectBackgroundRecords(paginateHistory(result, identity, { limit: null }).messages)
+      .map((message) => ({ ...slimHistoryMessage(message, sessionId), sessionId }));
+  },
+
+  /** A background command's output: live from the run while it can still grow, else what the provider saved. */
+  async readBackgroundOutput(sessionId: string, taskId: string): Promise<BackgroundOutput | null> {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, { code: 'SESSION_NOT_FOUND', statusCode: 404 });
+    }
+    const provider = providerRegistry.resolveProvider(session.provider as LLMProvider);
+    const live = await provider.runtime.readTaskOutput?.(sessionId, taskId);
+    if (live) return live;
+    if (!session.provider_session_id || !session.project_path) return null;
+    return await provider.sessions.readBackgroundOutput?.(
+      session.provider_session_id,
+      taskId,
+      { projectPath: session.project_path },
+    ) ?? null;
   },
 
   /** One inline image of a history record, decoded from its stored data URL. */

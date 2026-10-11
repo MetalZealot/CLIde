@@ -91,6 +91,7 @@ type ProviderRuntimeGateway = {
     appSessionId: string,
     changes: ChatControlChanges,
   ): Promise<ChatControlResult | null>;
+  stopAgent?(provider: LLMProvider, appSessionId: string, taskId: string): Promise<boolean>;
   resolveInteractiveRequest(
     requestId: string,
     response: InteractiveRequestResponse,
@@ -314,6 +315,37 @@ async function handleChatControl(
     sessionId,
     applied,
     deferred: requested.filter((key) => !applied.includes(key)),
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/** Handles `chat.stop-agent`: stops one subagent of a running turn, leaving the turn alive. */
+async function handleChatStopAgent(
+  ws: WebSocket,
+  data: AnyRecord,
+  dependencies: ChatWebSocketDependencies,
+): Promise<void> {
+  const sessionId = readRequiredSessionId(data);
+  const taskId = typeof data.taskId === 'string' ? data.taskId.trim() : '';
+  if (!sessionId || !taskId) {
+    sendProtocolError(ws, 'STOP_AGENT_TARGET_REQUIRED', 'chat.stop-agent requires a sessionId and a taskId.', sessionId ?? undefined);
+    return;
+  }
+  const session = sessionsDb.getSessionById(sessionId);
+  const run = chatRunRegistry.getRun(sessionId);
+  const stopped = Boolean(
+    session
+    && run?.status === 'running'
+    && run.provider === session.provider
+    && dependencies.runtime.stopAgent
+    && await dependencies.runtime.stopAgent(session.provider as LLMProvider, sessionId, taskId),
+  );
+  sendJson(ws, {
+    kind: 'chat_stop_agent_result',
+    requestId: typeof data.requestId === 'string' ? data.requestId : null,
+    sessionId,
+    taskId,
+    stopped,
     timestamp: new Date().toISOString(),
   });
 }
@@ -826,6 +858,9 @@ export function handleChatConnection(
           return;
         case 'chat.abort':
           await handleChatAbort(ws, data, dependencies);
+          return;
+        case 'chat.stop-agent':
+          await handleChatStopAgent(ws, data, dependencies);
           return;
         case 'chat.subscribe':
           handleChatSubscribe(ws, data, dependencies);

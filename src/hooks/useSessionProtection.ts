@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import type { TurnStage } from '../stores/useSessionStore';
+import type { BackgroundTaskInfo, TurnStage } from '../stores/useSessionStore';
 
 export interface SessionActivity {
   /** Provider-supplied status line; null renders the default activity label. */
@@ -9,6 +9,8 @@ export interface SessionActivity {
   stage?: TurnStage | null;
   /** Output tokens the turn has produced so far, when the runtime reports them. */
   outputTokens?: number;
+  /** Every live background task, when the runtime reports them; absent means unknown, not none. */
+  backgroundTasks?: BackgroundTaskInfo[];
   canInterrupt: boolean;
   /**
    * When this request was first marked as processing (client clock). Drives
@@ -35,6 +37,7 @@ export type MarkSessionProcessing = (
     statusText?: string | null;
     stage?: TurnStage | null;
     outputTokens?: number;
+    backgroundTasks?: BackgroundTaskInfo[];
     canInterrupt?: boolean;
   },
 ) => void;
@@ -75,6 +78,7 @@ const sessionActivityMapsMatch = (
       || leftActivity.statusText !== rightActivity.statusText
       || !turnStagesMatch(leftActivity.stage, rightActivity.stage)
       || leftActivity.outputTokens !== rightActivity.outputTokens
+      || leftActivity.backgroundTasks !== rightActivity.backgroundTasks
       || leftActivity.canInterrupt !== rightActivity.canInterrupt
       || leftActivity.startedAt !== rightActivity.startedAt
       || leftActivity.readyAt !== rightActivity.readyAt
@@ -112,6 +116,7 @@ export function useSessionProtection() {
           activity?.statusText !== undefined ? activity.statusText : existing?.statusText ?? null,
         stage,
         outputTokens: activity?.outputTokens ?? existing?.outputTokens,
+        backgroundTasks: activity?.backgroundTasks ?? existing?.backgroundTasks,
         canInterrupt: activity?.canInterrupt ?? existing?.canInterrupt ?? true,
         startedAt: existing?.startedAt ?? Date.now(),
         readyAt: existing?.readyAt
@@ -123,6 +128,7 @@ export function useSessionProtection() {
         && existing.statusText === next.statusText
         && turnStagesMatch(existing.stage, next.stage)
         && existing.outputTokens === next.outputTokens
+        && existing.backgroundTasks === next.backgroundTasks
         && existing.canInterrupt === next.canInterrupt
       ) {
         return prev;
@@ -191,6 +197,7 @@ export function useSessionProtection() {
             snapshot.statusText !== undefined ? snapshot.statusText : existing?.statusText ?? null,
           stage: snapshot.stage !== undefined ? snapshot.stage : existing?.stage ?? null,
           outputTokens: existing?.outputTokens,
+          backgroundTasks: existing?.backgroundTasks,
           canInterrupt: snapshot.canInterrupt ?? existing?.canInterrupt ?? true,
           startedAt:
             existing?.startedAt

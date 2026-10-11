@@ -1224,11 +1224,23 @@ test('task events and notifications decide a background agent\'s status', () => 
     }),
   ]);
   assert.equal(reloaded[0].subagentState?.agentStatus?.state, 'completed');
-  // Its notice is folded into the row; one for a call not on screen still shows.
+  // Its notice is folded into the row; one with no call id still shows.
   assert.equal(reloaded.length, 1);
+  // An agent that stops again re-notifies by task id alone; that notice folds in too.
+  const renotified = normalizedToChatMessages([
+    ...agent,
+    status('s1', { toolId: 'ta', state: 'running' }),
+    transcriptRow({
+      id: 'n3', kind: 'text', role: 'user',
+      content: '<task-notification>\n<task-id>k</task-id>\n<status>completed</status>\n<summary>Agent finished</summary>\n<result>Delivered as its SubagentHandback call.</result>\n<usage><tool_uses>10</tool_uses><duration_ms>65000</duration_ms></usage>\n</task-notification>',
+    }),
+  ]);
+  assert.equal(renotified.length, 1);
+  assert.equal(renotified[0].subagentState?.agentStatus?.state, 'completed');
+  assert.equal(renotified[0].subagentState?.agentStatus?.toolUses, 10);
   const orphan = normalizedToChatMessages([transcriptRow({
     id: 'n2', kind: 'text', role: 'user',
-    content: '<task-notification>\n<tool-use-id>gone</tool-use-id>\n<status>completed</status>\n<summary>Agent finished</summary>\n</task-notification>',
+    content: '<task-notification>\n<status>completed</status>\n<summary>Agent finished</summary>\n</task-notification>',
   })]);
   assert.equal(orphan[0].isTaskNotification, true);
 });

@@ -43,7 +43,8 @@ export type MessageKind =
   | 'interactive_prompt'
   | 'task_notification'
   | 'compact_boundary'
-  | 'agent_status';
+  | 'agent_status'
+  | 'plan_updated';
 
 /** Where a background or forked agent stands, from live task events — see server types. */
 export type AgentStatusInfo = {
@@ -54,7 +55,28 @@ export type AgentStatusInfo = {
   tokens?: number;
   durationMs?: number;
   lastToolName?: string;
+  /** The agent's final report, when it arrives apart from its call's result. */
+  report?: string;
 };
+
+/** One live background task — see server types. */
+export type BackgroundTaskInfo = {
+  taskId: string;
+  kind: 'agent' | 'command';
+  description: string;
+  agentType?: string;
+  parentTaskId?: string;
+};
+
+/** One step of an agent's own checklist — see server types. */
+export type SessionPlanStep = {
+  id: string;
+  subject: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+};
+
+export type SessionPlan = { steps: SessionPlanStep[] };
 
 /** Where a compaction cut the conversation, and what it cost — see server types. */
 export type CompactBoundaryInfo = {
@@ -187,6 +209,10 @@ export interface NormalizedMessage {
   actualSessionId?: string;
   parentToolUseId?: string;
   agentStatus?: AgentStatusInfo;
+  /** Only set on `plan_updated` rows: the whole checklist after the change. */
+  plan?: SessionPlan;
+  /** Only set on a `background_tasks` status: every live task. */
+  backgroundTasks?: BackgroundTaskInfo[];
   subagentTools?: unknown[];
   toolUseResult?: unknown;
   isFinal?: boolean;

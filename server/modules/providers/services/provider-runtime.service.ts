@@ -104,6 +104,11 @@ export function createProviderRuntimeService(
       return runtime.steer ? Boolean(await runtime.steer(sessionId, content)) : false;
     },
 
+    async stopAgent(providerName: LLMProvider, sessionId: string, taskId: string): Promise<boolean> {
+      const runtime = dependencies.resolveProvider(providerName).runtime;
+      return runtime.stopAgent ? runtime.stopAgent(sessionId, taskId) : false;
+    },
+
     async control(
       providerName: LLMProvider,
       sessionId: string,

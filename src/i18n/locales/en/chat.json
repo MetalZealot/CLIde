@@ -135,7 +135,29 @@
       "calls_one": "{{count}} call",
       "calls_other": "{{count}} calls",
       "asked": "Asked: {{text}}",
-      "reported": "Reported: {{text}}"
+      "reported": "Reported: {{text}}",
+      "running_one": "{{count}} agent running",
+      "running_other": "{{count}} agents running",
+      "stop": "Stop",
+      "stopping": "Stopping",
+      "back": "Back to chat",
+      "report": "Report"
+    },
+    "todo": {
+      "add": "Planned {{target}}",
+      "start": "Started step {{target}}",
+      "done": "Finished step {{target}}",
+      "drop": "Dropped step {{target}}",
+      "edit": "Updated step {{target}}",
+      "check": "Checked the plan",
+      "replace": "Updated the plan",
+      "running": "Updating the plan",
+      "waiting": "Update the plan",
+      "summaryDone_one": "step {{steps}} done",
+      "summaryDone_other": "steps {{steps}} done",
+      "summaryPlanned_one": "planned {{count}} step",
+      "summaryPlanned_other": "planned {{count}} steps",
+      "summaryUpdated": "updated the plan"
     },
     "detail": {
       "copy": "Copy",
@@ -566,5 +588,39 @@
     "notSent": "Not sent",
     "retry": "Retry",
     "edit": "Edit"
+  },
+  "planBanner": {
+    "label": "Plan",
+    "allDone": "All done"
+  },
+  "backgroundWork": {
+    "open_one": "Background work, {{count}} running",
+    "open_other": "Background work, {{count}} running",
+    "title": "Background work",
+    "agentsTitle": "Agents",
+    "launchedBy": "from {{name}}",
+    "openAgents_one": "Agents, {{count}} running",
+    "openAgents_other": "Agents, {{count}} running",
+    "running_one": "{{count}} running",
+    "running_other": "{{count}} running",
+    "nothingRunning": "Nothing running",
+    "sectionRunning": "Running",
+    "sectionDone": "Done",
+    "clear": "Clear",
+    "command": "Command",
+    "back": "Back",
+    "output": "Output",
+    "outputLive": "Output · live",
+    "outputLoading": "Reading output…",
+    "outputEmpty": "No output yet.",
+    "outputGone": "Its output is no longer saved.",
+    "outputTruncated": "Showing the last 8 KB.",
+    "state": {
+      "running": "Running",
+      "completed": "Done",
+      "failed": "Failed",
+      "stopped": "Stopped",
+      "ended": "Ended"
+    }
   }
 }

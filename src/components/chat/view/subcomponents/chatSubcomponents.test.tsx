@@ -5,6 +5,7 @@ import test, { after, afterEach, before, describe } from 'node:test';
 
 import i18next from 'i18next';
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
@@ -14,7 +15,9 @@ import type { BrowserSessionSummary } from '../../../../../shared/browser-use';
 import ChatBrowserPreview from '../../../browser-use/view/ChatBrowserPreview';
 import { HeaderMenuProvider, useRegisterHeaderMenu, type HeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
 import { PaletteOpsProvider, usePaletteOpsRegister } from '../../../../contexts/PaletteOpsContext';
+import { useHeaderSheet } from '../../../../contexts/HeaderSheetContext';
 import MainContentHeaderMenu from '../../../main-content/view/subcomponents/MainContentHeaderMenu';
+import HeaderSheet from '../../../main-content/view/subcomponents/HeaderSheet';
 import { BottomSheet, PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
 import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/QuestionAnswerContent';
 import { adaptUserInputAnswers } from '../../tools/components/InteractiveRenderers/user-input-request.adapter';
@@ -23,6 +26,7 @@ import { asyncQuestionDraftKey } from '../../utils/asyncQuestionState';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
+import type { BackgroundTaskInfo } from '../../../../stores/useSessionStore';
 import { describeActivity, describeOperation, operationLabel, summarizeActivity, thinkingDurationMs } from '../../utils/toolActivity';
 import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
 
@@ -31,6 +35,8 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import { TextDisclosure } from './DisclosureRow';
 import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
+import BackgroundWork from './BackgroundWork';
+import { ActivityLineSlot, ActivityLineSlotProvider } from './ActivityLineSlot';
 import UserSendStatus from './UserSendStatus';
 import { failSend, localSendMessageId, openSend, resetOutboxForTests, updateSend } from '../../../../stores/sendOutbox';
 import ScrollToBottomButton from './ScrollToBottomButton';
@@ -555,7 +561,7 @@ describe('chatSubcomponents', () => {
       assert.equal(container.querySelector('button'), null);
     });
 
-    test('a subagent is one row that opens to what it was asked, its calls, and its report', async () => {
+    test('a subagent is one row that opens full screen to what it was asked, its calls, and its report', async () => {
       const hooks = registerHooks({
         resolve(specifier, context, nextResolve) {
           return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -589,8 +595,14 @@ describe('chatSubcomponents', () => {
       const row = container.querySelector('button[aria-expanded]') as HTMLButtonElement;
       assert.equal(row.textContent, 'Explore \u00b7 Find call sites\u00b7 1 call \u00b7 1m 5s');
       await React.act(async () => row.click());
-      const lines = [...container.querySelectorAll('button[aria-expanded]')].slice(1).map((line) => line.textContent);
-      assert.deepEqual(lines, ['Asked: Find every caller', 'Searched for caller', 'Reported: Found 3 callers']);
+      const screen = document.body.querySelector('[role="dialog"]') as HTMLElement;
+      assert.ok(screen && !container.contains(screen), 'it opens over the chat, not inside it');
+      assert.equal(screen.getAttribute('aria-label'), 'Explore · Find call sites');
+      const lines = [...screen.querySelectorAll('button[aria-expanded]')].map((line) => line.textContent);
+      assert.deepEqual(lines, ['Asked: Find every caller', 'Searched for caller']);
+      assert.match(screen.textContent ?? '', /Report\s*Found 3 callers/, 'the report reads in full');
+      await React.act(async () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })));
+      assert.equal(document.body.querySelector('[role="dialog"]'), null, 'Escape closes it');
 
       // A background agent's status, not its launch result, decides the row.
       const withStatus = (agentStatus: NonNullable<ChatMessage['subagentState']>['agentStatus']) => (
@@ -850,6 +862,16 @@ describe('chatSubcomponents', () => {
       assert.equal(state(), null);
       await render({ activity: working });
       await render({ activity: null, turnEnd: { sessionId: 's', outcome: 'done', endedAt: startedAt - 1 } });
+      assert.equal(state(), null);
+
+      // Running background work widens it into a pill beside the dots, and stays once the turn is over.
+      const work = () => container?.querySelector('[data-work]');
+      await render({ activity: working, work: { running: 2, agentsOnly: false } });
+      assert.equal(work()?.textContent, '2');
+      assert.ok(work()?.querySelector('svg.lucide-layers'));
+      assert.ok(container.querySelector('[data-state]'), 'the dots stay');
+      await render({ activity: null, work: { running: 1, agentsOnly: true } });
+      assert.ok(work()?.querySelector('svg.lucide-bot'));
       assert.equal(state(), null);
     });
 
@@ -1555,12 +1577,26 @@ describe('chatSubcomponents', () => {
   });
 
   describe('header menu', () => {
-    function Registrant({ section }: { section: HeaderMenuSection | null }) {
+    /** A second header control sharing the header sheet. */
+function OtherHeaderControl() {
+  const [open, setOpen] = React.useState(false);
+  const sheet = useHeaderSheet('other', open, () => setOpen(false), 'Other');
+  return (
+    <>
+      <button type="button" aria-label="Other" onClick={() => setOpen(true)} />
+      {sheet.target && createPortal(<p>Other</p>, sheet.target)}
+    </>
+  );
+}
+
+function Registrant({ section }: { section: HeaderMenuSection | null }) {
       useRegisterHeaderMenu(section);
       return null;
     }
 
+    const renamed: string[] = [];
     const chatSection: HeaderMenuSection = {
+      rename: { name: 'Stored name', submit: (name) => renamed.push(name) },
       items: [{
         key: 'export',
         label: 'Export…',
@@ -1572,7 +1608,7 @@ describe('chatSubcomponents', () => {
       items: [{ key: 'restart', label: 'Restart', icon: RotateCcw, onSelect: () => undefined }],
     };
 
-    test('shows only on a view with actions, a hidden view cannot clear the visible one, and a panel item opens in place of the menu', async () => {
+    test('the title opens it on a view with actions, headed by the full title; a hidden view cannot clear the visible one; a panel item opens in place of the menu', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
@@ -1581,7 +1617,9 @@ describe('chatSubcomponents', () => {
         <HeaderMenuProvider>
           <Registrant section={visible === 'shell' ? shellSection : null} />
           <Registrant section={visible === 'chat' ? chatSection : null} />
-          <MainContentHeaderMenu />
+          <MainContentHeaderMenu fullTitle={visible === 'chat' ? 'A session title too long for the header' : undefined}>
+            <span>Title</span>
+          </MainContentHeaderMenu>
         </HeaderMenuProvider>,
       );
       const openMenu = async () => {
@@ -1595,6 +1633,7 @@ describe('chatSubcomponents', () => {
       try {
         await React.act(async () => render('files'));
         assert.equal(container.querySelector('button[aria-haspopup="menu"]'), null);
+        assert.equal(container.textContent, 'Title', 'a view with no actions keeps a plain title');
 
         await React.act(async () => render('chat'));
         await React.act(async () => render('shell'));
@@ -1613,7 +1652,37 @@ describe('chatSubcomponents', () => {
         });
 
         await React.act(async () => render('chat'));
-        await openMenu();
+        assert.equal(container.querySelector('button[aria-haspopup="menu"]')?.textContent, 'Title');
+        const chatItems = await openMenu();
+        assert.equal(chatItems[0], 'A session title too long for the header');
+
+        // The title line renames in place: Escape drops the edit, Enter saves it, an emptied field keeps the name.
+        const titleLine = () => document.querySelector<HTMLButtonElement>('[role="menu"] button[data-menu-title]');
+        const field = () => document.querySelector<HTMLTextAreaElement>('[role="menu"] textarea');
+        const typeInto = async (value: string) => React.act(async () => {
+          const input = field() as HTMLTextAreaElement;
+          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set?.call(input, value);
+          input.dispatchEvent(new window.Event('input', { bubbles: true }));
+        });
+        const press = async (key: string) => React.act(async () => {
+          field()?.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true }));
+        });
+        // A keyboard-opened menu focuses its first action a frame later; a tap comes after that.
+        await React.act(async () => new Promise((resolve) => window.requestAnimationFrame(() => resolve(undefined))));
+        await React.act(async () => titleLine()?.click());
+        assert.equal(field()?.value, 'Stored name');
+        await typeInto('Discarded');
+        await press('Escape');
+        assert.equal(field(), null);
+        assert.ok(document.querySelector('[role="menu"]'), 'Escape leaves the menu open');
+        await React.act(async () => titleLine()?.click());
+        await typeInto('New\nname');
+        assert.equal(field()?.value, 'New name');
+        await press('Enter');
+        await React.act(async () => titleLine()?.click());
+        await typeInto('   ');
+        await press('Enter');
+        assert.deepEqual(renamed, ['New name']);
         const exportItem = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
           .find((item) => item.textContent === 'Export…');
         await React.act(async () => exportItem?.click());
@@ -1623,6 +1692,127 @@ describe('chatSubcomponents', () => {
         assert.ok(panel);
         await React.act(async () => panel.querySelector('button')?.click());
         assert.equal(document.querySelector('[role="dialog"]'), null);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
+    });
+    test('background work: a mark on the activity line lists running and finished work, stops one, clears the finished, and opens a command', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const stopped: string[] = [];
+      const messages: ChatMessage[] = [
+        {
+          id: 'a', timestamp: new Date(Date.now() - 65_000).toISOString(), type: 'assistant', content: '', isToolUse: true,
+          toolName: 'Agent', toolId: 'a', isSubagentContainer: true, toolInput: JSON.stringify({ subagent_type: 'Explore', description: 'Find callers' }),
+          subagentState: { childTools: [], currentToolIndex: -1, isComplete: false, agentStatus: { taskId: 't-1', state: 'running', toolUses: 3 } },
+        },
+        {
+          id: 'b', timestamp: '2026-10-10T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash', toolId: 'b',
+          toolInput: JSON.stringify({ command: 'npm run build', description: 'Build' }), backgroundState: 'completed',
+        },
+      ];
+      localStorage.removeItem('clide.backgroundCleared.s');
+      try {
+        const renderWith = (work: ChatMessage[], liveTasks?: BackgroundTaskInfo[]) => root.render(
+          <I18nextProvider i18n={i18next}>
+            <ActivityLineSlotProvider>
+              <div><ActivityLineSlot kind="summary" /></div>
+              <BackgroundWork sessionId="s" messages={work} isLive liveTasks={liveTasks} isVisible onStop={(taskId) => stopped.push(taskId)} />
+            </ActivityLineSlotProvider>
+          </I18nextProvider>,
+        );
+        // No work, no mark.
+        await React.act(async () => renderWith([]));
+        assert.equal(container.querySelector('button'), null);
+
+        // Agents alone show the robot.
+        await React.act(async () => renderWith(messages.slice(0, 1)));
+        assert.ok(container.querySelector('button[aria-label="Agents, 1 running"] svg.lucide-bot'));
+
+        await React.act(async () => renderWith(messages));
+        const button = container.querySelector<HTMLButtonElement>('button[aria-label="Background work, 1 running"]');
+        assert.equal(button?.textContent, '1');
+        assert.ok(button?.querySelector('svg.lucide-layers'), 'a command in the list shows the layers icon');
+        await React.act(async () => button?.click());
+
+        const list = document.querySelector<HTMLElement>('[role="dialog"]');
+        assert.match(list?.textContent ?? '', /^Background work/);
+        assert.ok(list);
+        const rows = [...list.querySelectorAll('li')];
+        assert.equal(rows.length, 2);
+        assert.match(rows[0].textContent ?? '', /Explore.*Find callers.*3 calls · 1m 5s/);
+        assert.match(rows[1].textContent ?? '', /Command.*npm run build.*Done/);
+        await React.act(async () => (rows[0].querySelector('button + button') as HTMLButtonElement).click());
+        assert.deepEqual(stopped, ['t-1']);
+
+        await React.act(async () => (rows[1].querySelector('button') as HTMLButtonElement).click());
+        const command = document.querySelector<HTMLElement>('[role="dialog"][aria-label="npm run build"]');
+        assert.match(command?.textContent ?? '', /\$ npm run build.*Its output is no longer saved/);
+        await React.act(async () => (command?.querySelector('button[aria-label="Back"]') as HTMLButtonElement).click());
+
+        const clear = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((item) => item.textContent === 'Clear');
+        await React.act(async () => clear?.click());
+        assert.equal(document.querySelectorAll('[role="dialog"] li').length, 1, 'only the running agent is left');
+        assert.deepEqual(JSON.parse(localStorage.getItem('clide.backgroundCleared.s') ?? '[]'), ['b']);
+
+        // A task an agent launched counts and stops like the rest, named by its agent.
+        await React.act(async () => renderWith(messages, [
+          { taskId: 't-1', kind: 'agent', description: 'Find callers' },
+          { taskId: 'sub-sh', kind: 'command', description: 'until done; do sleep 2; done', parentTaskId: 't-1' },
+        ]));
+        assert.equal(container.querySelector('button[aria-label="Background work, 2 running"]')?.textContent, '2');
+        const extra = [...document.querySelectorAll<HTMLElement>('[role="dialog"] li')].at(-1);
+        assert.match(extra?.textContent ?? '', /Command.*until done; do sleep 2; done.*from Find callers/);
+        await React.act(async () => (extra?.querySelector('button + button') as HTMLButtonElement).click());
+        assert.deepEqual(stopped, ['t-1', 'sub-sh']);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+        localStorage.removeItem('clide.backgroundCleared.s');
+      }
+    });
+
+    test('on a phone the header controls share one sheet: opening one swaps the other out, and an item runs once the sheet has gone', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const selected: string[] = [];
+      const section: HeaderMenuSection = {
+        items: [{ key: 'export', label: 'Export…', icon: Download, onSelect: () => selected.push('export') }],
+      };
+      const sheets = () => document.querySelectorAll<HTMLElement>('[role="dialog"]');
+      const title = () => container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+      try {
+        await React.act(async () => root.render(
+          <I18nextProvider i18n={i18next}>
+            <HeaderMenuProvider>
+              <Registrant section={section} />
+              <MainContentHeaderMenu fullTitle="A session"><span>Title</span></MainContentHeaderMenu>
+              <OtherHeaderControl />
+              <HeaderSheet anchorRef={{ current: null }} enabled />
+            </HeaderMenuProvider>
+          </I18nextProvider>,
+        ));
+
+        await React.act(async () => title()?.click());
+        assert.equal(sheets().length, 1);
+        assert.ok(sheets()[0].querySelector('[role="menu"]')?.textContent?.includes('Export…'));
+
+        await React.act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Other"]')?.click());
+        assert.equal(sheets().length, 1, 'swapped, not stacked');
+        assert.equal(sheets()[0].getAttribute('aria-label'), 'Other');
+        assert.equal(document.querySelector('[role="menu"]'), null);
+        assert.equal(title()?.getAttribute('aria-expanded'), 'false');
+
+        await React.act(async () => title()?.click());
+        const item = [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]')].find((el) => el.textContent === 'Export…');
+        await React.act(async () => item?.click());
+        assert.deepEqual(selected, [], 'waits for the sheet to slide away');
+        await React.act(async () => new Promise((resolve) => setTimeout(resolve, 260)));
+        assert.deepEqual(selected, ['export']);
+        assert.equal(sheets().length, 0);
       } finally {
         await React.act(async () => root.unmount());
         container.remove();

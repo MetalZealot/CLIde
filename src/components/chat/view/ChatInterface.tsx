@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 
 import { ChatBrowserContext, type ChatBrowserState } from '../../browser-use';
+import { useSessionPlan } from '../hooks/useSessionPlan';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, ChatMessage, PermissionMode, TurnEnd } from '../types/types';
@@ -32,6 +33,9 @@ import { useProviderUsage } from '../../provider-usage/hooks/useProviderUsage';
 import { formatUsageWindowLabel, pickExhaustedWindow } from '../../provider-usage/format';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
+import BackgroundWork, { type BackgroundRunning } from './subcomponents/BackgroundWork';
+import { ActivityLineSlotProvider } from './subcomponents/ActivityLineSlot';
+import PlanBanner from './subcomponents/PlanBanner';
 import ScrollToBottomButton from './subcomponents/ScrollToBottomButton';
 import ChatComposer from './subcomponents/ChatComposer';
 import NewSessionLauncher from './subcomponents/NewSessionLauncher';
@@ -1056,6 +1060,13 @@ function ChatInterface({
     limitStopLive: liveLimitStop !== null,
   });
 
+  const sessionPlan = useSessionPlan(selectedSession?.id || currentSessionId || null, loadedRecords);
+  const stopAgentSessionId = selectedSession?.id || currentSessionId || null;
+  const [backgroundRunning, setBackgroundRunning] = useState<BackgroundRunning | null>(null);
+  const handleStopAgent = useCallback((taskId: string) => {
+    if (stopAgentSessionId) sendMessage({ type: 'chat.stop-agent', sessionId: stopAgentSessionId, taskId });
+  }, [sendMessage, stopAgentSessionId]);
+
   const browserState = useMemo<ChatBrowserState>(() => ({
     session: chatBrowser?.session ?? null,
     unavailable: Boolean(chatBrowser?.unavailable),
@@ -1065,7 +1076,19 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
     <ChatBrowserContext.Provider value={browserState}>
+      <ActivityLineSlotProvider>
       <div className={pageScroll ? 'flex flex-1 flex-col' : 'flex h-full min-h-0 flex-col'}>
+        <PlanBanner plan={sessionPlan} isVisible={isVisible} />
+        <BackgroundWork
+          sessionId={stopAgentSessionId}
+          messages={chatMessages}
+          isLive={isProcessing}
+          liveTasks={sessionActivity?.backgroundTasks}
+          isVisible={isVisible}
+          onStop={providerCapabilities?.[provider]?.supportsAgentStop ? handleStopAgent : undefined}
+          onFileOpen={onFileOpen}
+          onRunningChange={setBackgroundRunning}
+        />
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
           messagesContentRef={messagesContentRef}
@@ -1135,6 +1158,7 @@ function ChatInterface({
                 activity={sessionActivity}
                 awaitingInput={hasPendingPermission}
                 turnEnd={viewedTurnEnd}
+                work={backgroundRunning}
                 onClick={scrollToBottomAndReset}
               />
             </div>
@@ -1307,6 +1331,7 @@ function ChatInterface({
       />
 
       {headerMenuDialogs}
+      </ActivityLineSlotProvider>
     </ChatBrowserContext.Provider>
     </PermissionContext.Provider>
   );

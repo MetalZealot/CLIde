@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
+import { HeaderSheetProvider } from './HeaderSheetContext';
+
 type HeaderMenuItemBase = {
   key: string;
   label: string;
@@ -24,6 +26,8 @@ export type HeaderMenuSection = {
   items: HeaderMenuItem[];
   /** The open session's ids, copyable from the menu's foot. */
   sessionIds?: { appId: string; providerId?: string | null; provider?: string | null } | null;
+  /** Makes the menu's title line editable in place; `name` is the stored name, empty when it has none. */
+  rename?: { name: string; submit: (name: string) => void } | null;
 };
 
 const SectionContext = createContext<HeaderMenuSection | null>(null);
@@ -32,16 +36,25 @@ const SetSectionContext = createContext<
 >(null);
 const AccessorySlotContext = createContext<HTMLElement | null>(null);
 const SetAccessorySlotContext = createContext<((element: HTMLElement | null) => void) | null>(null);
+const BannerSlotContext = createContext<HTMLElement | null>(null);
+const SetBannerSlotContext = createContext<((element: HTMLElement | null) => void) | null>(null);
 
 /** Lets the visible view put its own actions in the header menu. */
 export function HeaderMenuProvider({ children }: { children: ReactNode }) {
   const [section, setSection] = useState<HeaderMenuSection | null>(null);
   const [accessorySlot, setAccessorySlot] = useState<HTMLElement | null>(null);
+  const [bannerSlot, setBannerSlot] = useState<HTMLElement | null>(null);
   return (
     <SetSectionContext.Provider value={setSection}>
       <SectionContext.Provider value={section}>
         <SetAccessorySlotContext.Provider value={setAccessorySlot}>
-          <AccessorySlotContext.Provider value={accessorySlot}>{children}</AccessorySlotContext.Provider>
+          <AccessorySlotContext.Provider value={accessorySlot}>
+            <SetBannerSlotContext.Provider value={setBannerSlot}>
+              <BannerSlotContext.Provider value={bannerSlot}>
+                <HeaderSheetProvider>{children}</HeaderSheetProvider>
+              </BannerSlotContext.Provider>
+            </SetBannerSlotContext.Provider>
+          </AccessorySlotContext.Provider>
         </SetAccessorySlotContext.Provider>
       </SectionContext.Provider>
     </SetSectionContext.Provider>
@@ -49,6 +62,15 @@ export function HeaderMenuProvider({ children }: { children: ReactNode }) {
 }
 
 /** The header's element left of the menu, which the visible view may portal a control into. */
+/** Where the visible view may portal a full-width bar under the header. */
+export function useHeaderBannerSlot(): HTMLElement | null {
+  return useContext(BannerSlotContext);
+}
+
+export function useSetHeaderBannerSlot() {
+  return useContext(SetBannerSlotContext);
+}
+
 export function useHeaderAccessorySlot(): HTMLElement | null {
   return useContext(AccessorySlotContext);
 }

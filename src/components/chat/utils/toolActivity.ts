@@ -7,8 +7,11 @@ import { countBashEditDiff, readBashEditDiff } from './bashEditDiff';
 import { calculateDiff } from './messageTransforms';
 
 export type FacetKind = 'read' | 'search' | 'web' | 'bash' | 'poll' | 'edit' | 'other';
-/** `fetch` counts under the `web` facet; it only changes the one-call wording. */
-export type OperationKind = FacetKind | 'fetch';
+/** `fetch` counts under the `web` facet; it only changes the one-call wording. `todo` is a plan change, never a facet. */
+export type OperationKind = FacetKind | 'fetch' | 'todo';
+
+/** What a plan call did to the agent's checklist. */
+export type PlanAction = 'add' | 'start' | 'done' | 'drop' | 'edit' | 'check' | 'replace';
 
 export interface ActivityOperation {
   message: ChatMessage;
@@ -17,6 +20,8 @@ export interface ActivityOperation {
   target: string;
   /** Claude's own label for a Bash call. */
   description?: string;
+  /** Set on `todo` operations. */
+  planAction?: PlanAction;
   /** Files a read or edit touches, for distinct-file counts. */
   paths: string[];
   added: number;
@@ -48,13 +53,6 @@ const STANDALONE_TOOL_NAMES = new Set([
   'request_user_input',
   'ExitPlanMode',
   'exit_plan_mode',
-  'TodoWrite',
-  'TodoRead',
-  'TodoList',
-  'TaskCreate',
-  'TaskUpdate',
-  'TaskList',
-  'TaskGet',
 ]);
 
 export function isStandaloneTool(message: ChatMessage): boolean {
@@ -208,6 +206,23 @@ function describeInput(toolName: string, input: any): Described {
     }
     case 'exec':
       return describeCodexExec(typeof input === 'string' ? input : JSON.stringify(input ?? ''));
+    case 'TaskCreate':
+      return described('todo', String(input?.subject || ''), { planAction: 'add' });
+    case 'TaskUpdate': {
+      const status = String(input?.status || '');
+      const planAction: PlanAction = status === 'completed' ? 'done'
+        : status === 'in_progress' ? 'start'
+          : status === 'deleted' ? 'drop'
+            : 'edit';
+      return described('todo', String(input?.taskId ?? ''), { planAction });
+    }
+    case 'TaskList':
+    case 'TaskGet':
+    case 'TodoRead':
+      return described('todo', '', { planAction: 'check' });
+    case 'TodoWrite':
+    case 'TodoList':
+      return described('todo', '', { planAction: 'replace' });
     default: {
       const mcp = /^mcp__.+?__(.+)$/.exec(toolName);
       return described('other', mcp ? mcp[1] : toolName);
@@ -242,7 +257,10 @@ export function describeOperation(message: ChatMessage): ActivityOperation {
     ...input,
     ...(input.kind === 'bash' ? countBashEditDiff(readBashEditDiff(toolResult?.toolUseResult)) : {}),
     message,
-    status: deriveToolStatus(toolResult),
+    // A background command's call returns at launch; its notice says how it ended.
+    status: message.backgroundState === 'running' ? 'running'
+      : message.backgroundState === 'failed' ? 'error'
+        : deriveToolStatus(toolResult),
     durationMs: Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : null,
   };
   operationCache.set(message, operation);
@@ -256,6 +274,9 @@ export function summarizeActivity(messages: ChatMessage[]): ActivitySummary {
   let running: ActivityOperation | null = null;
 
   for (const operation of operations) {
+    if (operation.status === 'error' || operation.status === 'denied') failed += 1;
+    if (operation.status === 'running') running = operation;
+    if (operation.kind === 'todo') continue;
     const kind: FacetKind = operation.kind === 'fetch' ? 'web' : operation.kind;
     let facet = facets.get(kind);
     if (!facet) {
@@ -270,8 +291,6 @@ export function summarizeActivity(messages: ChatMessage[]): ActivitySummary {
     } else {
       facet.unnamed += 1;
     }
-    if (operation.status === 'error' || operation.status === 'denied') failed += 1;
-    if (operation.status === 'running') running = operation;
   }
 
   return {
@@ -300,6 +319,7 @@ export const showsLineCounts = (kind: OperationKind): boolean => kind === 'edit'
 
 /** The call itself, past tense and without line counts: `Edited toolGrouping.ts`. */
 export function operationLabel(operation: ActivityOperation, t: Translate, preferDescription = false): string {
+  if (operation.kind === 'todo') return t(`activity.todo.${operation.planAction ?? 'edit'}`, { target: operation.target });
   if (preferDescription && operation.kind === 'bash' && operation.description) return operation.description;
   return operation.target
     ? t(`activity.done.${operation.kind}`, { target: operation.target })
@@ -308,14 +328,25 @@ export function operationLabel(operation: ActivityOperation, t: Translate, prefe
 
 /** A call waiting on its prompt, in the imperative: `Run npm test`. */
 export function waitingLabel(operation: ActivityOperation, t: Translate): string {
+  if (operation.kind === 'todo') return t('activity.todo.waiting');
   if (operation.kind === 'bash' && operation.description) return operation.description;
   return operation.target
     ? t(`activity.waiting.${operation.kind}`, { target: operation.target })
     : t(`activity.waitingAny.${operation.kind}`);
 }
 
+/** What a run of calls did to the plan: finished steps, else steps added, else nothing worth a word. */
+function describePlanChanges(operations: ActivityOperation[], t: Translate): string {
+  const plan = operations.filter((operation) => operation.kind === 'todo');
+  const finished = plan.filter((operation) => operation.planAction === 'done' && operation.target).map((operation) => operation.target);
+  if (finished.length) return t('activity.todo.summaryDone', { count: finished.length, steps: finished.join(', ') });
+  const added = plan.filter((operation) => operation.planAction === 'add').length;
+  return added ? t('activity.todo.summaryPlanned', { count: added }) : '';
+}
+
 export function describeActivity(summary: ActivitySummary, t: Translate, isLive: boolean): { label: string; isRunning: boolean } {
   const running = isLive ? summary.running : null;
+  if (running?.kind === 'todo') return { label: t('activity.todo.running'), isRunning: true };
   if (running) {
     if (running.kind === 'bash' && running.description) return { label: running.description, isRunning: true };
     return {
@@ -326,15 +357,20 @@ export function describeActivity(summary: ActivitySummary, t: Translate, isLive:
     };
   }
 
-  if (summary.operations.length === 1) {
-    const [only] = summary.operations;
+  const planText = describePlanChanges(summary.operations, t);
+  const work = summary.operations.filter((operation) => operation.kind !== 'todo');
+  if (work.length === 0) return { label: capitalize(planText || t('activity.todo.summaryUpdated')), isRunning: false };
+  const withPlan = (label: string) => (planText ? `${label} · ${planText}` : label);
+
+  if (work.length === 1) {
+    const [only] = work;
     const counts = showsLineCounts(only.kind) ? formatCounts(only.added, only.removed) : '';
-    return { label: `${operationLabel(only, t)}${counts}`, isRunning: false };
+    return { label: withPlan(`${operationLabel(only, t)}${counts}`), isRunning: false };
   }
 
   const facets = summary.facets.map((facet) => {
     const text = t(`activity.facet.${facet.kind}`, { count: facet.count });
     return showsLineCounts(facet.kind) ? `${text}${formatCounts(facet.added, facet.removed)}` : text;
   });
-  return { label: capitalize(facets.join(', ')), isRunning: false };
+  return { label: withPlan(capitalize(facets.join(', '))), isRunning: false };
 }

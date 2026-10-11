@@ -108,12 +108,17 @@ export default {
           from: { transform: 'translateY(100%)' },
           to: { transform: 'translateY(0)' },
         },
+        'sheet-down': {
+          from: { transform: 'translateY(-100%)' },
+          to: { transform: 'translateY(0)' },
+        },
       },
       animation: {
         shimmer: 'shimmer 2s linear infinite',
         'dialog-overlay-show': 'dialog-overlay-show 150ms ease-out',
         'dialog-content-show': 'dialog-content-show 150ms ease-out',
         'sheet-up': 'sheet-up 280ms cubic-bezier(.2,.8,.2,1)',
+        'sheet-down': 'sheet-down 280ms cubic-bezier(.2,.8,.2,1)',
       },
     },
   },

@@ -19,6 +19,7 @@ import {
   type ProviderUsageWindow,
 } from '../../../provider-usage/types';
 import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
+import { useHeaderSheet } from '../../../../contexts/HeaderSheetContext';
 import { authenticatedFetch } from '../../../../utils/api';
 import { agentScreenId } from '../../../settings/registry/registry';
 import { useComposerMenuAnchor, type ComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
@@ -420,6 +421,7 @@ function PopoverAction({
 function UsagePopoverSurface({
   id,
   inHeader,
+  sheet,
   anchor,
   trigger,
   menuRef,
@@ -430,6 +432,7 @@ function UsagePopoverSurface({
 }: {
   id: string;
   inHeader: boolean;
+  sheet: { inSheet: boolean; target: HTMLElement | null };
   anchor: ComposerMenuAnchor | null;
   trigger: HTMLButtonElement | null;
   menuRef: React.Ref<HTMLDivElement>;
@@ -438,6 +441,9 @@ function UsagePopoverSurface({
   ariaLabel: string;
   children: React.ReactNode;
 }) {
+  if (inHeader && sheet.inSheet) {
+    return sheet.target ? createPortal(<div className="px-4 py-3">{children}</div>, sheet.target) : null;
+  }
   if (inHeader && trigger) {
     return (
       <ContextMenuOverlay
@@ -495,12 +501,22 @@ export default function TokenUsageSummary({
   const sessionKeyRef = useRef(sessionKey);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
+  const sheet = useHeaderSheet('usage', isOpen && inHeader, close, t('usagePopover.summaryLabel', { defaultValue: 'Session and plan usage' }));
+  // In the sheet, the action waits for it to slide away.
+  const { inSheet, close: closeSheet } = sheet;
+  const closeThen = useCallback((action: () => void) => {
+    if (inSheet) {
+      closeSheet(action);
+      return;
+    }
+    setIsOpen(false);
+    action();
+  }, [inSheet, closeSheet]);
   const [triggerElement, setTriggerElement] = useState<HTMLButtonElement | null>(null);
   const { openSettings, openUsage } = usePaletteOps();
   const openAutoCompactSettings = useCallback(() => {
-    setIsOpen(false);
-    openSettings(agentScreenId('claude', 'autoCompact'));
-  }, [openSettings]);
+    closeThen(() => openSettings(agentScreenId('claude', 'autoCompact')));
+  }, [closeThen, openSettings]);
   // In the header, ContextMenuOverlay owns dismissal; the hook's outside-press would close on taps inside it.
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen && !inHeader, close, 19 * 16);
   const usageProvider = toUsageProvider(provider);
@@ -762,7 +778,7 @@ export default function TokenUsageSummary({
           setTriggerElement(element);
         }}
         type="button"
-        onClick={() => (isOpen ? close() : openPopover())}
+        onClick={() => (isOpen ? (sheet.inSheet ? sheet.close() : close()) : openPopover())}
         className={inHeader
           ? cn(
             'touch-menu-trigger inline-flex h-11 min-w-8 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-lg px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -797,6 +813,7 @@ export default function TokenUsageSummary({
         <UsagePopoverSurface
           id={popoverId}
           inHeader={inHeader}
+          sheet={sheet}
           anchor={anchor}
           trigger={triggerRef.current}
           menuRef={menuRef}
@@ -938,10 +955,7 @@ export default function TokenUsageSummary({
                           count: providerUsage?.resetCredits?.availableCount,
                         })}
                       value={t('usagePopover.viewUsage', { defaultValue: 'View usage' })}
-                      onClick={() => {
-                        close();
-                        openUsage();
-                      }}
+                      onClick={() => closeThen(openUsage)}
                     />
                   )}
 

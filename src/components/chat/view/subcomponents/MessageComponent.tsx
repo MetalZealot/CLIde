@@ -47,6 +47,8 @@ type MessageComponentProps = {
   prevMessage: ChatMessage | null;
   /** Set only on the last reply of a finished turn. */
   turnSummary?: TurnSummary;
+  /** This reply ends the chat's last finished turn. */
+  isLatestTurn?: boolean;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   onFileOpen?: (filePath: string, diffInfo?: unknown, options?: FileOpenOptions) => void;
   onShowSettings?: () => void;
@@ -69,7 +71,7 @@ type MessageComponentProps = {
   hasResetMessage?: boolean;
 };
 
-const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, onEditMessage, onEditUnsent, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnSummary, isLatestTurn = false, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, onEditMessage, onEditUnsent, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -540,7 +542,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                     <span>{formattedTime}</span>
                   </div>
                 </div>
-                <TurnSummaryRow summary={turnSummary} />
+                <TurnSummaryRow summary={turnSummary} isLatest={isLatestTurn} />
               </>
             )}
           </div>

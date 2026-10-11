@@ -9,7 +9,61 @@ import type {
   LLMProvider,
   NormalizedMessage,
   RealtimeClientConnection,
+  SessionPlan,
 } from '@/shared/types.js';
+
+/** Tools that launch a subagent, across providers. */
+const AGENT_TOOLS = new Set(['Agent', 'Task', 'spawn_agent']);
+/** Tools that change a plan the provider keeps on disk. */
+const STORED_PLAN_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'update_plan']);
+
+/** What a run is doing besides its own turn: the agents still at work and whether its plan moved. */
+type RunWork = {
+  /** Launching call ids of agents still running. */
+  agents: Set<string>;
+  /** Status events may name only the task; this maps it back to the call. */
+  agentTasks: Map<string, string>;
+  planCalls: Set<string>;
+  /** Bumps when a stored plan changed, so a reader knows to read it again. */
+  planRevision: number;
+  /** A plan the provider pushed whole, which outranks the stored copy until the next stored change. */
+  pushedPlan: SessionPlan | null;
+};
+
+const createRunWork = (): RunWork => ({
+  agents: new Set(), agentTasks: new Map(), planCalls: new Set(), planRevision: 0, pushedPlan: null,
+});
+
+/** A background agent's call returns at launch; only its status events end it. */
+const isAsyncLaunch = (toolUseResult: unknown): boolean => {
+  const record = toolUseResult as { status?: unknown; isAsync?: unknown } | null | undefined;
+  return record?.status === 'async_launched' || record?.isAsync === true;
+};
+
+function trackRunWork(work: RunWork, message: NormalizedMessage): void {
+  if (message.parentToolUseId) return;
+  const toolId = message.toolId;
+  if (message.kind === 'tool_use' && toolId) {
+    if (AGENT_TOOLS.has(String(message.toolName))) work.agents.add(toolId);
+    if (STORED_PLAN_TOOLS.has(String(message.toolName))) work.planCalls.add(toolId);
+    if (message.toolResult) trackRunWork(work, { ...message, kind: 'tool_result', toolUseResult: message.toolResult.toolUseResult });
+  } else if (message.kind === 'tool_result' && toolId) {
+    if (work.agents.has(toolId) && !isAsyncLaunch(message.toolUseResult)) work.agents.delete(toolId);
+    if (work.planCalls.delete(toolId)) {
+      work.planRevision += 1;
+      work.pushedPlan = null;
+    }
+  } else if (message.kind === 'agent_status' && message.agentStatus) {
+    const { taskId, state } = message.agentStatus;
+    const callId = message.agentStatus.toolId ?? work.agentTasks.get(taskId);
+    if (!callId) return;
+    work.agentTasks.set(taskId, callId);
+    if (state === 'running') work.agents.add(callId);
+    else work.agents.delete(callId);
+  } else if (message.kind === 'plan_updated' && message.plan) {
+    work.pushedPlan = message.plan;
+  }
+}
 
 type ChatRunStatus = 'running' | 'completed';
 
@@ -74,6 +128,7 @@ type ChatRun = {
   turnOptions: unknown;
   /** Set by the first event the provider caused; the runtime's own `starting` stage precedes the provider and does not count. */
   providerResponded: boolean;
+  work: RunWork;
 };
 
 /** Notified at the end of a run the provider ended on a usage limit. */
@@ -189,6 +244,7 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
   }
 
   run.lastSeq += 1;
+  trackRunWork(run.work, message);
   if (!(message.kind === 'status' && message.stage?.name === 'starting')) {
     run.providerResponded = true;
   }
@@ -342,6 +398,7 @@ export const chatRunRegistry = {
       usageLimitStop: false,
       turnOptions: input.turnOptions,
       providerResponded: false,
+      work: createRunWork(),
       abortController: new AbortController(),
       broadcast: input.broadcast === true,
     };
@@ -398,6 +455,9 @@ export const chatRunRegistry = {
     provider: LLMProvider;
     startedAt: number;
     lastSeq: number;
+    agents: number;
+    planRevision: number;
+    pushedPlan: SessionPlan | null;
   }> {
     return Array.from(runs.values())
       .filter((run) => run.status === 'running')
@@ -406,6 +466,9 @@ export const chatRunRegistry = {
         provider: run.provider,
         startedAt: run.startedAt,
         lastSeq: run.lastSeq,
+        agents: run.work.agents.size,
+        planRevision: run.work.planRevision,
+        pushedPlan: run.work.pushedPlan,
       }));
   },
 

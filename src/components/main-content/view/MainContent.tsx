@@ -19,7 +19,7 @@ import type { Project } from '../../../types/app';
 import { getCheckoutContextLabel, resolveActivityState } from '../../sidebar/utils/utils';
 import UsageDashboard from '../../usage-dashboard/view/UsageDashboard';
 
-import MainContentHeader, { HeaderAccessorySlot } from './subcomponents/MainContentHeader';
+import MainContentHeader, { HeaderAccessorySlot, HeaderBannerSlot } from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import MobileMenuButton from './subcomponents/MobileMenuButton';
 import MobileBottomNav from './subcomponents/MobileBottomNav';
@@ -228,6 +228,7 @@ function MainContent({
           <HeaderAccessorySlot />
         </div>
       ) : null}
+      {selectedProject && <HeaderBannerSlot />}
       </div>
 
       {/* Page scrolling needs every ancestor of the sticky composer unclipped. */}

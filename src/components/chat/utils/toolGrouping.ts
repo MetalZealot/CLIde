@@ -31,7 +31,7 @@ function isToolActivityCall(message: ChatMessage): boolean {
 }
 
 function isActivityMember(message: ChatMessage, pendingToolIds?: ReadonlySet<string>): boolean {
-  return isToolActivityCall(message) && !(message.toolId && pendingToolIds?.has(message.toolId));
+  return isToolActivityCall(message) && !(message.toolId && pendingToolIds?.has(message.toolId)) && !message.backgroundState;
 }
 
 const activityCache = new WeakMap<ChatMessage, ToolActivityItem>();
@@ -102,7 +102,8 @@ function groupRuns(
     if (!opener || !isActivityMember(opener, pendingToolIds)) {
       // Thinking no call follows stands alone; while live, a later call may still claim it.
       if (opener || !holdTrailingThinking) items.push(...leading);
-      // A call waiting on its prompt is a one-call activity of its own until answered.
+      // A call waiting on its prompt is a one-call activity of its own until answered; a
+      // background command is one for good, so its running state never colours its neighbours.
       if (opener) items.push(isToolActivityCall(opener) ? toActivity([opener]) : opener);
       index = openerIndex + 1;
       continue;

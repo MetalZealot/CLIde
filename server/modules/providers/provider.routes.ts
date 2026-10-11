@@ -838,7 +838,7 @@ router.post(
 router.get(
   '/sessions/running',
   asyncHandler(async (_req: Request, res: Response) => {
-    const sessions = sessionsService.listRunningSessions();
+    const sessions = await sessionsService.listRunningSessionsWithWork();
     res.json(createApiSuccessResponse({ sessions }));
   }),
 );
@@ -862,6 +862,34 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const sessions = sessionsService.listArchivedSessions();
     res.json(createApiSuccessResponse({ sessions }));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/plan',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    res.json(createApiSuccessResponse({ plan: await sessionsService.readSessionPlan(sessionId) }));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/background',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    res.json(createApiSuccessResponse({ messages: await sessionsService.fetchBackgroundRecords(sessionId) }));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/background/:taskId/output',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const taskId = String(req.params.taskId ?? '');
+    if (!/^[\w-]+$/.test(taskId)) {
+      throw new AppError('A task id is required.', { code: 'TASK_ID_INVALID', statusCode: 400 });
+    }
+    res.json(createApiSuccessResponse({ output: await sessionsService.readBackgroundOutput(sessionId, taskId) }));
   }),
 );
 

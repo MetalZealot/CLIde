@@ -428,7 +428,8 @@ export type MessageKind =
   | 'interactive_prompt'
   | 'task_notification'
   | 'compact_boundary'
-  | 'agent_status';
+  | 'agent_status'
+  | 'plan_updated';
 
 /**
  * Where a background or forked agent stands, from the provider's live task
@@ -447,6 +448,40 @@ export type AgentStatusInfo = {
   tokens?: number;
   durationMs?: number;
   lastToolName?: string;
+  /** The agent's final report, when it arrives apart from its call's result. */
+  report?: string;
+};
+
+/** One live background task, from the provider's own list; replaced whole on each change. */
+export type BackgroundTaskInfo = {
+  taskId: string;
+  kind: 'agent' | 'command';
+  description: string;
+  /** The agent's type, for agents only. */
+  agentType?: string;
+  /** The agent task that launched it; absent when the main conversation did. */
+  parentTaskId?: string;
+};
+
+/** One step of an agent's own checklist, in the provider's order. */
+export type SessionPlanStep = {
+  id: string;
+  subject: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  /** Present-tense label for the step while it runs, where the provider keeps one. */
+  activeForm?: string;
+};
+
+/** The agent's checklist for one session, as its provider stores it. */
+export type SessionPlan = {
+  steps: SessionPlanStep[];
+};
+
+/** The end of a background command's output; `live` while its run can still add to it. */
+export type BackgroundOutput = {
+  output: string;
+  truncated: boolean;
+  live: boolean;
 };
 
 /**
@@ -687,6 +722,10 @@ export type NormalizedMessage = {
   parentToolUseId?: string;
   /** Only set on `agent_status` rows. */
   agentStatus?: AgentStatusInfo;
+  /** Only set on `plan_updated` rows: the whole checklist after the change. */
+  plan?: SessionPlan;
+  /** Only set on a `background_tasks` status: every live task. */
+  backgroundTasks?: BackgroundTaskInfo[];
   subagentTools?: unknown;
   toolUseResult?: unknown;
   sequence?: number;

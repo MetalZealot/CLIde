@@ -14,6 +14,7 @@ import { useHasPendingSend } from '../../../../stores/sendOutbox';
 import ChatBrowserActivity from '../../../browser-use/view/ChatBrowserActivity';
 
 import ActivityIndicator from './ActivityIndicator';
+import { ActivityLineSlot } from './ActivityLineSlot';
 import MessageComponent from './MessageComponent';
 import SubagentActivity from './SubagentActivity';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
@@ -142,6 +143,12 @@ function ChatMessagesPane({
     () => computeTurnSummaries(chatMessages, isProcessing, turnStartedAt, turnOutputTokens),
     [chatMessages, isProcessing, turnStartedAt, turnOutputTokens],
   );
+  const latestTurnReply = useMemo(() => {
+    for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+      if (turnSummaries.has(chatMessages[index])) return chatMessages[index];
+    }
+    return null;
+  }, [chatMessages, turnSummaries]);
 
   // Stable, deterministic keys for the messages rendered this pass.
   //
@@ -337,6 +344,7 @@ function ChatMessagesPane({
                   message={item}
                   prevMessage={messagePrevMessage}
                   turnSummary={turnSummaries.get(item)}
+                  isLatestTurn={item === latestTurnReply}
                   createDiff={createDiff}
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}
@@ -367,6 +375,12 @@ function ChatMessagesPane({
           awaitingInput={(pendingPermissionRequests?.length ?? 0) > 0}
           turnEnd={sendPending ? null : turnEnd}
         />
+      )}
+      {!isLoadingSessionMessages && !latestTurnReply && (
+        // No finished turn to carry the background-work mark, so it gets a row of its own.
+        <div className="flex min-w-0 px-1 sm:px-0">
+          <ActivityLineSlot kind="fallback" />
+        </div>
       )}
       {!isLoadingSessionMessages && (
         <ScheduledMessageBubbles

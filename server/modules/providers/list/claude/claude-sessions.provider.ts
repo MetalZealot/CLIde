@@ -23,6 +23,8 @@ import type {
   HistorySourceRevision,
   HistorySourceTarget,
   NormalizedMessage,
+  SessionPlan,
+  BackgroundOutput,
   SideQuestionExchange,
   UsageLimitStop,
 } from '@/shared/types.js';
@@ -33,6 +35,8 @@ import {
   resolveClaudeDerivedCeiling,
   toCeilingProvenanceFields,
 } from './claude-context-window.js';
+import { readClaudeBackgroundOutput } from './claude-background-output.js';
+import { readClaudePlan } from './claude-plan.js';
 import { encodeClaudeProjectDir, filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
 
 const PROVIDER = 'claude';
@@ -855,6 +859,21 @@ function readClaudeAgentStatus(raw: AnyRecord): AgentStatusInfo | null {
   return status;
 }
 
+/**
+ * A background agent's report, handed back as a hidden peer message from its task.
+ * Null for any other row, including peer messages that are not hand-backs.
+ */
+export function readClaudeAgentHandback(raw: AnyRecord): AgentStatusInfo | null {
+  const origin = readObjectRecord(raw.origin);
+  if (raw.type !== 'user' || origin?.kind !== 'peer' || origin.handback !== true) return null;
+  if (typeof origin.senderTaskId !== 'string' || typeof origin.body !== 'string') return null;
+  // The harness frames the report and indents each of its lines by two spaces.
+  const marker = 'The report follows:\n';
+  const at = origin.body.indexOf(marker);
+  const report = (at === -1 ? origin.body : origin.body.slice(at + marker.length)).replace(/^ {2}/gm, '').trim();
+  return report ? { taskId: origin.senderTaskId, state: 'completed', report } : null;
+}
+
 /** The text of a `queued_command` prompt attachment; null for any other row. */
 export function readQueuedPromptText(raw: AnyRecord): string | null {
   if (raw.type !== 'attachment' || raw.isMeta === true) return null;
@@ -919,6 +938,14 @@ export function collectCompactReferencesByRowId(rawMessages: AnyRecord[]): Map<s
 }
 
 export class ClaudeSessionsProvider implements IProviderSessions {
+  readPlan(providerSessionId: string): Promise<SessionPlan | null> {
+    return readClaudePlan(providerSessionId);
+  }
+
+  readBackgroundOutput(providerSessionId: string, taskId: string, options: { projectPath: string }): Promise<BackgroundOutput | null> {
+    return readClaudeBackgroundOutput(options.projectPath, providerSessionId, taskId);
+  }
+
   /** Sessions service uses this to validate the main transcript and every agent dependency. */
   async getHistorySourceRevision(
     sessionId: string,
@@ -997,7 +1024,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       })];
     }
 
-    const agentStatus = readClaudeAgentStatus(raw);
+    const agentStatus = readClaudeAgentStatus(raw) ?? readClaudeAgentHandback(raw);
     if (agentStatus) {
       return [createNormalizedMessage({
         id: typeof raw.uuid === 'string' ? raw.uuid : undefined,

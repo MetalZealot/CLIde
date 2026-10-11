@@ -103,8 +103,11 @@ In force — read these. A partly superseded ADR stays here with its note.
 - [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md) *(Attach photos superseded by 0072)*
 - [0071 — The sidebar is a rail of views over one project-scoped list](0071-sidebar-is-a-rail-of-views-over-one-scoped-list.md)
 - [0075 — Photos is back; attachments are read before anything asks their size](0075-photos-reads-before-asking-size.md)
-- [0076 — The plan pins under the header; running agents ride the Working line](0076-plan-pins-under-header-agents-ride-working-line.md)
+- [0076 — The plan pins under the header; running agents ride the Working line](0076-plan-pins-under-header-agents-ride-working-line.md) *(agents and finished plan superseded by 0078)*
 - [0077 — A plain Terminal tab takes Shell's place; Shell opens from the chat kebab](0077-terminal-tab-replaces-shell-open-in-cli.md)
+- [0078 — Agents and background commands sit behind one header button](0078-background-work-sits-behind-a-header-button.md) *(header button and list superseded by 0080)*
+- [0079 — On phones, header menus are one sheet from behind the header](0079-header-menus-are-a-sheet-from-behind-the-header.md)
+- [0080 — Background work rides the activity line and opens a bottom sheet](0080-background-work-rides-the-activity-line.md)
 
 ### Superseded
 

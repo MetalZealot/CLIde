@@ -1,3 +1,5 @@
+import { ChevronDown } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
@@ -9,6 +11,8 @@ type MainContentTitleProps = {
   selectedSession: ProjectSession | null;
   /** `<checkout> · <branch>` when the repository has several checkouts, else null. */
   checkoutLabel: string | null;
+  /** The title opens the view's menu, so it carries a chevron. */
+  hasMenu?: boolean;
 };
 
 function getTabTitle(activeTab: AppTab, t: (key: string) => string) {
@@ -35,7 +39,7 @@ function getTabTitle(activeTab: AppTab, t: (key: string) => string) {
   return 'Project';
 }
 
-function getSessionTitle(session: ProjectSession): string {
+export function getSessionTitle(session: ProjectSession): string {
   if (session.__provider === 'cursor') {
     return (session.name as string) || 'Untitled Session';
   }
@@ -43,11 +47,21 @@ function getSessionTitle(session: ProjectSession): string {
   return (session.summary as string) || 'New Session';
 }
 
+function TitleLine({ hasMenu, className, children }: { hasMenu: boolean; className: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <h2 className={`truncate font-semibold leading-tight text-foreground ${className}`}>{children}</h2>
+      {hasMenu && <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
+    </div>
+  );
+}
+
 export default function MainContentTitle({
   activeTab,
   selectedProject,
   selectedSession,
   checkoutLabel,
+  hasMenu = false,
 }: MainContentTitleProps) {
   const { t } = useTranslation();
   // One sidebar row can cover several working trees (ADR 0016), so the project
@@ -69,21 +83,17 @@ export default function MainContentTitle({
       <div className="min-w-0 flex-1">
         {activeTab === 'chat' && selectedSession ? (
           <div className="min-w-0">
-            <h2 title={getSessionTitle(selectedSession)} className="truncate text-sm font-semibold leading-tight text-foreground">
-              {getSessionTitle(selectedSession)}
-            </h2>
+            <TitleLine hasMenu={hasMenu} className="text-sm">{getSessionTitle(selectedSession)}</TitleLine>
             <div className="truncate text-[11px] leading-tight text-muted-foreground">{subtitle}</div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">
-            <h2 className="text-base font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
+            <TitleLine hasMenu={hasMenu} className="text-base">{t('mainContent.newSession')}</TitleLine>
             <div className="truncate text-xs leading-tight text-muted-foreground">{subtitle}</div>
           </div>
         ) : (
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold leading-tight text-foreground">
-              {getTabTitle(activeTab, t)}
-            </h2>
+            <TitleLine hasMenu={hasMenu} className="text-sm">{getTabTitle(activeTab, t)}</TitleLine>
             <div className="truncate text-[11px] leading-tight text-muted-foreground">{subtitle}</div>
           </div>
         )}

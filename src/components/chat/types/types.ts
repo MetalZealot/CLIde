@@ -114,12 +114,16 @@ export interface ChatMessage {
   /** Parsed from Codex's trailing provenance envelope; rendered as compact sources. */
   memoryCitations?: MemoryCitation[];
   isSubagentContainer?: boolean;
+  /** A command the provider moved to the background: running until its completion notice arrives. */
+  backgroundState?: 'running' | 'completed' | 'failed' | 'stopped';
   subagentState?: {
     childTools: SubagentChildTool[];
     currentToolIndex: number;
     isComplete: boolean;
     /** Live or recorded status; a background agent's call returns before the agent finishes. */
     agentStatus?: AgentStatusInfo;
+    /** A background agent's report, which arrives in its completion notice rather than its call's result. */
+    report?: string;
   };
   [key: string]: unknown;
 }

@@ -207,6 +207,7 @@
     "untitledSession": "Untitled Session",
     "projectFiles": "Project Files",
     "moreOptions": "More options",
+    "editTitle": "Edit title",
     "copySessionId": "Copy {{label}} ID",
     "sessionIdCopied": "Copied"
   },

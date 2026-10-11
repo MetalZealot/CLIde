@@ -298,8 +298,10 @@ export function useChatRealtimeHandlers({
         case 'chat_input_rejected':
           return;
 
-        // Reply to a live composer change; the composer already shows the value.
+        // Replies to a live composer change and to a stopped agent; the composer
+        // already shows the value, and the agent's own status row reports the stop.
         case 'chat_control_result':
+        case 'chat_stop_agent_result':
           return;
 
         default:
@@ -508,6 +510,10 @@ export function useChatRealtimeHandlers({
           } else if (msg.text === 'turn_tokens') {
             if (sid && typeof msg.outputTokens === 'number') {
               onSessionProcessing?.(sid, { outputTokens: msg.outputTokens });
+            }
+          } else if (msg.text === 'background_tasks') {
+            if (sid && Array.isArray(msg.backgroundTasks)) {
+              onSessionProcessing?.(sid, { backgroundTasks: msg.backgroundTasks });
             }
           } else if (typeof msg.text === 'string' && sid) {
             // An empty text is a deliberate clear: the run is still going, but

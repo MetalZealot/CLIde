@@ -33,6 +33,7 @@ export type ProviderCapabilities = {
   supportsActiveTurnSteering?: boolean;
   /** `live` reaches the running turn; `next-turn` waits for the next send. */
   controlModes?: Partial<Record<ChatControlKey, 'live' | 'next-turn' | 'none'>>;
+  supportsAgentStop?: boolean;
   supportsPermissionRequests?: boolean;
   supportsTokenUsage?: boolean;
   supportsUsageResetAlerts?: boolean;

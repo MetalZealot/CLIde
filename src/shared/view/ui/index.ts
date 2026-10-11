@@ -8,6 +8,7 @@ export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, 
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './Collapsible';
 export { default as ContextMenuOverlay, anchorFromElement, armTapShield } from './ContextMenuOverlay';
 export { default as PageScrollLock } from './PageScrollLock';
+export { useCloseOnBack } from './useCloseOnBack';
 export type { ContextMenuAnchor } from './ContextMenuOverlay';
 export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from './Command';
 export { default as DarkModeToggle } from './DarkModeToggle';

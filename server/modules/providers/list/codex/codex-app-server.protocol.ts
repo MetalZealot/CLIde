@@ -277,6 +277,15 @@ export type CodexThreadItem =
 
 export type CodexNotification =
   | {
+      method: 'turn/plan/updated';
+      params: {
+        threadId: string;
+        turnId: string;
+        explanation?: string | null;
+        plan: Array<{ step: string; status: string }>;
+      };
+    }
+  | {
       method: 'item/started';
       params: {
         threadId: string;

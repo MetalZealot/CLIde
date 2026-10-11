@@ -1,6 +1,7 @@
 import { sessionsDb } from '@/modules/database/index.js';
 import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
 import { isCodexAppServerChatEnabled } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
+import { readCodexPlan } from '@/modules/providers/list/codex/codex-plan.js';
 import {
   buildCodexTranscriptChain,
   resolveCodexTranscriptChain,
@@ -18,6 +19,7 @@ import type {
   FetchHistoryResult,
   HistorySourceRevision,
   NormalizedMessage,
+  SessionPlan,
   SideQuestionExchange,
 } from '@/shared/types.js';
 import { createNormalizedMessage, creditOutputTokens, generateMessageId, findLeadingTurn, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
@@ -1028,6 +1030,10 @@ async function getCodexSessionMessages(
 }
 
 export class CodexSessionsProvider implements IProviderSessions {
+  readPlan(_providerSessionId: string, options: { jsonlPath?: string | null }): Promise<SessionPlan | null> {
+    return readCodexPlan(options.jsonlPath);
+  }
+
   /** Sessions service uses this to validate the leaf rollout and every parent. */
   async getHistorySourceRevision(
     sessionId: string,

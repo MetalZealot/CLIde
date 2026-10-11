@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Download, Pencil, Pin, Repeat, Search, SquareTerminal, Trash2 } from 'lucide-react';
+import { Archive, Download, Pin, Repeat, Search, SquareTerminal, Trash2 } from 'lucide-react';
 
 import { useRegisterHeaderMenu, type HeaderMenuItem, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
@@ -8,7 +8,6 @@ import type { LLMProvider, Project, ProjectSession, SessionActions } from '../..
 import type { ChatMessage } from '../types/types';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../utils/chatExport';
 import { ChatExportOptions } from '../view/subcomponents/ChatExportMenu';
-import SessionRenameDialog from '../view/subcomponents/SessionRenameDialog';
 import SessionDeleteDialog from '../../sidebar/view/subcomponents/SessionDeleteDialog';
 
 type UseChatHeaderMenuArgs = {
@@ -50,7 +49,6 @@ export function useChatHeaderMenu({
 }: UseChatHeaderMenuArgs) {
   const { t } = useTranslation('sidebar');
   const { t: tChat } = useTranslation('chat');
-  const [renameTarget, setRenameTarget] = useState<SessionTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SessionTarget | null>(null);
   const [exportInclude, setExportInclude] = useState(DEFAULT_CHAT_EXPORT_INCLUDE);
   // Pinning patches the project list, not the selected-session copy, and an
@@ -111,12 +109,6 @@ export function useChatHeaderMenu({
             setStarOverride({ sessionId, isStarred: settled });
           });
         },
-      },
-      {
-        key: 'rename',
-        label: t('actions.rename'),
-        icon: Pencil,
-        onSelect: () => setRenameTarget({ sessionId, name }),
       },
       // Only where a usage limit lifts on its own: on the others there is no
       // reset for a continue to wait on.
@@ -188,6 +180,14 @@ export function useChatHeaderMenu({
       items,
       headerContent: findHeaderContent,
       sessionIds: { appId: sessionId, providerId: providerSessionId, provider },
+      rename: {
+        name,
+        submit: (next: string) => {
+          void sessionActions.rename(sessionId, next).then((ok) => {
+            if (!ok) alert(t('messages.renameSessionFailed'));
+          });
+        },
+      },
     };
   }, [
     isVisible,
@@ -213,27 +213,8 @@ export function useChatHeaderMenu({
   ]);
   useRegisterHeaderMenu(section);
 
-  const closeRename = useCallback(() => setRenameTarget(null), []);
-
-  const submitRename = useCallback(async (name: string) => {
-    if (!renameTarget) {
-      return;
-    }
-    const ok = await sessionActions.rename(renameTarget.sessionId, name);
-    if (ok) {
-      setRenameTarget(null);
-    } else {
-      alert(t('messages.renameSessionFailed'));
-    }
-  }, [renameTarget, sessionActions, t]);
-
   const dialogs: ReactNode = (
     <>
-      <SessionRenameDialog
-        initialName={renameTarget?.name ?? null}
-        onClose={closeRename}
-        onSubmit={submitRename}
-      />
       {deleteTarget && (
         <SessionDeleteDialog
           sessionTitle={deleteTarget.name}

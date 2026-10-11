@@ -31,6 +31,7 @@ import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarSessionItem from './SidebarSessionItem';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
+import { setRunningWork } from '../../../../stores/runningWork';
 
 
 describe('SidebarHeader', () => {
@@ -892,4 +893,45 @@ describe('SidebarResizeHandle', () => {
     await React.act(async () => root.unmount());
     container.remove();
   });
+});
+
+test('a running session row shows its plan progress and agents out, and an idle one shows neither', async () => {
+  const t = ((key: string, options?: unknown) => (typeof options === 'string' ? options : key)) as unknown as TFunction;
+  const session = { id: 'busy', summary: 'Busy one', createdAt: '2026-10-10T00:00:00.000Z', __provider: 'claude' } as const;
+  const project = { name: 'p', displayName: 'P', path: '/p', fullPath: '/p' } as unknown as Project;
+  const row = (isProcessing: boolean) => (
+    <SidebarSessionItem
+      project={project}
+      session={session as never}
+      selectedSession={null}
+      isProcessing={isProcessing}
+      needsAttention={false}
+      isUnread={false}
+      hasScheduledMessage={false}
+      currentTime={new Date('2026-10-10T00:05:00.000Z')}
+      editingSession={null}
+      editingSessionName=""
+      onEditingSessionNameChange={() => {}}
+      onCancelEditingSession={() => {}}
+      onSaveEditingSession={() => {}}
+      onProjectSelect={() => {}}
+      onSessionSelect={() => {}}
+      t={t}
+    />
+  );
+  setRunningWork(new Map([['busy', { agents: 2, plan: { done: 3, total: 8 } }]]));
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  await React.act(async () => root.render(row(true)));
+  assert.match(container.textContent ?? '', /3\/8/);
+  assert.equal(container.querySelectorAll('.lucide-bot').length, 2, 'both row layouts carry the count');
+  assert.ok(container.querySelector('span[style*="width: 37.5%"]'), 'the progress line runs 3 of 8');
+
+  await React.act(async () => root.render(row(false)));
+  assert.doesNotMatch(container.textContent ?? '', /3\/8/);
+  assert.equal(container.querySelectorAll('.lucide-bot').length, 0);
+  setRunningWork(new Map());
+  await React.act(async () => root.unmount());
+  container.remove();
 });

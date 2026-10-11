@@ -13,13 +13,15 @@ import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claud
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { CodexSessionsProvider, extractCodexUserImages } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { CursorSessionsProvider } from '@/modules/providers/list/cursor/cursor-sessions.provider.js';
+import { readClaudePlan } from '@/modules/providers/list/claude/claude-plan.js';
+import { codexPlanFrom, readCodexPlan } from '@/modules/providers/list/codex/codex-plan.js';
 import {
   createSessionHistoryCache,
   sessionHistoryCache,
 } from '@/modules/providers/services/session-history-cache.service.js';
 import { paginateHistory } from '@/modules/providers/services/history-pagination.service.js';
 import { measureHistoryMessage, slimHistoryMessage } from '@/modules/providers/services/history-payload.service.js';
-import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { selectBackgroundRecords, sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
 import type { FetchHistoryResult, HistorySourceRevision, NormalizedMessage } from '@/shared/types.js';
@@ -1785,4 +1787,54 @@ describe('history cache review regressions', () => {
       assert.equal([...tracked].reduce((sum, map) => sum + map.size, 0), 0);
     } finally { t.mock.restoreAll(); cache.clear(); }
   });
+});
+
+test('the background-work records are the agent and background calls, their results, status rows and notices', () => {
+  const row = (extra: Partial<NormalizedMessage>) => ({ sessionId: 's', timestamp: 't', provider: 'claude', ...extra }) as NormalizedMessage;
+  const kept = selectBackgroundRecords([
+    row({ id: 'u', kind: 'text', role: 'user', content: 'Go' }),
+    row({ id: 'agent', kind: 'tool_use', toolName: 'Agent', toolId: 'a1' }),
+    row({ id: 'child', kind: 'tool_use', toolName: 'Read', toolId: 'c1', parentToolUseId: 'a1' }),
+    row({ id: 'read', kind: 'tool_use', toolName: 'Read', toolId: 'r1', toolResult: { content: 'x', isError: false } }),
+    row({ id: 'bash', kind: 'tool_use', toolName: 'Bash', toolId: 'b1' }),
+    row({ id: 'bash-result', kind: 'tool_result', toolId: 'b1', content: '', toolUseResult: { backgroundTaskId: 'bk1' } }),
+    row({ id: 'status', kind: 'agent_status', agentStatus: { taskId: 'k', state: 'completed', report: 'Done.' } }),
+    row({ id: 'notice', kind: 'text', role: 'user', content: '<task-notification>\n<tool-use-id>b1</tool-use-id>\n</task-notification>' }),
+  ]);
+  assert.deepEqual(kept.map((message) => message.id), ['agent', 'bash', 'bash-result', 'status', 'notice']);
+});
+
+test('a session plan is read from each provider\'s own store', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'clide-plan-'));
+  try {
+    const tasks = path.join(root, 'tasks');
+    await mkdir(tasks);
+    const task = (id: string, status: string, subject = `Step ${id}`) => writeFile(
+      path.join(tasks, `${id}.json`),
+      JSON.stringify({ id, subject, status, activeForm: `Doing ${id}`, blocks: [], blockedBy: [] }),
+    );
+    await Promise.all([task('10', 'pending'), task('2', 'in_progress'), task('1', 'completed'), task('3', 'deleted')]);
+    await writeFile(path.join(tasks, '4.json'), '{"id":"4","subj');
+    const claude = await readClaudePlan('0c4978d6-8227-49fa-866c-43cbf8a35422', tasks);
+    assert.deepEqual(claude?.steps.map((step) => `${step.id}:${step.status}`), ['1:completed', '2:in_progress', '10:pending'],
+      'numeric order; deleted and torn files drop out');
+    assert.equal(claude?.steps[1].activeForm, 'Doing 2');
+    assert.equal(await readClaudePlan('../escape', tasks), null, 'the id is a path segment, never a path');
+    assert.equal(await readClaudePlan('missing', path.join(root, 'none')), null);
+
+    const rollout = path.join(root, 'rollout.jsonl');
+    const call = (plan: unknown) => JSON.stringify({ type: 'response_item', payload: { type: 'function_call', name: 'update_plan', arguments: JSON.stringify({ explanation: 'x', plan }) } });
+    await writeFile(rollout, [
+      call([{ step: 'Old', status: 'pending' }]),
+      JSON.stringify({ type: 'response_item', payload: { type: 'message', content: 'mentions "update_plan"' } }),
+      call([{ step: 'Read', status: 'completed' }, { step: 'Write', status: 'in_progress' }, { step: ' ', status: 'pending' }]),
+      '{"type":"response_item","payload":{"type":"function_call","name":"update_pl',
+    ].join('\n'));
+    assert.deepEqual((await readCodexPlan(rollout))?.steps.map((step) => `${step.subject}:${step.status}`), ['Read:completed', 'Write:in_progress'],
+      'the last whole update_plan wins; a torn final line is skipped');
+    assert.equal(codexPlanFrom({ plan: [{ step: 'Live', status: 'inProgress' }] })?.steps[0].status, 'in_progress', 'the App Server spells it camelCase');
+    assert.equal(await readCodexPlan(null), null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

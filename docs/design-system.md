@@ -127,6 +127,10 @@ Overrulable; say so when citing one.
   carries on into the sheet, release past ⅓ or a flick closes, back closes.
   Material and iOS both drag-to-dismiss; the mid-swipe handoff and ⅓ were
   picked on the phone.
+- **On phones, a header control opens the header sheet, not a popover.** One
+  full-width sheet slides out from behind the header (ADR 0079), with
+  `BottomSheet`'s drag rules mirrored upward; tapping another header control
+  swaps its contents. House convention, not a platform standard.
 - **Reduced motion is honoured** (`prefers-reduced-motion`). WCAG 2.3.3 is AAA,
   so this is a house floor rather than a required one.
 - **Target comfort is contextual.** Review size together with separation,

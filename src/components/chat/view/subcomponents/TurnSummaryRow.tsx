@@ -3,8 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { formatDuration } from '../../utils/chatFormatting';
 import type { TurnSummary } from '../../utils/turnDuration';
 
+import { ActivityLineSlot } from './ActivityLineSlot';
+
 /** A finished turn's time and output tokens, set like the activity row it replaces. */
-export default function TurnSummaryRow({ summary }: { summary: TurnSummary }) {
+export default function TurnSummaryRow({ summary, isLatest = false }: {
+  summary: TurnSummary;
+  /** The chat's last finished turn, whose row carries the background-work mark once no turn runs. */
+  isLatest?: boolean;
+}) {
   const { t } = useTranslation('chat');
   const metrics = [
     summary.durationMs !== undefined ? formatDuration(summary.durationMs) : '',
@@ -16,7 +22,7 @@ export default function TurnSummaryRow({ summary }: { summary: TurnSummary }) {
       })
       : '',
   ].filter(Boolean).join(' · ');
-  if (!metrics) return null;
+  if (!metrics && !isLatest) return null;
 
   return (
     <div className="mt-1 flex min-h-6 min-w-0 select-none items-center gap-2 text-chat-activity text-muted-foreground sm:min-h-7">
@@ -25,6 +31,7 @@ export default function TurnSummaryRow({ summary }: { summary: TurnSummary }) {
         <i className="absolute left-1/2 top-1/2 -ml-[0.15em] -mt-[0.15em] h-[0.3em] w-[0.3em] rounded-full bg-current" />
       </span>
       <span className="whitespace-nowrap tabular-nums">{metrics}</span>
+      {isLatest && <ActivityLineSlot kind="summary" />}
     </div>
   );
 }

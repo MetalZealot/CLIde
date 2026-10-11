@@ -1264,14 +1264,17 @@ describe('claude turn input stream', () => {
     assert.equal((await iterator.next()).done, true);
   });
 
-  test('only non-ambient background tasks hold the input open', async () => {
-    const { countHeldBackgroundTasks } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
-    assert.equal(countHeldBackgroundTasks([
-      { task_id: 'a', task_type: 'local_bash' },
-      { task_id: 'b', task_type: 'local_agent', ambient: false },
-      { task_id: 'c', task_type: 'monitor', ambient: true },
-    ]), 2);
-    assert.equal(countHeldBackgroundTasks([]), 0);
-    assert.equal(countHeldBackgroundTasks(undefined), 0);
+  test('only non-ambient background tasks hold the input open, each with who launched it', async () => {
+    const { readHeldBackgroundTasks } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
+    assert.deepEqual(readHeldBackgroundTasks([
+      { task_id: 'a', task_type: 'local_bash', description: 'sleep 90', parent_task_id: 'b' },
+      { task_id: 'b', task_type: 'local_agent', subagent_type: 'general-purpose', description: 'Test one', ambient: false },
+      { task_id: 'c', task_type: 'monitor', description: 'watch', ambient: true },
+    ]), [
+      { taskId: 'a', kind: 'command', description: 'sleep 90', parentTaskId: 'b' },
+      { taskId: 'b', kind: 'agent', description: 'Test one', agentType: 'general-purpose' },
+    ]);
+    assert.deepEqual(readHeldBackgroundTasks([]), []);
+    assert.deepEqual(readHeldBackgroundTasks(undefined), []);
   });
 });

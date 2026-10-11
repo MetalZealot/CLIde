@@ -1,7 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
 - Status: 4/11
-- Next: phase 3, the typed wire
+- Next: phase 4, ahead of phase 3 (it changes no wire)
 - Design: [agent runtime design](../designs/agent-runtime-rebuild.md). Read it whole
   before any phase: it binds every phase and changes only with Grayson.
 - Context: the design's list, plus `scripts/verify-claude-session-sdk.ts` and
@@ -23,10 +23,12 @@ his daily driver, so detail wins over size.
 | Thinking comes back empty | 1 |
 | Replies don't stream word by word | 2 |
 | A background job keeps the chat busy, blocking sends, Shell and scheduled messages | 4 |
+| A chat stays busy after its reply when Claude never reports idle (10 min, 2026-10-11) | 4 |
 | Phone and laptop disagree about a live chat; a message queued on a closed phone never sends | 5 |
 | Background-task notices appear only after a reload (inferred: frames after `complete` are dropped) | 5–6 |
 | "Starting" before every message (3.3 s median); a background job can't wake the chat after the reply ended | 6 |
 | Stop kills background jobs | 6 (ADR 0066) |
+| Each background notice adds a full reply to the chat | 7 (the turn's trigger); the fold is a board item |
 | Claude tool rows look different after a reload | 7 |
 | Codex tool rows look different after a reload | follow-on plan (Grayson's call 2) |
 
@@ -61,6 +63,8 @@ goes in the phase shown.
 - The transcript wait for aborted new chats; the idle `claude` per project for
   the command list: phase 6.
 - The hidden `/model`, `/effort`, `/fast`, `/clear`, `/rename`: phase 7.
+- The client reading `<task-notification>` text to find an agent's state, and
+  guessing a turn was woken by a notice from the row before it: phase 7.
 
 ## Phases
 
@@ -242,6 +246,9 @@ phase done.
   - The three busy predicates, each caller moved to the right one. A send to a
     pinned session (background tasks running, no turn) becomes a new turn on the
     held input instead of RUN_IN_PROGRESS.
+  - `turnRunning` ends at `result` when no tasks are held, whether or not the
+    process has exited or reported idle; a lingering process is only `alive`.
+    A fake-`Query` test sends `result` and no idle, and the turn still ends.
   - The one-writer rule for idle processes and for the agent API.
   - The update lease per turn; updates drain idle processes.
   - SIGTERM closes every handle; start-up sweeps orphans.
@@ -278,8 +285,9 @@ phase done.
 - [ ] 6. **Claude long-lived session, behind `CLIDE_CLAUDE_SESSIONS=persistent` — est. 3–4.**
   - Everything under "Claude session" above.
   - The idle signal is `session_state_changed` (its env var works, probe 8). It
-    reports idle while background shells still run (probe 11), so `pinned` comes
-    from `background_tasks_changed`, not from it.
+    confirms turn-over but never gates it: the turn ends at `result` (phase 4's
+    rule). It reports idle while background shells still run (probe 11), so
+    `pinned` comes from `background_tasks_changed`, not from it.
   - `perTaskStopAffordance` matters for background subagents: a bare interrupt
     already spares background shells and kills subagents (probe 3).
   - Error results never end the session (probe 7), but closing the input after
@@ -317,7 +325,14 @@ phase done.
     `/rename` leave the hide list once their state is read back
     (`conversation_reset`, the session title, the composer controls).
   - A task strip from `task_*`, `background_tasks_changed` and
-    `backgroundTasks()`.
+    `backgroundTasks()`. The live list already reaches the background-work
+    sheet as a `background_tasks` status; left is `backgroundTasks()` for a
+    reopened process, which starts with no list.
+  - The server ties each notice to its agent call and marks each turn with what
+    started it (a send, or a notice). Claude Code re-notifies each time an agent
+    stops; only the first notice names the call (`<tool-use-id>`), repeats name
+    only the task, and their result points at the hand-back (CLI 2.1.293,
+    measured 2026-10-11).
   - Requests: `onElicitation`; `onUserDialog` with `supportedDialogKinds`.
   - Notices: `informational`, `notification`, `model_refusal_*`,
     `permission_denied`, `auth_status`, `memory_recall`.

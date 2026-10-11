@@ -113,6 +113,8 @@ profile changes when App Server falls back to the SDK.
 | `turn.queue-followup` | Queue a later CLIde turn rather than native active-turn steering | C | C | C | C |
 | `turn.steer-input` | Append accepted user input to an active turn | E | R | — | — |
 | `turn.live-control` | Change permission mode, model, effort or fast mode inside a running turn | E | — | — | — |
+| `turn.plan` | The agent's own checklist, shown as the plan banner | E | G | — | — |
+| `turn.agents` | Subagents and background commands, listed behind the activity-line mark, stoppable one by one | E | G | — | — |
 
 Notes:
 
@@ -127,6 +129,19 @@ Notes:
   persistent run, but the native file-restore call is never made.
 - Live/history equivalence is an invariant; full per-message-kind conformance
   coverage remains incomplete.
+- Claude's plan is its `TaskCreate`/`TaskUpdate` calls (`TodoWrite` when
+  `CLAUDE_CODE_ENABLE_TASKS=0`), stored per session in
+  `~/.claude/tasks/<provider_session_id>/<n>.json`. Opus 5.x gets the tools only
+  when opted in. Agents are `Agent` calls plus the SDK's `task_*` events, and
+  `Query.stopTask` stops one, or a background command. A background agent's
+  report arrives as a hidden peer hand-back naming its task. A command's output
+  is `Query.getTaskOutput` while the run lives (not on the `Query` type), then
+  Claude Code's `<tmp>/claude-<uid>/<project>/<session>/tasks/<id>.output`.
+- Codex's plan is the App Server's `turn/plan/updated` notification (an
+  explanation and steps); history keeps `update_plan` hidden and maps the SDK's
+  `todo_list` item to `TodoList`. Its agents are `spawn_agent` threads.
+- Cursor and OpenCode were not installed when this was checked (2026-10-10);
+  neither adapter reads a plan or agents, so both draw nothing.
 
 ### 4.2 Inputs, models, and usage
 

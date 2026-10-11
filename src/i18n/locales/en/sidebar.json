@@ -50,7 +50,10 @@
     "count_other": "{{count}} sessions",
     "pinned": "Pinned",
     "messageCount_one": "{{count}} message",
-    "messageCount_other": "{{count}} messages"
+    "messageCount_other": "{{count}} messages",
+    "planProgress": "Plan: {{done}} of {{total}} steps done",
+    "agentsRunning_one": "{{count}} agent running",
+    "agentsRunning_other": "{{count}} agents running"
   },
   "tooltips": {
     "viewEnvironments": "View Environments",

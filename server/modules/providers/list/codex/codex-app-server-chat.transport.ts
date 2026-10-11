@@ -54,6 +54,7 @@ import {
   normalizeImageDescriptors,
 } from '@/shared/image-attachments.js';
 import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
+import { codexPlanFrom } from '@/modules/providers/list/codex/codex-plan.js';
 import { buildCodexSideQuestionPrompt } from '@/modules/providers/list/codex/codex-side-question.js';
 import { humanizeCodexToolName } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import type {
@@ -1256,6 +1257,13 @@ export class CodexAppServerChatTransport {
     }
 
     switch (method as CodexNotification['method']) {
+      case 'turn/plan/updated': {
+        const plan = active && !active.terminal ? codexPlanFrom(params) : null;
+        if (active && plan) {
+          active.writer.send(createNormalizedMessage({ kind: 'plan_updated', plan, sessionId: threadId, provider: PROVIDER }));
+        }
+        return;
+      }
       case 'item/started': {
         const item = readObjectRecord(params.item);
         if (active && !active.terminal && item?.type === 'reasoning' && typeof item.id === 'string'

@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test, { describe, it } from 'node:test';
 
 import {
@@ -16,6 +19,11 @@ import {
   filterToActiveBranch,
   type RewindTranscriptEntry,
 } from '../list/claude/claude-rewind.util.js';
+import {
+  BACKGROUND_OUTPUT_TAIL_BYTES,
+  claudeTaskOutputPath,
+  readClaudeBackgroundOutput,
+} from '../list/claude/claude-background-output.js';
 import { codexAppServerRuntimeCapabilitiesAvailable } from '../list/codex/codex-chat-transport-state.js';
 import { providerCapabilitiesService } from '../services/provider-capabilities.service.js';
 
@@ -231,6 +239,31 @@ describe('claude-harness-rows', () => {
     // Housekeeping tasks and unrelated system rows stay out of the chat.
     assert.deepEqual(read({ subtype: 'task_started', ambient: true }), []);
     assert.deepEqual(read({ subtype: 'task_updated', patch: { description: 'x' } }), []);
+
+    // A background agent's report arrives as a hidden peer hand-back naming only its task.
+    const handback = provider.normalizeMessage({
+      type: 'user', uuid: 'h', isMeta: true,
+      origin: { kind: 'peer', senderTaskId: 'k', handback: true, body: '[Subagent hand-back] Framing. The report follows:\n  Line one.\n    indented' },
+      message: { role: 'user', content: 'Another Claude session sent a message: ...' },
+    }, SESSION_ID);
+    assert.deepEqual(handback.map((m) => [m.kind, m.agentStatus]), [['agent_status', { taskId: 'k', state: 'completed', report: 'Line one.\n  indented' }]]);
+  });
+
+  test('claude: a finished background command reads back the tail of its saved output', async () => {
+    assert.match(claudeTaskOutputPath('/home/me/proj', 'sess-1', 'b1'), /claude-\d+\/-home-me-proj\/sess-1\/tasks\/b1\.output$/);
+    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'clide-bg-output-'));
+    try {
+      const file = path.join(dir, 'b1.output');
+      await fsp.writeFile(file, `head\n${'x'.repeat(BACKGROUND_OUTPUT_TAIL_BYTES)}`);
+      const read = await readClaudeBackgroundOutput('/home/me/proj', 'sess-1', 'b1', file);
+      assert.equal(read?.truncated, true);
+      assert.equal(read?.live, false);
+      assert.equal(read?.output.length, BACKGROUND_OUTPUT_TAIL_BYTES);
+      assert.equal(await readClaudeBackgroundOutput('/home/me/proj', 'sess-1', 'gone', path.join(dir, 'gone.output')), null);
+      assert.equal(await readClaudeBackgroundOutput('/home/me/proj', '../etc', 'b1', file), null, 'an id is never a path');
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
   });
 
   test('claude: a redacted thinking block still yields an empty thinking row', () => {

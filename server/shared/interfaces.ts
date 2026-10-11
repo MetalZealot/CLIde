@@ -19,6 +19,8 @@ import type {
   ProviderMcpServer,
   ProviderSkillCreateInput,
   ProviderSkillRemoveInput,
+  SessionPlan,
+  BackgroundOutput,
   ProviderUsageStatus,
   ProviderUsageResetRedemptionInput,
   ProviderUsageResetRedemptionOutcome,
@@ -56,6 +58,10 @@ export interface IProviderRuntime {
    * live turn; keys left out of `applied` take effect on the next send.
    */
   control?(sessionId: string, changes: ChatControlChanges): Promise<ChatControlResult | null>;
+  /** Stops one running subagent or background command, by its task id; the turn goes on. */
+  stopAgent?(sessionId: string, taskId: string): Promise<boolean>;
+  /** The end of a background command's output while its run is live; null otherwise. */
+  readTaskOutput?(sessionId: string, taskId: string): Promise<BackgroundOutput | null>;
   /**
    * Answers one question beside the session without disturbing it: no transcript
    * row, no queued turn, and no interruption of a run already in flight.
@@ -264,6 +270,18 @@ export interface IProviderSessions {
    * The service layer owns the separate stable CLIde session id; providers
    * only return the native id and transcript hints needed to index the fork.
    */
+  /**
+   * The agent's own checklist, read from the provider's store rather than from
+   * loaded history, so a plan begun on an unloaded page is still whole. Null
+   * when the session has none; providers without plans omit it.
+   */
+  readPlan?(providerSessionId: string, options: { jsonlPath?: string | null }): Promise<SessionPlan | null>;
+  /** A background command's saved output once its run has closed; null when the provider kept none. */
+  readBackgroundOutput?(
+    providerSessionId: string,
+    taskId: string,
+    options: { projectPath: string },
+  ): Promise<BackgroundOutput | null>;
   forkSession?(
     providerSessionId: string,
     options?: {

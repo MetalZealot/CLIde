@@ -272,13 +272,14 @@ describe('chat-session-addressing', () => {
 
   // Provider ids differ from app ids so a runtime addressed by the wrong one fails.
   for (const provider of ['claude', 'codex'] as const) {
-    test(`${provider}: chat.control reaches the runtime only with live changes, by app id`, async () => {
+    test(`${provider}: chat.control reaches the runtime only with live changes, and chat.stop-agent its one agent, by app id`, async () => {
       await withIsolatedDatabase(async () => {
         const appSessionId = `app-control-${provider}`;
         sessionsDb.createAppSession(appSessionId, provider, '/workspace/demo');
         sessionsDb.assignProviderSessionId(appSessionId, `native-control-${provider}`);
         let releaseRun = (): void => {};
         const controls: unknown[][] = [];
+        const stops: unknown[][] = [];
         const dependencies: ChatDependencies = {
           runtime: {
             hasRuntime: () => true,
@@ -287,6 +288,11 @@ describe('chat-session-addressing', () => {
             control: async (runProvider, sessionId, changes) => {
               controls.push([runProvider, sessionId, changes]);
               return { applied: Object.keys(changes) as Array<'permissionMode' | 'model'> };
+            },
+            // Mirrors the runtime service: a provider without the hook reports nothing stopped.
+            stopAgent: async (runProvider, sessionId, taskId) => {
+              stops.push([runProvider, sessionId, taskId]);
+              return runProvider === 'claude';
             },
             resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
             getPendingApprovalsForSession: () => [],
@@ -313,6 +319,11 @@ describe('chat-session-addressing', () => {
           assert.deepEqual(result?.deferred, ['permissionMode', 'model']);
         }
         assert.equal(result?.sessionId, appSessionId);
+
+        connection.emit('message', JSON.stringify({ type: 'chat.stop-agent', requestId: 's1', sessionId: appSessionId, taskId: 't-1' }));
+        await flush();
+        assert.deepEqual(stops, [[provider, appSessionId, 't-1']]);
+        assert.equal(connection.frames.find((frame) => frame.kind === 'chat_stop_agent_result')?.stopped, provider === 'claude');
         releaseRun();
         await flush();
       });

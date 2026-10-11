@@ -1,5 +1,8 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { PageScrollLock, Shimmer, useCloseOnBack } from '../../../../shared/view/ui';
 
 import type { ChatMessage, SubagentChildTool } from '../../types/types';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
@@ -39,6 +42,11 @@ function readAgentResultText(content: unknown): string {
   return value == null ? '' : JSON.stringify(value, null, 2);
 }
 
+const isAsyncLaunch = (toolUseResult: unknown): boolean => {
+  const record = toolUseResult as { status?: unknown; isAsync?: unknown } | null | undefined;
+  return record?.status === 'async_launched' || record?.isAsync === true;
+};
+
 const childMessages = new WeakMap<SubagentChildTool, ChatMessage>();
 
 /** A child call as a chat message, cached so its operation summary is too. */
@@ -76,10 +84,37 @@ function TextLine({ label, text, isOpen, onToggle }: { label: string; text: stri
   );
 }
 
-/** One row per agent: its type and task, opening to what it was asked, the calls it made, and what it reported. */
-const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFileOpen }: SubagentActivityProps) {
+/** What the row and the full-screen view both say about an agent. */
+function useAgentSummary(message: ChatMessage, isLive: boolean) {
   const { t } = useTranslation('chat');
-  const [isOpen, setIsOpen] = useState(false);
+  const operation = describeOperation(message);
+  const input = parseToolInput(message.toolInput);
+  const type = String(input?.subagent_type || '').trim() || t('activity.agent.defaultType');
+  const description = String(input?.description || '').trim();
+  const agent = message.subagentState?.agentStatus;
+  const isRunning = isLive && (agent ? agent.state === 'running' : operation.status === 'running');
+  const failure = agent?.state === 'failed' || agent?.state === 'stopped'
+    ? agent.state
+    : operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
+  const callCount = Math.max(message.subagentState?.childTools.length ?? 0, agent?.toolUses ?? 0);
+  // A notice sent while the agent still has work of its own carries an interim duration.
+  const durationMs = agent?.durationMs != null || operation.durationMs != null
+    ? Math.max(agent?.durationMs ?? 0, operation.durationMs ?? 0) : null;
+  const details = [
+    callCount > 0 ? t('activity.agent.calls', { count: callCount }) : '',
+    !isRunning && durationMs != null && durationMs >= 1000 ? formatDuration(durationMs) : '',
+  ].filter(Boolean);
+  return { type, description, label: description ? `${type} · ${description}` : type, isRunning, failure, details };
+}
+
+interface AgentViewerProps extends SubagentActivityProps {
+  onClose: () => void;
+}
+
+/** An agent's whole transcript, full screen; whoever opens it owns the back-gesture entry. */
+export function AgentViewer({ message, isLive, onFileOpen, onClose }: AgentViewerProps) {
+  const { t } = useTranslation('chat');
+  const { type, description, label, isRunning, failure, details } = useAgentSummary(message, isLive);
   const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = useCallback((key: string) => {
     setOpenKeys((current) => {
@@ -88,38 +123,99 @@ const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFil
       return next;
     });
   }, []);
-  const history = useHistoryDetail(message, isOpen);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+  const history = useHistoryDetail(message, true);
   const full = history.message;
-
-  const operation = describeOperation(message);
-  const input = parseToolInput(message.toolInput);
-  const type = String(input?.subagent_type || '').trim() || t('activity.agent.defaultType');
-  const description = String(input?.description || '').trim();
-  const label = description ? `${type} · ${description}` : type;
-  const agent = message.subagentState?.agentStatus;
-  const isRunning = isLive && (agent ? agent.state === 'running' : operation.status === 'running');
-  const failure = agent?.state === 'failed' || agent?.state === 'stopped'
-    ? agent.state
-    : operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
-  const callCount = Math.max(message.subagentState?.childTools.length ?? 0, agent?.toolUses ?? 0);
-  const durationMs = agent?.durationMs ?? operation.durationMs;
 
   const prompt = String(parseToolInput(full.toolInput)?.prompt || '').trim();
   const children = useMemo(() => (full.subagentState?.childTools ?? []).map(toChildMessage), [full.subagentState]);
-  const result = full.toolResult ? readAgentResultText(full.toolResult.content).trim() : '';
+  // A background agent's call result is only its launch receipt; its report comes separately.
+  const launchOnly = isAsyncLaunch(full.toolResult?.toolUseResult) || isAsyncLaunch(message.toolResult?.toolUseResult);
+  const result = (message.subagentState?.report
+    ?? (full.toolResult && !launchOnly ? readAgentResultText(full.toolResult.content) : '')).trim();
 
-  const details = [
-    callCount > 0 ? t('activity.agent.calls', { count: callCount }) : '',
-    !isRunning && durationMs != null && durationMs >= 1000 ? formatDuration(durationMs) : '',
-  ].filter(Boolean);
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true" aria-label={label}>
+      <PageScrollLock />
+      <div className="app-bar flex shrink-0 select-none items-center gap-1 border-b border-border/60 px-2 sm:px-3">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('activity.agent.back')}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent"
+        >
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+          <span className="truncate font-semibold">{type}</span>
+          {description && <span className="truncate text-sm text-muted-foreground">{description}</span>}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-2 sm:px-6">
+        <div className="flex gap-1.5 py-1 text-chat-meta text-muted-foreground">
+          {isRunning && <Shimmer>{`${t('claudeStatus.actions.working', { defaultValue: 'Working' })}…`}</Shimmer>}
+          {details.length > 0 && <span className="tabular-nums">{isRunning ? '· ' : ''}{details.join(' · ')}</span>}
+          {failure && <span className="text-red-600 dark:text-red-400">· {t(`activity.status.${failure}`)}</span>}
+        </div>
+        {prompt && (
+          <TextLine
+            label={t('activity.agent.asked', { text: firstLine(prompt) })}
+            text={prompt}
+            isOpen={openKeys.has('prompt')}
+            onToggle={() => toggle('prompt')}
+          />
+        )}
+        {children.map((child) => {
+          const key = `call:${child.toolId}`;
+          return (
+            <div key={key}>
+              <OperationRow message={child} messageKey={key} isOpen={openKeys.has(key)} isLive={isLive} onToggle={toggle} />
+              {openKeys.has(key) && <OperationDetail message={child} onFileOpen={onFileOpen} />}
+            </div>
+          );
+        })}
+        {result && (
+          <section className="mt-4">
+            <h3 className="mb-1 text-chat-meta font-medium uppercase tracking-wide text-muted-foreground">{t('activity.agent.report')}</h3>
+            <Markdown>{result}</Markdown>
+          </section>
+        )}
+        {history.status === 'loading' && (
+          <div className="text-chat-meta leading-6 text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
+        )}
+        {history.status === 'error' && (
+          <div className="flex gap-2 text-chat-meta leading-6 text-red-600 dark:text-red-400" role="alert">
+            {t('tools.detailFailed')}
+            <button type="button" className="underline" onClick={history.request}>{t('tools.retryDetail')}</button>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** One row per agent at its launch point; it opens the agent full screen. */
+const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFileOpen }: SubagentActivityProps) {
+  const { t } = useTranslation('chat');
+  const [isOpen, setIsOpen] = useState(false);
+  const close = useCallback(() => setIsOpen(false), []);
+  useCloseOnBack(isOpen, close);
+  const { label, isRunning, failure, details } = useAgentSummary(message, isLive);
 
   return (
     <div className="chat-message tool px-1 sm:px-0" data-message-timestamp={message.timestamp || undefined}>
       <DisclosureRow
         label={label}
         isRunning={isRunning}
-        isOpen={isOpen}
-        onToggle={() => setIsOpen((current) => !current)}
+        isOpen={false}
+        onToggle={() => setIsOpen(true)}
         trailing={(
           <>
             {details.length > 0 && <span className="flex-shrink-0 tabular-nums">· {details.join(' · ')}</span>}
@@ -127,45 +223,7 @@ const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFil
           </>
         )}
       />
-
-      {isOpen && (
-        <div className="ml-1 mt-0.5 border-l border-border pl-3">
-          {prompt && (
-            <TextLine
-              label={t('activity.agent.asked', { text: firstLine(prompt) })}
-              text={prompt}
-              isOpen={openKeys.has('prompt')}
-              onToggle={() => toggle('prompt')}
-            />
-          )}
-          {children.map((child) => {
-            const key = `call:${child.toolId}`;
-            return (
-              <div key={key}>
-                <OperationRow message={child} messageKey={key} isOpen={openKeys.has(key)} isLive={isLive} onToggle={toggle} />
-                {openKeys.has(key) && <OperationDetail message={child} onFileOpen={onFileOpen} />}
-              </div>
-            );
-          })}
-          {result && (
-            <TextLine
-              label={t('activity.agent.reported', { text: firstLine(result) })}
-              text={result}
-              isOpen={openKeys.has('result')}
-              onToggle={() => toggle('result')}
-            />
-          )}
-          {history.status === 'loading' && (
-            <div className="text-chat-meta leading-6 text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
-          )}
-          {history.status === 'error' && (
-            <div className="flex gap-2 text-chat-meta leading-6 text-red-600 dark:text-red-400" role="alert">
-              {t('tools.detailFailed')}
-              <button type="button" className="underline" onClick={history.request}>{t('tools.retryDetail')}</button>
-            </div>
-          )}
-        </div>
-      )}
+      {isOpen && <AgentViewer message={message} isLive={isLive} onFileOpen={onFileOpen} onClose={close} />}
     </div>
   );
 });

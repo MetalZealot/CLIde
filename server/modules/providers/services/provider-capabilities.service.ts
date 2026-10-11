@@ -32,6 +32,8 @@ type ProviderCapabilities = {
   supportsActiveTurnSteering: boolean;
   /** When a composer change reaches the provider; `chat.control` applies only `live` ones. */
   controlModes: Record<ChatControlKey, ChatControlMode>;
+  /** Whether one running subagent can be stopped without ending the turn. */
+  supportsAgentStop: boolean;
   /** Whether interactive tool permission prompts can reach the UI. */
   supportsPermissionRequests: boolean;
   /** Whether the token-usage endpoint has data for this provider. */
@@ -88,6 +90,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsActiveTurnSteering: true,
     controlModes: { permissionMode: 'live', model: 'live', effort: 'live', fastMode: 'live' },
+    supportsAgentStop: true,
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
@@ -110,6 +113,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsActiveTurnSteering: false,
     controlModes: { permissionMode: 'next-turn', model: 'next-turn', effort: 'none', fastMode: 'none' },
+    supportsAgentStop: false,
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsUsageResetAlerts: false,
@@ -132,6 +136,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsActiveTurnSteering: false,
     controlModes: { permissionMode: 'next-turn', model: 'next-turn', effort: 'next-turn', fastMode: 'next-turn' },
+    supportsAgentStop: false,
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
@@ -157,6 +162,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsActiveTurnSteering: false,
     controlModes: { permissionMode: 'next-turn', model: 'next-turn', effort: 'next-turn', fastMode: 'none' },
+    supportsAgentStop: false,
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: false,

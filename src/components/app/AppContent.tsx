@@ -18,12 +18,22 @@ import { api } from '../../utils/api';
 import { requestStaleClaudePluginUpdate } from '../skills/hooks/useClaudePluginUpdates';
 
 import MobileSidebarOverlay from './MobileSidebarOverlay';
+import { setRunningWork, type RunningWork } from '../../stores/runningWork';
 
 type RunningSessionApiItem = {
   sessionId?: unknown;
   startedAt?: unknown;
   statusText?: unknown;
   canInterrupt?: unknown;
+  agents?: unknown;
+  plan?: unknown;
+};
+
+const readPlanProgress = (value: unknown): RunningWork['plan'] => {
+  const plan = value as { done?: unknown; total?: unknown } | null | undefined;
+  return typeof plan?.done === 'number' && typeof plan.total === 'number' && plan.total > 0
+    ? { done: plan.done, total: plan.total }
+    : null;
 };
 
 type RunningSessionsApiPayload = {
@@ -140,6 +150,11 @@ function AppContentInner() {
 
       const payload = (await response.json()) as RunningSessionsApiPayload;
       const sessions = Array.isArray(payload.data?.sessions) ? payload.data.sessions : [];
+      setRunningWork(new Map(sessions.flatMap((session): Array<[string, RunningWork]> => (
+        typeof session.sessionId === 'string' && session.sessionId
+          ? [[session.sessionId, { agents: typeof session.agents === 'number' ? session.agents : 0, plan: readPlanProgress(session.plan) }]]
+          : []
+      ))));
 
       syncProcessingSessions(
         sessions

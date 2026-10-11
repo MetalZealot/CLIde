@@ -6,10 +6,13 @@ import test, { describe } from 'node:test';
 import { type Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
+import { readPlanSignals } from '../hooks/useSessionPlan';
+import { applyLiveTasks, listBackgroundWork, mergeBackgroundWork } from './backgroundWork';
 import type { ChatMessage } from '../types/types';
 
 import { buildOperationDetail } from './operationDetail';
-import { describeOperation, summarizeActivity } from './toolActivity';
+import chatStrings from '../../../i18n/locales/en/chat.json';
+import { describeActivity, describeOperation, summarizeActivity } from './toolActivity';
 import { browserToolOf, describeBrowserStep, isBrowserCall, lastBrowserUrl } from '../../browser-use/browserSteps';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem, revealStartForBudget } from './toolGrouping';
 import {
@@ -575,11 +578,10 @@ describe('tool activity boundaries', () => {
     assert.deepEqual(hidden.messages, [read]);
   });
 
-  test('questions, to-do lists, subagents, compaction, turns and pending permissions cut one', () => {
+  test('questions, plans to approve, subagents, compaction, turns and pending permissions cut one', () => {
     const boundaries: ChatMessage[] = [
       call('question', { toolName: 'AskUserQuestion' }),
       call('input', { toolName: 'request_user_input' }),
-      call('todo', { toolName: 'TodoWrite' }),
       call('plan', { toolName: 'ExitPlanMode' }),
       call('agent', { toolName: 'Agent', isSubagentContainer: true }),
       { id: 'compact', timestamp: '2026-09-21T00:00:03Z', type: 'assistant', content: '', isCompactBoundary: true },
@@ -598,6 +600,37 @@ describe('tool activity boundaries', () => {
     assert.ok(isToolActivityItem(cut[1]) && cut[1].messages.length === 1 && cut[1].messages[0] === waiting,
       'the waiting call is a one-call activity of its own');
     assert.equal(groupToolActivities([read, waiting, failed]).length, 1, 'an answered call rejoins its activity');
+  });
+
+  test('checklist calls join an activity, and its label names the steps they finished', () => {
+    // Resolves the real English strings, so the assertions read as the user sees them.
+    const t = (key: string, options: Record<string, unknown> = {}) => {
+      let node: any = chatStrings;
+      const parts = key.split('.');
+      const leaf = parts.pop() as string;
+      for (const part of parts) node = node[part];
+      const template = String(node[leaf] ?? node[`${leaf}_${options.count === 1 ? 'one' : 'other'}`]);
+      return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options[name]));
+    };
+    const done = { content: '', isError: false };
+    const tool = (id: string, toolName: string, input: unknown) => call(id, { toolName, toolInput: JSON.stringify(input), toolResult: done });
+    const start = tool('u1', 'TaskUpdate', { taskId: '1', status: 'in_progress' });
+    const finish = tool('u2', 'TaskUpdate', { taskId: '1', status: 'completed' });
+    const commands = [tool('b1', 'Bash', { command: 'npm test' }), tool('b2', 'Bash', { command: 'git status' })];
+    for (const toolName of ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'TodoWrite', 'TodoList']) {
+      assert.equal(groupToolActivities([read, call(toolName, { toolName }), failed]).length, 1, toolName);
+    }
+
+    const [activity] = groupToolActivities([start, ...commands, finish]);
+    assert.ok(isToolActivityItem(activity));
+    const summary = summarizeActivity(activity.messages);
+    assert.deepEqual(summary.facets.map((facet) => facet.kind), ['bash'], 'plan calls are not counted as tools');
+    assert.equal(describeActivity(summary, t, false).label, 'Ran 2 commands · step 1 done');
+    assert.equal(describeActivity(summarizeActivity([start, commands[0]]), t, false).label, 'Ran npm test');
+    const planned = ['Tab completes', 'Escape closes'].map((subject, index) => tool(`c${index}`, 'TaskCreate', { subject }));
+    assert.equal(describeActivity(summarizeActivity(planned), t, false).label, 'Planned 2 steps');
+    assert.equal(describeActivity(summarizeActivity([start]), t, false).label, 'Updated the plan');
+    assert.equal(describeOperation(finish).planAction, 'done');
   });
 
   test('a summary counts files, commands and line changes across provider shapes', () => {
@@ -785,4 +818,122 @@ test('streaming markdown splits only where a block is finished, and pieces only 
     const finished = splitMarkdownBlocks(reply.slice(0, end)).slice(0, -1);
     assert.deepEqual(finished, blocks.slice(0, finished.length), `pieces changed at ${end} characters`);
   }
+});
+
+test('the plan banner re-reads a stored plan after each change, and takes a stated plan as it stands', () => {
+  const row = (kind: string, extra: Record<string, unknown> = {}) => ({
+    id: `${kind}-${Math.random()}`, sessionId: 's', timestamp: '2026-10-10T00:00:00Z', provider: 'claude', kind, ...extra,
+  }) as any;
+  const todo = row('tool_use', { toolName: 'TodoWrite', toolId: 't1', toolInput: JSON.stringify({ todos: [{ content: 'Read', status: 'completed' }, { content: 'Write', status: 'in_progress', activeForm: 'Writing' }] }) });
+  const create = row('tool_use', { toolName: 'TaskCreate', toolId: 'c1', toolInput: '{"subject":"Ship"}' });
+  const created = row('tool_result', { toolId: 'c1', content: 'ok' });
+  const pushed = row('plan_updated', { plan: { steps: [{ id: '1', subject: 'Live', status: 'pending' }] } });
+
+  assert.deepEqual(readPlanSignals([todo]).stated?.steps.map((step) => `${step.subject}:${step.status}`), ['Read:completed', 'Write:in_progress']);
+  assert.equal(readPlanSignals([todo]).stated?.steps[1].activeForm, 'Writing');
+  assert.deepEqual(readPlanSignals([create]), { revision: 0, stated: null }, 'a call still running changes nothing yet');
+  const afterStored = readPlanSignals([todo, create, created]);
+  assert.equal(afterStored.revision, 1);
+  assert.equal(afterStored.stated, null, 'a stored change outranks an earlier stated plan');
+  assert.equal(readPlanSignals([create, created, pushed]).stated?.steps[0].subject, 'Live', 'a pushed plan outranks an earlier stored change');
+});
+
+test('background work lists every agent and background command, with how each ended', () => {
+  const agent = (id: string, extra: Partial<ChatMessage>): ChatMessage => ({
+    id, timestamp: '2026-10-10T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Agent', toolId: id,
+    isSubagentContainer: true, toolInput: JSON.stringify({ subagent_type: 'Explore', description: `Agent ${id}` }), ...extra,
+  });
+  const done = { content: 'ok', isError: false };
+  const messages: ChatMessage[] = [
+    agent('foreground', {}),
+    agent('finished', { toolResult: done }),
+    agent('background', { toolResult: done, subagentState: { childTools: [], currentToolIndex: -1, isComplete: false, agentStatus: { taskId: 't-9', state: 'running', toolUses: 4 } } }),
+    agent('stopped', { subagentState: { childTools: [], currentToolIndex: -1, isComplete: true, agentStatus: { taskId: 't-2', state: 'stopped' } } }),
+    { id: 'read', timestamp: '2026-10-10T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Read' },
+    {
+      id: 'bash', timestamp: '2026-10-10T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash', toolId: 'bash',
+      toolInput: JSON.stringify({ command: 'npm run build', description: 'Build' }), backgroundState: 'running',
+      toolResult: { content: '', isError: false, toolUseResult: { backgroundTaskId: 'b1' } },
+    },
+  ];
+  const live = listBackgroundWork(messages, true);
+  assert.deepEqual(live.map((item) => `${item.key}:${item.kind}:${item.state}`), [
+    'foreground:agent:running', 'finished:agent:completed', 'background:agent:running', 'stopped:agent:stopped', 'bash:command:running',
+  ]);
+  assert.equal(live[2].taskId, 't-9');
+  assert.equal(live[2].callCount, 4);
+  assert.equal(live[4].taskId, 'b1');
+  assert.equal(live[4].title, 'npm run build');
+  // A run that closed with work still reading running cannot say how it ended.
+  assert.deepEqual(listBackgroundWork(messages, false).filter((item) => item.state === 'ended').map((item) => item.key), ['foreground', 'background', 'bash']);
+  // Work on an unloaded page comes from the stored records; a loaded copy wins.
+  const stored = listBackgroundWork([{ ...messages[1], timestamp: '2026-10-09T00:00:00Z' }, { ...messages[0], id: 'older', toolId: 'older', timestamp: '2026-10-08T00:00:00Z' }], true);
+  const merged = mergeBackgroundWork(live, stored);
+  assert.deepEqual(merged.map((item) => item.key), ['older', 'foreground', 'finished', 'background', 'stopped', 'bash']);
+  assert.equal(merged.find((item) => item.key === 'finished')?.message, messages[1]);
+  // The provider's live list decides what runs, and adds what an agent launched.
+  const withTasks = applyLiveTasks(live, [
+    { taskId: 't-2', kind: 'agent', description: 'Agent stopped' },
+    { taskId: 'sub-sh', kind: 'command', description: 'until done; do sleep 2; done', parentTaskId: 't-9' },
+  ]);
+  assert.equal(withTasks.find((item) => item.key === 'stopped')?.state, 'running');
+  assert.deepEqual(withTasks.at(-1), {
+    key: 'task:sub-sh', kind: 'command', title: 'until done; do sleep 2; done', description: '', state: 'running', taskId: 'sub-sh',
+    callCount: 0, durationMs: null, message: { type: 'assistant', content: '', timestamp: '' }, launchedBy: 'Agent background', liveOnly: true,
+  });
+  assert.equal(applyLiveTasks(live, undefined), live);
+});
+
+test('a background command reads running until its notice, which then adds nothing to the chat', () => {
+  const row = (extra: Record<string, unknown>) => ({ sessionId: 's', timestamp: '2026-10-10T00:00:00Z', provider: 'claude', ...extra }) as any;
+  const launch = row({ id: 'u1', kind: 'tool_use', toolName: 'Bash', toolId: 'toolu_bg', toolInput: { command: 'npm run build', run_in_background: true } });
+  const launched = row({ id: 'r1', kind: 'tool_result', toolId: 'toolu_bg', content: 'Command running in background', toolUseResult: { stdout: '', backgroundTaskId: 'b1' } });
+  const other = row({ id: 'u2', kind: 'tool_use', toolName: 'Read', toolId: 'toolu_read', toolInput: { file_path: '/a.ts' }, toolResult: { content: 'x' } });
+  const notice = row({
+    id: 'n1', kind: 'text', role: 'user',
+    content: '<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>toolu_bg</tool-use-id>\n<status>completed</status>\n<summary>Background command "npm run build" completed (exit code 0)</summary>\n</task-notification>',
+  });
+
+  const running = normalizedToChatMessages([launch, launched, other]);
+  assert.equal(running[0].backgroundState, 'running');
+  assert.equal(describeOperation(running[0]).status, 'running');
+  assert.equal(groupToolActivities(running).length, 2, 'the command is an activity of its own');
+
+  const finished = normalizedToChatMessages([launch, launched, other, notice]);
+  assert.equal(finished.length, 2, 'the notice renders nothing');
+  assert.equal(finished[0].backgroundState, 'completed');
+  assert.equal(describeOperation(finished[0]).status, 'completed');
+});
+
+test('a background agent takes its report from its completion notice, not its launch receipt', () => {
+  const row = (extra: Record<string, unknown>) => ({ sessionId: 's', timestamp: '2026-10-10T00:00:00Z', provider: 'claude', ...extra }) as any;
+  const launch = row({ id: 'u1', kind: 'tool_use', toolName: 'Agent', toolId: 'toolu_agent', toolInput: { subagent_type: 'Explore', prompt: 'Look' } });
+  const receipt = row({ id: 'r1', kind: 'tool_result', toolId: 'toolu_agent', content: 'Async agent launched successfully.', toolUseResult: { status: 'async_launched' } });
+  const notice = row({
+    id: 'n1', kind: 'text', role: 'user',
+    content: '<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_agent</tool-use-id>\n<status>completed</status>\n<summary>Agent done</summary>\n<result>Found 3 callers.</result>\n</task-notification>',
+  });
+  const [agent, ...rest] = normalizedToChatMessages([launch, receipt, notice]);
+  assert.equal(agent.subagentState?.report, 'Found 3 callers.');
+  assert.equal(agent.subagentState?.agentStatus?.state, 'completed');
+  assert.equal(rest.length, 0, 'the notice adds nothing to the chat');
+});
+
+test('a hand-back report beats the notice that points at it, and a notice naming a call never renders', () => {
+  const row = (extra: Record<string, unknown>) => ({ sessionId: 's', timestamp: '2026-10-10T00:00:00Z', provider: 'claude', ...extra }) as any;
+  const launch = row({ id: 'u1', kind: 'tool_use', toolName: 'Agent', toolId: 'toolu_agent', toolInput: { subagent_type: 'Explore', prompt: 'Look' } });
+  const receipt = row({ id: 'r1', kind: 'tool_result', toolId: 'toolu_agent', content: 'Async agent launched successfully.', toolUseResult: { status: 'async_launched', agentId: 'a1' } });
+  const handback = row({ id: 'h1', kind: 'agent_status', agentStatus: { taskId: 'a1', state: 'completed', report: 'The time is 16:15.' } });
+  const notice = row({
+    id: 'n1', kind: 'text', role: 'user',
+    content: '<task-notification>\n<task-id>a1</task-id>\n<tool-use-id>toolu_agent</tool-use-id>\n<status>completed</status>\n<summary>Agent done</summary>\n<result>This agent\'s report was delivered to you (its SubagentHandback call).</result>\n<usage><tool_uses>12</tool_uses><duration_ms>100143</duration_ms></usage>\n</task-notification>',
+  });
+
+  // Newest page first: its call is on an unloaded page, and the background-work list carries it.
+  assert.deepEqual(normalizedToChatMessages([notice]), []);
+
+  const [agent, ...rest] = normalizedToChatMessages([launch, receipt, handback, notice]);
+  assert.equal(agent.subagentState?.report, 'The time is 16:15.');
+  assert.equal(agent.subagentState?.agentStatus?.durationMs, 100143);
+  assert.equal(rest.length, 0, 'the notice renders nothing');
 });

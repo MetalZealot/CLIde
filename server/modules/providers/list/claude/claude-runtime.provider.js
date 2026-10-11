@@ -707,8 +707,18 @@ export function createClaudeInputChannel(firstContent) {
  * one-shot run, which stops background shells seconds after the result; ambient
  * tasks (watchers) are excluded so they cannot hold a run open indefinitely.
  */
-export function countHeldBackgroundTasks(tasks) {
-  return Array.isArray(tasks) ? tasks.filter((task) => task && task.ambient !== true).length : 0;
+/** The SDK's live tasks that count as activity, in the shared shape; watchers are ambient and left out. */
+export function readHeldBackgroundTasks(tasks) {
+  if (!Array.isArray(tasks)) return [];
+  return tasks
+    .filter((task) => task && typeof task.task_id === 'string' && task.ambient !== true)
+    .map((task) => ({
+      taskId: task.task_id,
+      kind: task.task_type === 'local_agent' ? 'agent' : 'command',
+      description: typeof task.description === 'string' ? task.description : '',
+      ...(typeof task.subagent_type === 'string' ? { agentType: task.subagent_type } : {}),
+      ...(typeof task.parent_task_id === 'string' ? { parentTaskId: task.parent_task_id } : {}),
+    }));
 }
 
 /**
@@ -1277,7 +1287,15 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         if (currentStage === 'starting') sendStage({ name: 'sending' });
       }
       if (message?.type === 'system' && message.subtype === 'background_tasks_changed') {
-        backgroundTasks = countHeldBackgroundTasks(message.tasks);
+        const heldTasks = readHeldBackgroundTasks(message.tasks);
+        backgroundTasks = heldTasks.length;
+        ws.send(createNormalizedMessage({
+          kind: 'status',
+          text: 'background_tasks',
+          backgroundTasks: heldTasks,
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'claude',
+        }));
         if (awaitingBackground) {
           awaitingBackground = backgroundTasks > 0;
           sendStage(awaitingBackground ? { name: 'background', count: backgroundTasks } : null);
@@ -1585,6 +1603,43 @@ function resolveLiveEffort(model, effort, models) {
  * @param {import('@/shared/types.js').ChatControlChanges} changes
  * @returns {Promise<import('@/shared/types.js').ChatControlResult|null>} Null when no turn is live
  */
+/**
+ * The end of a background command's output, read from the live CLI.
+ * @param {string} sessionId - App session id
+ * @param {string} taskId
+ * @returns {Promise<import('@/shared/types.js').BackgroundOutput|null>} Null when no run is live
+ */
+async function readClaudeTaskOutput(sessionId, taskId) {
+  const session = getSession(sessionId);
+  // Not declared on the SDK's Query type, so it is checked before each use.
+  if (!session || session.status !== 'active' || typeof session.instance?.getTaskOutput !== 'function') {
+    return null;
+  }
+  try {
+    const result = await session.instance.getTaskOutput(taskId);
+    return { output: String(result?.output ?? ''), truncated: Boolean(result?.truncated), live: true };
+  } catch (error) {
+    console.warn('[Claude SDK] Reading task output failed:', error?.message || error);
+    return null;
+  }
+}
+
+/** Stops one subagent or background command of the running turn; its row reads stopped once the SDK reports it. */
+async function stopClaudeAgent(sessionId, taskId) {
+  const session = getSession(sessionId);
+  if (!session || session.status !== 'active' || typeof session.instance?.stopTask !== 'function') {
+    return false;
+  }
+  try {
+    await session.instance.stopTask(taskId);
+    logTurn('stop-agent', sessionId, { task: taskId });
+    return true;
+  } catch (error) {
+    console.warn('[Claude SDK] Stopping an agent failed:', error?.message || error);
+    return false;
+  }
+}
+
 async function controlClaudeSDKSession(sessionId, changes) {
   const session = getSession(sessionId);
   if (!session || session.status !== 'active' || !session.turn) {
@@ -1811,6 +1866,8 @@ export const claudeRuntime = {
   abort: abortClaudeSDKSession,
   steer: steerClaudeSDKSession,
   control: controlClaudeSDKSession,
+  stopAgent: stopClaudeAgent,
+  readTaskOutput: readClaudeTaskOutput,
   askSideQuestion: askClaudeSideQuestion,
   permissions: {
     resolve: resolveToolApproval,

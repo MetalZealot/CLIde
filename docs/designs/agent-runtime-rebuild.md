@@ -222,6 +222,9 @@ plumbing is needed.
 - "Busy" splits three ways: `turnRunning`, `pinned` (background tasks or a
   pending request), `alive` (a process exists). Shell, fork, scheduled sends,
   the sidebar and `chat_subscribed` each use the right one.
+- A turn ends at its `result` when no background tasks are held. Idle confirms
+  turn-over but never gates it: CLI 2.1.293 once sent `result` and no idle for
+  ten minutes (2026-10-11), and the chat showed busy until the SDK's ceiling.
 - One writer per transcript. An idle live process counts as a writer: "Open in
   CLI" and the Shell close it first. A second writer (the agent API with a
   session id, an idle side question) uses the live handle or is refused. Today
@@ -299,7 +302,7 @@ CLIde does now.
 | `control_request_progress` | turn | side-question progress | — | dropped |
 | `result` | turn | turn end; summary line (time, cost, denials) | — | handled |
 | `init` | session | effective model, mode, tools, MCP, commands; terminal-only list cached | — | id capture only |
-| `session_state_changed` | session | idle / running, the authoritative turn-over signal; reports idle while background shells still run (probe 11) | env `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1` (confirmed, probe 8) | dropped |
+| `session_state_changed` | session | idle / running; confirms turn-over, never gates it (`result` does); reports idle while background shells still run (probe 11) | env `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1` (confirmed, probe 8) | dropped |
 | `commands_changed` | session | slash menu refresh | — | dropped |
 | `background_tasks_changed` | session | task strip | — | handled |
 | `task_started` / `task_updated` / `task_progress` / `task_notification` | session (+ row for the notification) | task strip rows | — | handled |

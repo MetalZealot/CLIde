@@ -425,6 +425,27 @@ test('listRunningRuns returns only currently running app sessions', async () => 
     const runningSessions = chatRunRegistry.listRunningRuns();
     assert.deepEqual(runningSessions.map((session) => session.sessionId), ['app-run-8']);
     assert.equal(runningSessions[0]?.provider, 'codex');
+
+    // The run counts its agents still at work, and notes when its plan changes, as its events pass.
+    const send = (message: Record<string, unknown>) => runningRun.writer.send({ provider: 'codex', sessionId: 'x', ...message } as never);
+    const work = () => chatRunRegistry.listRunningRuns()[0];
+    send({ kind: 'tool_use', toolName: 'Agent', toolId: 'fg' });
+    send({ kind: 'tool_use', toolName: 'Agent', toolId: 'bg' });
+    send({ kind: 'tool_use', toolName: 'Read', toolId: 'read', parentToolUseId: 'fg' });
+    assert.equal(work()?.agents, 2);
+    send({ kind: 'tool_result', toolId: 'bg', toolUseResult: { status: 'async_launched' } });
+    send({ kind: 'agent_status', agentStatus: { taskId: 't-bg', toolId: 'bg', state: 'running' } });
+    send({ kind: 'tool_result', toolId: 'fg', content: 'done' });
+    assert.equal(work()?.agents, 1, 'a foreground agent ends with its result; a background one does not');
+    send({ kind: 'agent_status', agentStatus: { taskId: 't-bg', state: 'completed' } });
+    assert.equal(work()?.agents, 0, 'a status naming only the task still ends its agent');
+
+    send({ kind: 'tool_use', toolName: 'TaskUpdate', toolId: 'plan-1' });
+    assert.equal(work()?.planRevision, 0);
+    send({ kind: 'tool_result', toolId: 'plan-1', content: 'ok' });
+    assert.equal(work()?.planRevision, 1);
+    send({ kind: 'plan_updated', plan: { steps: [{ id: '1', subject: 'Live', status: 'pending' }] } });
+    assert.equal(work()?.pushedPlan?.steps[0].subject, 'Live');
   });
 });
 

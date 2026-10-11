@@ -947,6 +947,13 @@ html.chat-page-scroll:not(.samsung-browser) body::-webkit-scrollbar {
     transform: scale(0.96);
   }
 
+  /* Header controls answer a press with a highlight, never a shrink. */
+  .app-bar button:active,
+  .app-bar [role="button"]:active {
+    transform: none !important;
+    background-color: hsl(var(--accent) / 0.6);
+  }
+
 @layer components {
   /* Safe area support for iOS devices */
   .ios-bottom-safe {

@@ -7,6 +7,7 @@ import type { TurnEnd } from '../../types/types';
 import { dotStateFor, endingFor, type Finish } from '../../utils/activityState';
 
 import ActivityDots from './ActivityDots';
+import { ActivityLineSlot } from './ActivityLineSlot';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
@@ -147,6 +148,7 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
               : <Shimmer className="block truncate">{`${label}…`}</Shimmer>}
           </span>
         )}
+        <ActivityLineSlot kind="live" />
       </div>
     </div>
   );

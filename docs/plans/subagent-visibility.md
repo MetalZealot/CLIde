@@ -44,7 +44,7 @@ constraint holds for every phase below.
   activity row's shape, no dot. Identical for inline `Task`, background, and
   forked-skill agents, and for Codex's `spawn_agent`. It updates live once
   phase 3 lands.
-- [ ] 5. **The row opens the agent's whole transcript.** It opens full screen to
+- [~] 5. **The row opens the agent's whole transcript.** It opens full screen to
   the prompt, the calls and the report
   ([ADR 0076](../decisions/0076-plan-pins-under-header-agents-ride-working-line.md)); the
   agent's own text between calls is still missing, because history attaches
@@ -66,5 +66,5 @@ constraint holds for every phase below.
 - Subagent token accounting. The context ring skips `isSidechain` rows by
   design — separate TODO item.
 - A sidebar entry or session row per agent, or an Agents tab. Besides the chat
-  row, running agents show only as a count on the Working line and on the
+  row, agents show in the activity line's background-work list and as a count on the
   session's sidebar row ([plan](plan-and-agents-out-of-chat.md)).

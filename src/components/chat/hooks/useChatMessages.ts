@@ -28,6 +28,9 @@ type ParsedTaskNotification = {
   summary: string;
   result: string;
   toolUseId: string | null;
+  taskId: string | null;
+  toolUses?: number;
+  durationMs?: number;
 };
 
 function formatAssistantText(content: string) {
@@ -54,6 +57,9 @@ function parseTaskNotification(content: string): ParsedTaskNotification | null {
   const statusMatch = /<status>([\s\S]*?)<\/status>/.exec(content);
   const summaryMatch = /<summary>([\s\S]*?)<\/summary>/.exec(content);
   const toolUseIdMatch = /<tool-use-id>([\s\S]*?)<\/tool-use-id>/.exec(content);
+  const taskIdMatch = /<task-id>([\s\S]*?)<\/task-id>/.exec(content);
+  const toolUsesMatch = /<tool_uses>(\d+)<\/tool_uses>/.exec(content);
+  const durationMatch = /<duration_ms>(\d+)<\/duration_ms>/.exec(content);
 
   let result = '';
   const resultOpen = content.indexOf('<result>');
@@ -71,14 +77,24 @@ function parseTaskNotification(content: string): ParsedTaskNotification | null {
     summary: summaryMatch?.[1]?.trim() || 'Background task finished',
     result,
     toolUseId: toolUseIdMatch?.[1]?.trim() || null,
+    taskId: taskIdMatch?.[1]?.trim() || null,
+    ...(toolUsesMatch ? { toolUses: Number(toolUsesMatch[1]) } : {}),
+    ...(durationMatch ? { durationMs: Number(durationMatch[1]) } : {}),
   };
 }
+
+/** A notice whose result only points at a hand-back still to come, or already sent. */
+const isHandbackPointer = (result: string) => result.includes('SubagentHandback');
 
 type AgentFacts = {
   /** Live calls a subagent made, by the agent call that launched it. */
   children: Map<string, NormalizedMessage[]>;
   /** Latest known status, by the agent call that launched it. */
   statuses: Map<string, AgentStatusInfo>;
+  /** Background agents' reports, from their completion notices. */
+  reports: Map<string, string>;
+  /** Notices tied to a call, whose row and the background-work list already show them. */
+  absorbedNotices: Set<NormalizedMessage>;
 };
 
 const NOTIFIED_STATES: Record<string, AgentStatusInfo['state']> = { failed: 'failed', stopped: 'stopped', killed: 'stopped' };
@@ -88,6 +104,20 @@ function collectAgentFacts(messages: NormalizedMessage[]): AgentFacts {
   const children = new Map<string, NormalizedMessage[]>();
   const statuses = new Map<string, AgentStatusInfo>();
   const toolByTask = new Map<string, string>();
+  const reports = new Map<string, string>();
+  const handedBack = new Set<string>();
+  const absorbedNotices = new Set<NormalizedMessage>();
+  // A hand-back names only its task, and can arrive before the notice that pairs it with its call.
+  for (const msg of messages) {
+    const result = msg.kind === 'tool_result' ? msg : msg.kind === 'tool_use' ? msg.toolResult : undefined;
+    const agentId = (result?.toolUseResult as { agentId?: unknown } | undefined)?.agentId;
+    if (msg.toolId && typeof agentId === 'string') toolByTask.set(agentId, msg.toolId);
+    if (msg.kind === 'agent_status' && msg.agentStatus?.toolId) toolByTask.set(msg.agentStatus.taskId, msg.agentStatus.toolId);
+    if (msg.kind === 'text' && msg.role === 'user' && msg.content) {
+      const notification = parseTaskNotification(msg.content);
+      if (notification?.taskId && notification.toolUseId) toolByTask.set(notification.taskId, notification.toolUseId);
+    }
+  }
   for (const msg of messages) {
     if (msg.parentToolUseId) {
       if (msg.kind !== 'tool_use' || !msg.toolId) continue;
@@ -99,21 +129,40 @@ function collectAgentFacts(messages: NormalizedMessage[]): AgentFacts {
       const toolId = status.toolId ?? toolByTask.get(status.taskId);
       if (!toolId) continue;
       toolByTask.set(status.taskId, toolId);
+      const { report, ...counters } = status;
+      if (report) {
+        reports.set(toolId, report);
+        handedBack.add(toolId);
+      }
       // Update events carry no counters, so earlier ones persist.
-      statuses.set(toolId, { ...statuses.get(toolId), ...status, toolId });
+      statuses.set(toolId, { ...statuses.get(toolId), ...counters, toolId });
     } else if (msg.kind === 'text' && msg.role === 'user' && msg.content) {
       const notification = parseTaskNotification(msg.content);
-      if (!notification?.toolUseId) continue;
-      const previous = statuses.get(notification.toolUseId);
-      statuses.set(notification.toolUseId, {
+      // Only an agent's first notice names its call; one that stops again re-notifies by task id alone.
+      const toolId = notification && (notification.toolUseId ?? (notification.taskId ? toolByTask.get(notification.taskId) : undefined));
+      if (!notification || !toolId) continue;
+      absorbedNotices.add(msg);
+      const previous = statuses.get(toolId);
+      statuses.set(toolId, {
         ...previous,
-        taskId: previous?.taskId ?? '',
-        toolId: notification.toolUseId,
+        taskId: previous?.taskId ?? notification.taskId ?? '',
+        toolId,
         state: NOTIFIED_STATES[notification.status] ?? 'completed',
+        ...(notification.toolUses !== undefined ? { toolUses: notification.toolUses } : {}),
+        ...(notification.durationMs !== undefined ? { durationMs: notification.durationMs } : {}),
       });
+      if (notification.result && !isHandbackPointer(notification.result) && !handedBack.has(toolId)) {
+        reports.set(toolId, notification.result);
+      }
     }
   }
-  return { children, statuses };
+  return { children, statuses, reports, absorbedNotices };
+}
+
+/** A command's result names its background task when the provider moved it there. */
+function isBackgroundCommand(toolUseResult: unknown): boolean {
+  const id = (toolUseResult as { backgroundTaskId?: unknown } | null | undefined)?.backgroundTaskId;
+  return typeof id === 'string' && id.length > 0;
 }
 
 /** A background agent's call returns at launch, so its result says nothing about the agent. */
@@ -166,16 +215,25 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
     }
   }
   const agentFacts = collectAgentFacts(messages);
+  const backgroundCommandIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.kind !== 'tool_use' || !msg.toolId || agentCallIds.has(msg.toolId)) continue;
+    const result = msg.toolResult ?? toolResultMap.get(msg.toolId)?.toolResult ?? toolResultMap.get(msg.toolId);
+    if (isBackgroundCommand((result as { toolUseResult?: unknown } | undefined)?.toolUseResult)) backgroundCommandIds.add(msg.toolId);
+  }
 
   for (const msg of messages) {
     // A subagent's own rows render inside its agent call, never as the session's.
     if (msg.parentToolUseId) continue;
+    // Its call's row and the background-work list show how it ended, even with the call on an unloaded page.
+    if (agentFacts.absorbedNotices.has(msg)) continue;
     const result = msg.kind === 'tool_use' && !msg.toolResult && msg.toolId
       ? toolResultMap.get(msg.toolId) : undefined;
     const liveChildren = msg.kind === 'tool_use' && msg.toolId ? agentFacts.children.get(msg.toolId) : undefined;
     const agentStatus = msg.kind === 'tool_use' && msg.toolId ? agentFacts.statuses.get(msg.toolId) : undefined;
+    const agentReport = msg.kind === 'tool_use' && msg.toolId ? agentFacts.reports.get(msg.toolId) : undefined;
     const agentKey = liveChildren || agentStatus
-      ? `${(liveChildren ?? []).map((child) => `${child.toolId}${toolResultMap.has(child.toolId!) ? '+' : ''}`).join(',')}|${JSON.stringify(agentStatus ?? null)}`
+      ? `${(liveChildren ?? []).map((child) => `${child.toolId}${toolResultMap.has(child.toolId!) ? '+' : ''}`).join(',')}|${JSON.stringify(agentStatus ?? null)}|${agentReport?.length ?? 0}`
       : undefined;
     const cached = displayCache.get(msg);
     if (cached && cached.result === result && cached.agentKey === agentKey) {
@@ -213,13 +271,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         if (!content.trim() && !images && !files && !msg.followUpQuestions?.length) continue;
 
         if (msg.role === 'user') {
-          // Parse task notifications
           const taskNotif = parseTaskNotification(content);
-          // The agent's own row already shows how it ended.
-          if (taskNotif?.toolUseId && agentCallIds.has(taskNotif.toolUseId)) {
-            displayCache.set(msg, { result: undefined, messages: [] });
-            continue;
-          }
           if (taskNotif) {
             converted.push({
               type: 'assistant',
@@ -231,7 +283,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             });
             // Render the agent's result as a normal assistant message so its
             // markdown displays correctly instead of leaking raw XML.
-            if (taskNotif.result) {
+            if (taskNotif.result && !isHandbackPointer(taskNotif.result)) {
               const { text: result, citations: memoryCitations } = formatAssistantText(taskNotif.result);
               if (!result.trim() && memoryCitations.length === 0) {
                 displayCache.set(msg, { result: undefined, messages: converted.slice(outputStart) });
@@ -319,12 +371,14 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           toolResult,
           turnId: msg.turnId,
           isSubagentContainer,
+          ...(msg.toolId && backgroundCommandIds.has(msg.toolId) ? { backgroundState: agentStatus?.state ?? 'running' } : {}),
           subagentState: isSubagentContainer
             ? {
                 childTools,
                 currentToolIndex: childTools.length > 0 ? childTools.length - 1 : -1,
                 isComplete: resolvedAgentStatus ? resolvedAgentStatus.state !== 'running' : Boolean(toolResult),
                 agentStatus: resolvedAgentStatus,
+                ...(agentReport ? { report: formatAssistantText(agentReport).text } : {}),
               }
             : undefined,
           ...sharedMetadata,
@@ -408,6 +462,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       case 'permission_cancelled':
       case 'session_created':
       case 'agent_status':
+      case 'plan_updated':
         // Skip — these are handled by useChatRealtimeHandlers
         break;
 

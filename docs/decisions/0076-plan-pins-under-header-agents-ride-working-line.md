@@ -1,7 +1,7 @@
 # 0076 — The plan pins under the header; running agents ride the Working line
 
 - Date: 2026-10-09
-- Status: Accepted; narrows 0060 for an agent's whole transcript
+- Status: Accepted; narrows 0060 for an agent's whole transcript; agents, background commands and the finished plan superseded by 0078
 
 ## Decision
 

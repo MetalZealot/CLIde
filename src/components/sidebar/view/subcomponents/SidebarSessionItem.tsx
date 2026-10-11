@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
-import { Check, Folder, Pin, X } from 'lucide-react';
+import { Bot, Check, Folder, Pin, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import {
@@ -17,6 +17,7 @@ import { createSessionViewModel, resolveActivityState } from '../../utils/utils'
 import { projectAccentColorValue, type ProjectAccentColor } from '../../utils/accentColors';
 import { useLongPress } from '../../../../hooks/useLongPress';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
+import { useRunningWork } from '../../../../stores/runningWork';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
 import SidebarStatusIndicator from './SidebarStatusIndicator';
@@ -170,6 +171,16 @@ export default function SidebarSessionItem({
   // Stays on for as long as this row's menu is open.
   const isContextActive = isPressing || isMenuOpen;
   const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread, hasScheduledMessage });
+  // How far a running session's plan has got and how many agents it has out, from another screen.
+  const runningWork = useRunningWork(isProcessing ? session.id : null);
+  const planProgress = runningWork?.plan ?? null;
+  const planLine = planProgress && (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute bottom-0 left-0 h-0.5 bg-primary/70"
+      style={{ width: `${(planProgress.done / planProgress.total) * 100}%` }}
+    />
+  );
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
   const hasDesktopActions = Boolean(onOpenActionsMenu && !isSelectionMode && !isEditing);
   // The trigger remains outside the session link, but this slot makes the title
@@ -188,6 +199,17 @@ export default function SidebarSessionItem({
           <Pin className="!h-[1em] !w-[1em] text-primary" />
           <span className="sr-only">{t('sessions.pinned', 'Pinned')}</span>
         </>
+      )}
+      {planProgress && (
+        <span className="tabular-nums" title={t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}>
+          {planProgress.done}/{planProgress.total}
+        </span>
+      )}
+      {runningWork && runningWork.agents > 0 && (
+        <span className="flex items-center gap-0.5 tabular-nums" title={t('sessions.agentsRunning', { count: runningWork.agents, defaultValue: '{{count}} agents running' })}>
+          <Bot className="!h-[1.1em] !w-[1.1em]" aria-hidden="true" />
+          {runningWork.agents}
+        </span>
       )}
       {activityState ? (
         <SidebarStatusIndicator status={activityState} t={t} />
@@ -339,6 +361,8 @@ export default function SidebarSessionItem({
             {...longPress}
           >
             {accentStrip}
+          {planLine}
+            {planLine}
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
                 {projectEyebrow && (
