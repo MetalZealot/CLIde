@@ -5,8 +5,7 @@
 - Context: ADRs [0016](../decisions/0016-repository-grouped-checkouts.md),
   [0028](../decisions/0028-worktree-creation-precedes-phase-0.md),
   [0033](../decisions/0033-discovered-checkouts-are-derived-not-stored.md)
-  · [workspace surfaces](../plans/workspace-surfaces.md) (the Git tab's place in
-  the bar) · [provider capabilities](../providers.md)
+  · [provider capabilities](../providers.md)
 
 An agent leaves its work uncommitted. Grayson opens the review from the chat, reads
 the diff on the phone, sends line comments back, and then commits, merges or opens a

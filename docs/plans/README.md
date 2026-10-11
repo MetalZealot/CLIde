@@ -21,7 +21,6 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
 | [Plan and agents out of the chat](plan-and-agents-out-of-chat.md) | not started | Phase 0: confirm each provider's plan and agent sources |
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript; waits on runtime rebuild phase 7 |
-| [Workspace surfaces](workspace-surfaces.md) | 1/3 | Phases 1 and 3's first cut await Grayson's live check; then terminal tabs, output search and settings |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Markdown-native project board](markdown-project-board.md) | 2/6 | Phase 2: plan-format contract (phase sizes, `Needs:`) enforced by check:docs |
 | [Claude settings surface](claude-settings-surface.md) | 3/6 | Phase 4 (categories) built: live check on 3001, then Phase 5 |
