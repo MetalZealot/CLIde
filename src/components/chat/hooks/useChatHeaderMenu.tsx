@@ -1,10 +1,9 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Download, Pin, Repeat, Search, SquareTerminal, Trash2 } from 'lucide-react';
+import { Archive, Download, Pin, Search, SquareTerminal, Trash2 } from 'lucide-react';
 
 import { useRegisterHeaderMenu, type HeaderMenuItem, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
-import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
-import type { LLMProvider, Project, ProjectSession, SessionActions } from '../../../types/app';
+import type { Project, ProjectSession, SessionActions } from '../../../types/app';
 import type { ChatMessage } from '../types/types';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../utils/chatExport';
 import { ChatExportOptions } from '../view/subcomponents/ChatExportMenu';
@@ -23,9 +22,6 @@ type UseChatHeaderMenuArgs = {
   onOpenFind: () => void;
   onOpenInCli?: () => void;
   findHeaderContent: ReactNode | null;
-  autoContinue: { enabled: boolean; setEnabled: (next: boolean, limitStopLive: boolean) => void };
-  /** The chat is sitting on a limit stop, so turning the mode on queues the continue now. */
-  limitStopLive: boolean;
 };
 
 type SessionTarget = { sessionId: string; name: string };
@@ -44,8 +40,6 @@ export function useChatHeaderMenu({
   onOpenFind,
   onOpenInCli,
   findHeaderContent,
-  autoContinue,
-  limitStopLive,
 }: UseChatHeaderMenuArgs) {
   const { t } = useTranslation('sidebar');
   const { t: tChat } = useTranslation('chat');
@@ -54,7 +48,6 @@ export function useChatHeaderMenu({
   // Pinning patches the project list, not the selected-session copy, and an
   // older session may not be in the list at all.
   const [starOverride, setStarOverride] = useState<{ sessionId: string; isStarred: boolean } | null>(null);
-  const providerCapabilities = useProviderCapabilities();
 
   const listedSession = useMemo(() => {
     if (!selectedSession) {
@@ -93,9 +86,6 @@ export function useChatHeaderMenu({
         : Boolean(selectedSession.isStarred);
     const providerSessionId = session.providerSessionId ?? selectedSession.providerSessionId;
     const provider = session.__provider ?? session.provider ?? selectedSession.__provider;
-    const canScheduleOnUsageReset = provider
-      ? providerCapabilities?.[provider as LLMProvider]?.supportsUsageResetAlerts === true
-      : false;
     const name = session.summary || session.name || '';
 
     const items: HeaderMenuItem[] = [
@@ -103,6 +93,8 @@ export function useChatHeaderMenu({
         key: 'star',
         label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
         icon: Pin,
+        sheetLayout: 'tile',
+        isActive: isStarred,
         onSelect: () => {
           setStarOverride({ sessionId, isStarred: !isStarred });
           void sessionActions.toggleStar(sessionId, isStarred).then((settled) => {
@@ -110,23 +102,13 @@ export function useChatHeaderMenu({
           });
         },
       },
-      // Only where a usage limit lifts on its own: on the others there is no
-      // reset for a continue to wait on.
-      ...(canScheduleOnUsageReset
-        ? [{
-            key: 'auto-continue',
-            label: autoContinue.enabled
-              ? tChat('autoContinue.menuOn', { defaultValue: 'Auto-Continue: On' })
-              : tChat('autoContinue.menuOff', { defaultValue: 'Auto-Continue: Off' }),
-            icon: Repeat,
-            onSelect: () => autoContinue.setEnabled(!autoContinue.enabled, limitStopLive),
-          }]
-        : []),
       ...(chatMessages.length > 0
         ? [{
             key: 'find',
             label: tChat('findInChat.menuLabel', { defaultValue: 'Find in Chat' }),
+            shortLabel: tChat('findInChat.tileLabel', { defaultValue: 'Find' }),
             icon: Search,
+            sheetLayout: 'tile' as const,
             onSelect: onOpenFind,
           }]
         : []),
@@ -134,7 +116,9 @@ export function useChatHeaderMenu({
         ? [{
             key: 'export',
             label: tChat('export.menuLabel', { defaultValue: 'Export…' }),
+            shortLabel: tChat('export.tileLabel', { defaultValue: 'Export' }),
             icon: Download,
+            sheetLayout: 'tile' as const,
             renderPanel: (close: () => void) => (
               <ChatExportOptions
                 messages={chatMessages}
@@ -154,7 +138,9 @@ export function useChatHeaderMenu({
         ? [{
             key: 'open-in-cli',
             label: tChat('shell.openInCli'),
+            shortLabel: tChat('shell.openInCliTile', { defaultValue: 'CLI' }),
             icon: SquareTerminal,
+            sheetLayout: 'tile' as const,
             onSelect: onOpenInCli,
           }]
         : []),
@@ -165,6 +151,7 @@ export function useChatHeaderMenu({
         key: 'archive',
         label: t('actions.archive', 'Archive'),
         icon: Archive,
+        sheetLayout: 'half',
         onSelect: () => removeSession(sessionId, false),
       },
       {
@@ -172,6 +159,7 @@ export function useChatHeaderMenu({
         label: t('actions.delete'),
         icon: Trash2,
         isDanger: true,
+        sheetLayout: 'half',
         onSelect: () => setDeleteTarget({ sessionId, name }),
       },
     ];
@@ -195,9 +183,6 @@ export function useChatHeaderMenu({
     selectedSession,
     listedSession,
     starOverride,
-    autoContinue,
-    limitStopLive,
-    providerCapabilities,
     sessionActions,
     chatMessages,
     assistantLabel,

@@ -10,6 +10,12 @@ type HeaderMenuItemBase = {
   disabled?: boolean;
   isDanger?: boolean;
   showDividerBefore?: boolean;
+  /** Phone sheet only: `tile` joins the icon row, `half` shares a row with its neighbour; the popover keeps a list. */
+  sheetLayout?: 'tile' | 'half';
+  /** A tile's caption, when the label is too long for one. */
+  shortLabel?: string;
+  /** A toggle that is on; its tile is tinted. */
+  isActive?: boolean;
 };
 
 export type HeaderMenuItem = HeaderMenuItemBase & (

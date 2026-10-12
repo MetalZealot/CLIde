@@ -8,7 +8,12 @@ import { cn } from '../../../../lib/utils';
 import { useHeaderMenuSection, type HeaderMenuItem } from '../../../../contexts/HeaderMenuContext';
 import { useHeaderSheet } from '../../../../contexts/HeaderSheetContext';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
-import { HEADER_MENU_CLASS_NAME, HEADER_MENU_ITEM_CLASS_NAME } from '../../constants/menu';
+import {
+  HEADER_MENU_CLASS_NAME,
+  HEADER_MENU_ITEM_CLASS_NAME,
+  HEADER_SHEET_HALF_CLASS_NAME,
+  HEADER_SHEET_TILE_CLASS_NAME,
+} from '../../constants/menu';
 import { useMenuButton } from '../../hooks/useMenuButton';
 
 const TITLE_CLASS_NAME = 'max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal break-words px-4 pb-2.5 pt-2 text-sm font-semibold leading-snug text-foreground';
@@ -97,6 +102,24 @@ function MenuTitle({ title, rename, isWide = false }: { title: string; rename?: 
       <Pencil className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
     </button>
   );
+}
+
+type ItemLayout = 'row' | 'tile' | 'half';
+type ItemGroup = { layout: ItemLayout; items: { item: HeaderMenuItem; index: number }[] };
+
+/** Runs of items sharing a sheet layout; a divider starts a new run. The popover is all rows. */
+function groupItems(items: HeaderMenuItem[], inSheet: boolean): ItemGroup[] {
+  const groups: ItemGroup[] = [];
+  items.forEach((item, index) => {
+    const layout: ItemLayout = inSheet ? item.sheetLayout ?? 'row' : 'row';
+    const last = groups.at(-1);
+    if (last && last.layout === layout && !item.showDividerBefore) {
+      last.items.push({ item, index });
+    } else {
+      groups.push({ layout, items: [{ item, index }] });
+    }
+  });
+  return groups;
 }
 
 type MainContentHeaderMenuProps = {
@@ -207,6 +230,40 @@ export default function MainContentHeaderMenu({ children, fullTitle }: MainConte
     return <>{children}</>;
   }
 
+  const renderItem = (item: HeaderMenuItem, index: number, layout: ItemLayout) => {
+    const Icon = item.icon;
+    const tinted = layout === 'tile' && item.isActive;
+    return (
+      <button
+        key={item.key}
+        ref={index === firstEnabledIndex ? firstItemRef : undefined}
+        type="button"
+        role="menuitem"
+        disabled={item.disabled}
+        aria-haspopup={item.renderPanel ? 'dialog' : undefined}
+        aria-label={layout === 'tile' && item.shortLabel ? item.label : undefined}
+        onClick={() => run(item)}
+        className={cn(
+          layout === 'tile' ? HEADER_SHEET_TILE_CLASS_NAME : layout === 'half' ? HEADER_SHEET_HALF_CLASS_NAME : HEADER_MENU_ITEM_CLASS_NAME,
+          item.isDanger ? 'text-red-600 dark:text-red-400' : layout !== 'row' && 'text-foreground',
+          tinted && 'bg-primary/10 text-primary dark:bg-primary/15',
+        )}
+      >
+        <Icon
+          className={cn(
+            layout === 'tile' ? 'h-5 w-5' : 'h-4 w-4 flex-shrink-0',
+            !item.isDanger && !tinted && 'text-muted-foreground',
+            tinted && 'fill-current',
+          )}
+          aria-hidden="true"
+        />
+        <span className={cn('truncate', layout === 'tile' && 'w-full text-center')}>
+          {layout === 'tile' ? item.shortLabel ?? item.label : item.label}
+        </span>
+      </button>
+    );
+  };
+
   const renderMenuBody = (isWide: boolean) => (
     <>
       {fullTitle && <MenuTitle title={fullTitle} rename={section?.rename} isWide={isWide} />}
@@ -226,25 +283,18 @@ export default function MainContentHeaderMenu({ children, fullTitle }: MainConte
         </div>
       )}
 
-      {items.map((item, index) => {
-        const Icon = item.icon;
+      {groupItems(items, isWide).map((group) => {
+        const first = group.items[0];
         return (
-          <Fragment key={item.key}>
-            {item.showDividerBefore && index > 0 && (
+          <Fragment key={first.item.key}>
+            {first.item.showDividerBefore && first.index > 0 && (
               <div role="separator" className="mx-2 my-1 h-px bg-border" />
             )}
-            <button
-              ref={index === firstEnabledIndex ? firstItemRef : undefined}
-              type="button"
-              role="menuitem"
-              disabled={item.disabled}
-              aria-haspopup={item.renderPanel ? 'dialog' : undefined}
-              onClick={() => run(item)}
-              className={cn(HEADER_MENU_ITEM_CLASS_NAME, item.isDanger && 'text-red-600 dark:text-red-400')}
-            >
-              <Icon className={cn('h-4 w-4 flex-shrink-0', !item.isDanger && 'text-muted-foreground')} aria-hidden="true" />
-              <span className="truncate">{item.label}</span>
-            </button>
+            {group.layout === 'row' ? group.items.map(({ item, index }) => renderItem(item, index, 'row')) : (
+              <div className={group.layout === 'tile' ? 'flex gap-1 px-2 pt-2' : 'flex gap-2 px-4 py-2'}>
+                {group.items.map(({ item, index }) => renderItem(item, index, group.layout))}
+              </div>
+            )}
           </Fragment>
         );
       })}

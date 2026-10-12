@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Archive, Download, Pencil, Pin, Search, Trash2 } from 'lucide-react';
+import { Archive, Download, Pin, Search, SquareTerminal, Trash2 } from 'lucide-react';
 
 import { HeaderMenuProvider, useRegisterHeaderMenu, type HeaderMenuSection } from '../../contexts/HeaderMenuContext';
 import MainContentHeader from '../../components/main-content/view/subcomponents/MainContentHeader';
@@ -22,14 +22,15 @@ const noop = () => {};
 function ProbeHeaderMenu() {
   const section = useMemo<HeaderMenuSection>(() => ({
     items: [
-      { key: 'star', label: 'Pin', icon: Pin, onSelect: noop },
-      { key: 'rename', label: 'Rename', icon: Pencil, onSelect: noop },
-      { key: 'find', label: 'Find in Chat', icon: Search, onSelect: noop },
-      { key: 'export', label: 'Export…', icon: Download, onSelect: noop },
-      { key: 'archive', label: 'Archive', icon: Archive, onSelect: noop, showDividerBefore: true },
-      { key: 'delete', label: 'Delete', icon: Trash2, onSelect: noop, isDanger: true },
+      { key: 'star', label: 'Pin', icon: Pin, sheetLayout: 'tile', onSelect: noop },
+      { key: 'find', label: 'Find in Chat', shortLabel: 'Find', icon: Search, sheetLayout: 'tile', onSelect: noop },
+      { key: 'export', label: 'Export…', shortLabel: 'Export', icon: Download, sheetLayout: 'tile', onSelect: noop },
+      { key: 'open-in-cli', label: 'Open in CLI', shortLabel: 'CLI', icon: SquareTerminal, sheetLayout: 'tile', onSelect: noop },
+      { key: 'archive', label: 'Archive', icon: Archive, sheetLayout: 'half', onSelect: noop, showDividerBefore: true },
+      { key: 'delete', label: 'Delete', icon: Trash2, sheetLayout: 'half', onSelect: noop, isDanger: true },
     ],
     sessionIds: { appId: 'probe-session', providerId: null, provider: 'claude' },
+    rename: { name: '', submit: noop },
   }), []);
   useRegisterHeaderMenu(section);
   return null;

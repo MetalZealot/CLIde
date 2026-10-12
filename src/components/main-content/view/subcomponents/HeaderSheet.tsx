@@ -90,7 +90,7 @@ export default function HeaderSheet({ anchorRef, enabled }: { anchorRef: RefObje
       <PageScrollLock />
       <div
         ref={overlayRef}
-        className="absolute inset-0 animate-dialog-overlay-show touch-none bg-black/50"
+        className="absolute inset-0 animate-dialog-overlay-show touch-none bg-black/25"
         onClick={close}
         aria-hidden="true"
       />

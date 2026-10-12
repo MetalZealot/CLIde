@@ -1056,8 +1056,6 @@ function ChatInterface({
     onOpenFind: chatFind.open,
     onOpenInCli,
     findHeaderContent: chatFindHeader,
-    autoContinue,
-    limitStopLive: liveLimitStop !== null,
   });
 
   const sessionPlan = useSessionPlan(selectedSession?.id || currentSessionId || null, loadedRecords);

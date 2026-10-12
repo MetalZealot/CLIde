@@ -1780,7 +1780,12 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
       const root = createRoot(container);
       const selected: string[] = [];
       const section: HeaderMenuSection = {
-        items: [{ key: 'export', label: 'Export…', icon: Download, onSelect: () => selected.push('export') }],
+        items: [
+          { key: 'find', label: 'Find in Chat', shortLabel: 'Find', icon: Download, sheetLayout: 'tile', isActive: true, onSelect: () => {} },
+          { key: 'export', label: 'Export…', icon: Download, onSelect: () => selected.push('export') },
+          { key: 'archive', label: 'Archive', icon: Download, sheetLayout: 'half', showDividerBefore: true, onSelect: () => {} },
+          { key: 'delete', label: 'Delete', icon: Download, sheetLayout: 'half', onSelect: () => {} },
+        ],
       };
       const sheets = () => document.querySelectorAll<HTMLElement>('[role="dialog"]');
       const title = () => container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
@@ -1799,6 +1804,11 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
         await React.act(async () => title()?.click());
         assert.equal(sheets().length, 1);
         assert.ok(sheets()[0].querySelector('[role="menu"]')?.textContent?.includes('Export…'));
+        const tile = sheets()[0].querySelector<HTMLElement>('[role="menuitem"][aria-label="Find in Chat"]');
+        assert.equal(tile?.textContent, 'Find', 'a tile shows its short caption, named in full');
+        assert.match(tile?.className ?? '', /text-primary/, 'an active tile is tinted');
+        const archive = [...sheets()[0].querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent === 'Archive');
+        assert.equal(archive?.parentElement?.children.length, 2, 'halves share one row');
 
         await React.act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Other"]')?.click());
         assert.equal(sheets().length, 1, 'swapped, not stacked');

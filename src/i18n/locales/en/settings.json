@@ -229,7 +229,7 @@
       "saved": "Saved",
       "newSessions": {
         "label": "Always continue in new chats",
-        "description": "New sessions start with Auto-Continue on. Any session can be changed from its chat menu."
+        "description": "New sessions start with Auto-Continue on. A chat with it off offers it when a usage limit stops it."
       }
     }
   },

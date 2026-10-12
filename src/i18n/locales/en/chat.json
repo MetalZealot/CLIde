@@ -178,6 +178,7 @@
   },
   "findInChat": {
     "menuLabel": "Find in Chat",
+    "tileLabel": "Find",
     "inputLabel": "Find in chat",
     "placeholder": "Find in chat",
     "close": "Close find in chat",
@@ -491,7 +492,8 @@
     "runCommand": "Run {{command}} in {{projectName}}",
     "startCli": "Starting Claude CLI in {{projectName}}",
     "defaultCommand": "command",
-    "openInCli": "Open in CLI"
+    "openInCli": "Open in CLI",
+    "openInCliTile": "CLI"
   },
   "claudeStatus": {
     "actions": {
@@ -567,7 +569,8 @@
     "manual": "Context compacted"
   },
   "export": {
-    "menuLabel": "Export…"
+    "menuLabel": "Export…",
+    "tileLabel": "Export"
   },
   "cliUpdate": {
     "available": "{{provider}} update available: {{version}}",
