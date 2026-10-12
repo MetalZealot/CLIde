@@ -113,6 +113,11 @@ self.addEventListener('push', event => {
         .map(askViewedSession)
     );
     if (sessionId && answers.includes(sessionId)) return;
+    // CLIde is on screen on another session: it already chimes and marks the sidebar.
+    if (payload.data?.quietWhenOpen && answers.length > 0) {
+      options.silent = true;
+      options.renotify = false; // Chrome rejects renotify on a silent notification.
+    }
     await self.registration.showNotification(payload.title || 'CLIde', options);
   })());
 });

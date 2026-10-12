@@ -13,6 +13,9 @@ import { CLAUDE_NOTIFICATION_ROWS } from '../../utils/claudeSettingsLayout';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
 import ClaudeSettingsGroup from '../sections/agent/ClaudeSettingsGroup';
 
+// Android installs the app with pop-ups off; only its own settings can turn them on.
+const IS_ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
 type NotificationsScreenProps = {
   notificationPreferences: NotificationPreferencesState;
   onNotificationPreferencesChange: (value: NotificationPreferencesState) => void;
@@ -88,6 +91,9 @@ export default function NotificationsScreen({
             </Button>
             {isPushSubscribed && (
               <span className="text-sm text-primary">{t('notifications.webPush.enabled')}</span>
+            )}
+            {isPushSubscribed && IS_ANDROID && (
+              <p className="w-full text-sm text-muted-foreground">{t('notifications.webPush.popupHint')}</p>
             )}
           </div>
         )}

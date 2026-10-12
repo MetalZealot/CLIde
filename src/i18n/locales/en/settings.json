@@ -274,6 +274,7 @@
       "enable": "Enable notifications",
       "disable": "Disable notifications",
       "enabled": "Notifications are enabled for this browser",
+      "popupHint": "To have notifications pop up over other apps, turn on Show as pop-up in Android's notification settings for CLIde.",
       "loading": "Updating...",
       "unsupported": "Push notifications are not supported in this browser.",
       "denied": "Push notifications are blocked. Please allow them in your browser settings."

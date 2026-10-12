@@ -1,5 +1,6 @@
 const NOTIFICATION_SOUND_ENABLED_STORAGE_KEY = 'notificationSoundEnabled';
 const NOTIFICATION_SOUND_VOLUME_STORAGE_KEY = 'notificationSoundVolume';
+const NOTIFICATION_SOUND_EVENTS_STORAGE_KEY = 'notificationSoundEvents';
 export const isNotificationSoundEnabled = (): boolean => {
   if (typeof localStorage === 'undefined') {
     return true;
@@ -14,6 +15,30 @@ export const setNotificationSoundEnabled = (enabled: boolean): void => {
   }
 
   localStorage.setItem(NOTIFICATION_SOUND_ENABLED_STORAGE_KEY, String(enabled));
+};
+
+type SoundEvent = 'actionRequired' | 'stop';
+
+// Mirrors Settings' event toggles, so turning one off silences its chime as well as its push.
+export const setNotificationSoundEvents = (events: Record<SoundEvent, boolean>): void => {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  localStorage.setItem(NOTIFICATION_SOUND_EVENTS_STORAGE_KEY, JSON.stringify(events));
+};
+
+const isSoundEventEnabled = (event: SoundEvent): boolean => {
+  if (typeof localStorage === 'undefined') {
+    return true;
+  }
+
+  try {
+    const events = JSON.parse(localStorage.getItem(NOTIFICATION_SOUND_EVENTS_STORAGE_KEY) ?? '{}') as Partial<Record<SoundEvent, unknown>>;
+    return events[event] !== false;
+  } catch {
+    return true;
+  }
 };
 
 // Per device: phone and laptop speakers differ. 0-100, squared so the slider's
@@ -119,9 +144,21 @@ const renderClip = (taps: Tap[], volume: number): Promise<string> => {
   return clip;
 };
 
-const playTaps = async (taps: Tap[], force: boolean): Promise<void> => {
+// Events the paused background page hears on return are stale, and the push already announced them.
+const RESUME_GRACE_MS = 2000;
+// A cold start is a return too: the reconnect replays what finished meanwhile.
+let shownAt = Date.now();
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') shownAt = Date.now();
+  });
+}
+
+const playTaps = async (taps: Tap[], event: SoundEvent, force: boolean): Promise<void> => {
   const volume = getNotificationSoundVolume();
-  if ((!force && !isNotificationSoundEnabled()) || volume === 0 || typeof OfflineAudioContext === 'undefined') {
+  const stale = document.visibilityState !== 'visible' || Date.now() - shownAt < RESUME_GRACE_MS;
+  const muted = !isNotificationSoundEnabled() || !isSoundEventEnabled(event) || stale;
+  if ((muted && !force) || volume === 0 || typeof OfflineAudioContext === 'undefined') {
     return;
   }
 
@@ -134,7 +171,7 @@ const playTaps = async (taps: Tap[], force: boolean): Promise<void> => {
 };
 
 /** Three quick taps: a session is blocked on you. */
-export const playNotificationSound = ({ force = false } = {}): Promise<void> => playTaps(NEEDS_YOU, force);
+export const playNotificationSound = ({ force = false } = {}): Promise<void> => playTaps(NEEDS_YOU, 'actionRequired', force);
 
 /** Two rising taps: a run finished. */
-export const playChatCompletionSound = ({ force = false } = {}): Promise<void> => playTaps(FINISHED, force);
+export const playChatCompletionSound = ({ force = false } = {}): Promise<void> => playTaps(FINISHED, 'stop', force);

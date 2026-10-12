@@ -60,6 +60,9 @@ test('notification payload uses the app session id for a provider session id', a
     });
     // Same tag, so the phone replaces the session's notification instead of stacking.
     assert.equal(approval.data.tag, payload.data.tag);
+    // Only a finished run may land quietly, and only while CLIde is on screen.
+    assert.equal(payload.data.quietWhenOpen, true);
+    assert.equal(approval.data.quietWhenOpen, false);
   });
 });
 

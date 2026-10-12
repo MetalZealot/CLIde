@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '../../../contexts/ThemeContext';
 import { authenticatedFetch } from '../../../utils/api';
-import { setNotificationSoundEnabled } from '../../../utils/notificationSound';
+import { setNotificationSoundEnabled, setNotificationSoundEvents } from '../../../utils/notificationSound';
 import { saveProviderToolSettings } from '../../../utils/providerToolSettings';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import {
@@ -303,6 +303,13 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   useEffect(() => {
     setNotificationSoundEnabled(notificationPreferences.channels.sound);
   }, [notificationPreferences.channels.sound]);
+
+  useEffect(() => {
+    setNotificationSoundEvents({
+      actionRequired: notificationPreferences.events.actionRequired,
+      stop: notificationPreferences.events.stop,
+    });
+  }, [notificationPreferences.events.actionRequired, notificationPreferences.events.stop]);
 
   useEffect(() => {
     localStorage.setItem('codeEditorWordWrap', String(codeEditorSettings.wordWrap));

@@ -193,6 +193,9 @@ function buildNotificationPayload(event) {
       provider: normalizedEvent.provider || null,
       urlPath: normalizedEvent.urlPath || null,
       sessionName,
+      // While CLIde is on screen a finished run already chimes and marks the sidebar;
+      // the service worker lands it silently then, and with sound when CLIde is away.
+      quietWhenOpen: normalizedEvent.kind === 'stop',
       // One notification per session: a newer event replaces the older one.
       tag: normalizedEvent.sessionId
         ? `session:${normalizedEvent.sessionId}`

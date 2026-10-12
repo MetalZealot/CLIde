@@ -1,7 +1,7 @@
 # Background-session notifications
 
-- Status: 2/5
-- Next: phase 5 — "finished" arrives silent.
+- Status: 4/5
+- Next: phase 4 waits on runtime rebuild phase 5; nothing else is open.
 - Context: web push is already wired end to end (`vapid_keys`,
   `push_subscriptions`, `useWebPush.ts`, `sw.js` push/notificationclick,
   `notification-orchestrator.service.js` → `webPush.sendNotification`). This plan
@@ -30,7 +30,8 @@ matter:
 
 - **Action required** — permission prompt, `AskUserQuestion`, `ExitPlanMode`, or
   the SDK `Notification` hook. The session is **blocked**. Interruptive.
-- **Done / stopped** — informational. Quiet: arrives silent (phase 5).
+- **Done / stopped** — what he waits for when away: sounds then. Quiet only
+  while CLIde is on screen (phase 5).
 
 | App state | Event | Surface |
 |---|---|---|
@@ -54,23 +55,26 @@ matter:
       bottom bar's. Driven by the sidebar's attention and unread sets, which
       persist until the session is viewed. Moves onto the
       [sidebar rail](../designs/sidebar-rail.md) when that lands.
-- [~] **3. The chime.** Probe chose E "Buzzy" (low-passed square taps) at
+- [x] **3. The chime.** Probe chose E "Buzzy" (low-passed square taps) at
       today's 7.5% level, with a distinct three-tap "needs you"; built
       2026-10-12 with a per-device volume slider, played as a rendered
       `<audio>` clip because only a media element ducks other apps (probe: the
       Audio Session API is absent in Chrome), with 300 ms of lead-in silence so
-      the duck settles first. Verified on the phone 2026-10-12. Left: the
-      event toggles gate it as they gate push.
+      the duck settles first. Verified on the phone 2026-10-12; the event
+      toggles gate it (phase 5).
 - [ ] **4. Reconnect blind spot** — runtime rebuild phase 5's fan-out and
       replay cover it; drop this phase if they do.
-- [ ] **5. "Finished" arrives silent** (`silent: true`), so only "needs you"
-      sounds; check on the S20 whether a silent notification still pops up.
-      Settings › Notifications gains a one-line hint to turn on pop-ups in
-      Android's app notification settings, which are off by default.
+- [x] **5. Quiet "finished" while CLIde is on screen.** Verified on the
+      phone 2026-10-12: the worker lands a finished run silently only when
+      a CLIde window answers (state B); away from CLIde it sounds and pops up
+      (silent everywhere hid the event he waits for). The chime skips events
+      heard in the 2 s after the app returns, which the push already covered.
+      Settings › Notifications: an Android pop-up hint; the event toggles
+      also gate the chime.
 
 ## Done when
 
 On the installed PWA: a permission prompt in a background session pops up and
 marks the sidebar button while the app is open, notifies while it is not, and
 does **nothing at all** when you are already looking at that session; a
-finished session lands silently.
+finished session lands silently only while CLIde is open.
