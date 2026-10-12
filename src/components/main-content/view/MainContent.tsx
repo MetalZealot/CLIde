@@ -41,6 +41,7 @@ function MainContent({
   onSessionIdle,
   processingSessions,
   unreadSessionIds,
+  otherSessionsStatus,
   onNavigateToSession,
   onSessionEstablished,
   onShowSettings,
@@ -221,10 +222,11 @@ function MainContent({
           shouldShowBrowserTab={shouldShowBrowserTab}
           isMobile={isMobile}
           onMenuClick={onMenuClick}
+          otherSessionsStatus={otherSessionsStatus}
         />
       ) : isMobile ? (
         <div className="app-bar flex select-none items-center justify-between border-b border-border/50 bg-background/80 px-3 sm:px-4">
-          <MobileMenuButton onMenuClick={onMenuClick} compact />
+          <MobileMenuButton onMenuClick={onMenuClick} compact otherSessionsStatus={otherSessionsStatus} />
           <HeaderAccessorySlot />
         </div>
       ) : null}

@@ -30,6 +30,7 @@ export default function MainContentHeader({
   shouldShowBrowserTab,
   isMobile,
   onMenuClick,
+  otherSessionsStatus,
 }: MainContentHeaderProps) {
   const headerMenuSection = useHeaderMenuSection();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,7 +60,7 @@ export default function MainContentHeader({
       {headerMenuSection?.headerContent ?? (
         <div className="flex w-full items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
+            {isMobile && <MobileMenuButton onMenuClick={onMenuClick} otherSessionsStatus={otherSessionsStatus} />}
             <MainContentHeaderMenu
               fullTitle={activeTab === 'chat' && selectedSession ? getSessionTitle(selectedSession) : undefined}
             >

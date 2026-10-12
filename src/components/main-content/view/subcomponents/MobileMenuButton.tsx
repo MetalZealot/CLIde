@@ -1,14 +1,18 @@
 import { PanelLeftOpen } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import type { MobileMenuButtonProps } from '../../types/types';
 import { useMobileMenuHandlers } from '../../hooks/useMobileMenuHandlers';
 
-export default function MobileMenuButton({ onMenuClick, compact = false }: MobileMenuButtonProps) {
+import StatusCornerMark from './StatusCornerMark';
+
+export default function MobileMenuButton({ onMenuClick, compact = false, otherSessionsStatus = null }: MobileMenuButtonProps) {
+  const { t } = useTranslation();
   const { handleMobileMenuClick, handleMobileMenuTouchEnd } = useMobileMenuHandlers(onMenuClick);
 
   const buttonClasses = compact
-    ? 'p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent/60 pwa-menu-button'
-    : 'p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent/60 touch-manipulation active:scale-95 pwa-menu-button flex-shrink-0';
+    ? 'relative p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent/60 pwa-menu-button'
+    : 'relative p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent/60 touch-manipulation active:scale-95 pwa-menu-button flex-shrink-0';
 
   return (
     <button
@@ -18,6 +22,15 @@ export default function MobileMenuButton({ onMenuClick, compact = false }: Mobil
       aria-label="Open sidebar"
     >
       <PanelLeftOpen strokeWidth={1.5} className="h-5 w-5" />
+      {otherSessionsStatus && (
+        <>
+          <StatusCornerMark
+            status={otherSessionsStatus}
+            className={otherSessionsStatus === 'unread' ? 'right-1 top-1' : '-right-0.5 -top-0.5'}
+          />
+          <span className="sr-only">{t(`mobileNav.otherSessions.${otherSessionsStatus}`)}</span>
+        </>
+      )}
     </button>
   );
 }

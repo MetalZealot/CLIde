@@ -29,6 +29,7 @@ export type MainContentProps = {
   processingSessions: SessionActivityMap;
   /** Sessions whose output arrived while their chat was not visible. */
   unreadSessionIds: ReadonlySet<string>;
+  otherSessionsStatus: OtherSessionsStatus;
   onNavigateToSession: (targetSessionId: string, options?: SessionNavigationOptions) => void;
   onSessionEstablished: (sessionId: string, context: SessionEstablishedContext) => void;
   onShowSettings: (tab?: string) => void;
@@ -64,6 +65,7 @@ export type MainContentHeaderProps = {
   shouldShowBrowserTab: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
+  otherSessionsStatus: OtherSessionsStatus;
 };
 
 export type MainContentStateViewProps = {
@@ -72,9 +74,13 @@ export type MainContentStateViewProps = {
   onMenuClick: () => void;
 };
 
+/** The most urgent signal among sessions other than the open one. */
+export type OtherSessionsStatus = 'blocked' | 'unread' | null;
+
 export type MobileMenuButtonProps = {
   onMenuClick: () => void;
   compact?: boolean;
+  otherSessionsStatus?: OtherSessionsStatus;
 };
 
 

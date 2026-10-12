@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
+import type { OtherSessionsStatus } from '../main-content/types/types';
 import CommandPalette from '../command-palette/CommandPalette';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/PaletteOpsContext';
@@ -54,6 +55,17 @@ const parseStartedAt = (value: unknown): number | undefined => {
 
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+// Yellow beats green, as in the sidebar; the open session is the bottom bar's to show.
+const resolveOtherSessionsStatus = (
+  attention: ReadonlySet<string>,
+  unread: ReadonlySet<string>,
+  openSessionId: string | null,
+): OtherSessionsStatus => {
+  const hasOther = (ids: ReadonlySet<string>) => [...ids].some((id) => id !== openSessionId);
+  if (hasOther(attention)) return 'blocked';
+  return hasOther(unread) ? 'unread' : null;
 };
 
 export default function AppContent() {
@@ -110,6 +122,11 @@ function AppContentInner() {
     activeSessions: processingSessions,
   });
   useSessionNotifications(selectedSession?.id ?? sessionId ?? null);
+  const otherSessionsStatus = resolveOtherSessionsStatus(
+    sidebarSharedProps.attentionSessionIds,
+    unreadSessionIds,
+    selectedSession?.id ?? sessionId ?? null,
+  );
 
   const openSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
   const closeSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
@@ -323,6 +340,7 @@ function AppContentInner() {
             onSessionIdle={markSessionIdle}
             processingSessions={processingSessions}
             unreadSessionIds={unreadSessionIds}
+            otherSessionsStatus={otherSessionsStatus}
             onNavigateToSession={(targetSessionId: string, options) =>
               navigate(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
             }

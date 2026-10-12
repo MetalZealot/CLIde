@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { AlertCircle, Check, ChevronUp, Clock } from 'lucide-react';
+import { Check, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
@@ -14,6 +14,8 @@ import {
 } from '../../constants/workspaceTabs';
 import { MENU_CLASS_NAME, MENU_ITEM_CLASS_NAME } from '../../constants/menu';
 import { useMenuButton } from '../../hooks/useMenuButton';
+
+import StatusCornerMark from './StatusCornerMark';
 
 type MobileBottomNavProps = {
   activeTab: AppTab;
@@ -120,27 +122,11 @@ export default function MobileBottomNav({
               >
                 <span className={indicatorClassName(isActive)}>
                   <tab.icon className="h-5 w-5" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
-                  {status === 'blocked' && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -top-0.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-background"
-                    >
-                      <AlertCircle className="h-3 w-3 text-status-attention" />
-                    </span>
-                  )}
-                  {status === 'unread' && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full bg-status-unread ring-2 ring-background"
+                  {status && (
+                    <StatusCornerMark
+                      status={status}
+                      className={status === 'unread' ? 'right-2.5 top-0.5' : '-top-0.5 right-1.5'}
                     />
-                  )}
-                  {status === 'scheduled' && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -top-0.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-background"
-                    >
-                      <Clock className="h-3 w-3 text-status-running" />
-                    </span>
                   )}
                 </span>
                 <span className="max-w-full truncate px-1">{t(BAR_LABEL_KEYS[tab.id] ?? tab.labelKey)}</span>

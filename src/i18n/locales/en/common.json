@@ -134,7 +134,11 @@
     "selectWorktreeFirst": "Select a worktree first",
     "attention": "Permission request waiting",
     "unread": "Unread reply",
-    "scheduled": "Message scheduled"
+    "scheduled": "Message scheduled",
+    "otherSessions": {
+      "blocked": "Another session needs you",
+      "unread": "Another session has an unread reply"
+    }
   },
   "status": {
     "loading": "Loading...",
