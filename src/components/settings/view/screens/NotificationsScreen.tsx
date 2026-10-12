@@ -1,8 +1,13 @@
+import { useState } from 'react';
 import { BellOff, BellRing, Loader2, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '../../../../shared/view/ui';
-import { playChatCompletionSound } from '../../../../utils/notificationSound';
+import {
+  getNotificationSoundVolume,
+  playChatCompletionSound,
+  setNotificationSoundVolume,
+} from '../../../../utils/notificationSound';
 import type { NotificationPreferencesState } from '../../types/types';
 import { CLAUDE_NOTIFICATION_ROWS } from '../../utils/claudeSettingsLayout';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
@@ -28,6 +33,12 @@ export default function NotificationsScreen({
   onDisablePush,
 }: NotificationsScreenProps) {
   const { t } = useTranslation('settings');
+  const [soundVolume, setSoundVolume] = useState(getNotificationSoundVolume);
+
+  const commitSoundVolume = (value: number) => {
+    setNotificationSoundVolume(value);
+    void playChatCompletionSound({ force: true });
+  };
 
   const pushSupported = pushPermission !== 'unsupported';
   const pushDenied = pushPermission === 'denied';
@@ -82,7 +93,7 @@ export default function NotificationsScreen({
         )}
       </SettingsGroup>
 
-      <SettingsGroup>
+      <SettingsGroup divided>
         <SettingsRow label={t('notifications.sound.title')} description={t('notifications.sound.description')}>
           <SettingsToggle
             checked={notificationPreferences.channels.sound}
@@ -90,7 +101,26 @@ export default function NotificationsScreen({
             ariaLabel={t('notifications.sound.title')}
           />
         </SettingsRow>
-        <div className="border-t border-border p-4">
+        <SettingsRow stacked label={t('notifications.sound.volume')}>
+          <div className="flex w-full items-center gap-2">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={soundVolume}
+              onChange={(event) => setSoundVolume(Number(event.target.value))}
+              onPointerUp={(event) => commitSoundVolume(Number(event.currentTarget.value))}
+              onKeyUp={(event) => commitSoundVolume(Number(event.currentTarget.value))}
+              aria-label={t('notifications.sound.volume')}
+              className="h-11 min-w-12 flex-1 touch-manipulation accent-primary"
+            />
+            <output className="w-12 text-right text-sm font-medium tabular-nums text-foreground">
+              {soundVolume}%
+            </output>
+          </div>
+        </SettingsRow>
+        <div className="p-4">
           <Button
             type="button"
             variant="outline"

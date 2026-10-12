@@ -99,7 +99,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'chat.voice', labelKey: 'voiceSettings.format' },
 
   { screenId: 'notifications', labelKey: 'notifications.webPush.title', keywords: 'push browser' },
-  { screenId: 'notifications', labelKey: 'notifications.sound.title', keywords: 'tone chime audio' },
+  { screenId: 'notifications', labelKey: 'notifications.sound.title', keywords: 'tone chime audio volume' },
   { screenId: 'notifications', labelKey: 'notifications.events.title', keywords: 'action required stopped failed' },
 
   { screenId: 'projects-git', labelKey: 'git.name.label', keywords: 'identity commits author' },

@@ -14,7 +14,7 @@ import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { useAsyncAnswerQueueAutoSend } from '../../hooks/useAsyncAnswerQueueAutoSend';
 import { useSendOutboxDriver } from '../../hooks/useSendOutboxDriver';
 import { useSyncedPreferences } from '../../hooks/useSyncedPreferences';
-import { useClearSessionNotifications } from '../../hooks/useClearSessionNotifications';
+import { useSessionNotifications } from '../../hooks/useSessionNotifications';
 import { api } from '../../utils/api';
 import { requestStaleClaudePluginUpdate } from '../skills/hooks/useClaudePluginUpdates';
 
@@ -72,7 +72,6 @@ function AppContentInner() {
   const { ws, sendMessage, subscribe, probeConnection, isConnected } = useWebSocket();
 
   useSyncedPreferences();
-  useClearSessionNotifications(sessionId);
 
   const {
     processingSessions,
@@ -110,6 +109,7 @@ function AppContentInner() {
     isMobile,
     activeSessions: processingSessions,
   });
+  useSessionNotifications(selectedSession?.id ?? sessionId ?? null);
 
   const openSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
   const closeSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);

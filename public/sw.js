@@ -71,6 +71,17 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Asks an open window which session it shows; null if it doesn't answer in time.
+const askViewedSession = client => new Promise(resolve => {
+  const channel = new MessageChannel();
+  const timer = setTimeout(() => resolve(null), 500);
+  channel.port1.onmessage = event => {
+    clearTimeout(timer);
+    resolve(event.data?.sessionId ?? null);
+  };
+  client.postMessage({ type: 'notification:viewing' }, [channel.port2]);
+});
+
 // Push notification event
 self.addEventListener('push', event => {
   if (!event.data) return;
@@ -95,15 +106,13 @@ self.addEventListener('push', event => {
     // Chrome only lets a push skip its notification while the site is in the
     // foreground, which is exactly when the open session already shows the event.
     const sessionId = payload.data?.sessionId;
-    if (sessionId) {
-      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      const watching = windows.some(client =>
-        client.focused
-        && client.visibilityState === 'visible'
-        && new URL(client.url).pathname === `/session/${sessionId}`
-      );
-      if (watching) return;
-    }
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const answers = await Promise.all(
+      windows
+        .filter(client => client.focused && client.visibilityState === 'visible')
+        .map(askViewedSession)
+    );
+    if (sessionId && answers.includes(sessionId)) return;
     await self.registration.showNotification(payload.title || 'CLIde', options);
   })());
 });

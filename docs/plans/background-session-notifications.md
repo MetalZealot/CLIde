@@ -43,7 +43,8 @@ matter:
 - [x] **1. Push fixes, no new surface.** Verified on the phone 2026-10-11:
       opening a session closes its notifications; one notification per session
       (newer replaces older); `sw.js` shows nothing while that session is on
-      screen; no push for a run you stopped (Claude, Cursor, OpenCode; Codex
+      screen, asking the window which session it shows (the window URL read
+      `/` on Android); no push for a run you stopped (Claude, Cursor, OpenCode; Codex
       already skipped it).
 - [ ] **2. In-app banner**, driven off the shared WebSocket. The dot is the
       rail's ([sidebar rail design](../designs/sidebar-rail.md)), not a header dot. Client-only. Prototype the feel on the dev server, but this is
@@ -52,9 +53,13 @@ matter:
       with no PWA mode and no reliable service-worker push.
       Its list of pending requests is the first version of runtime rebuild
       phase 8's store; build it so phase 8 extends it.
-- [ ] **3. The chime**: probe loudness and tone on the S20 first (it plays at
-      ~7% gain, read from source, and on media volume); then a volume setting,
-      and the event toggles gate it as they gate push.
+- [~] **3. The chime.** Probe chose E "Buzzy" (low-passed square taps) at
+      today's 7.5% level, with a distinct three-tap "needs you"; built
+      2026-10-12 with a per-device volume slider, played as a rendered
+      `<audio>` clip because only a media element ducks other apps (probe: the
+      Audio Session API is absent in Chrome), with 300 ms of lead-in silence so
+      the duck settles first. Verified on the phone 2026-10-12. Left: the
+      event toggles gate it as they gate push.
 - [ ] **4. Reconnect blind spot** — runtime rebuild phase 5's fan-out and
       replay cover it; drop this phase if they do.
 

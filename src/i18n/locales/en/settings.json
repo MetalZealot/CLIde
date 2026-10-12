@@ -281,6 +281,7 @@
     "sound": {
       "title": "Sound",
       "description": "Play a short tone when a chat run finishes or needs tool approval.",
+      "volume": "Volume on this device",
       "test": "Test sound"
     },
     "events": {
