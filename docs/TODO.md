@@ -118,7 +118,7 @@ new work.
 - [ ] **Codex history shows edits as raw `exec` source.** An apply_patch, `write_stdin` or `web__run` call reloads as an untranslated `exec` row, not `FileChanges`; the activity parses edits client-side, but other opened calls show source text. Translate it in the Codex adapter. **S**
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — the remaining half, waiting on runtime rebuild phase 7. **L**
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Fix both, then add Stash rows to the existing + menu. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
-- [ ] **Background-session notifications** — stop the OS notification while you're looking at that session, and an in-app banner when another session needs you; the dot is the sidebar rail's. [Plan](plans/background-session-notifications.md). **M**
+- [~] **Background-session notifications** — phase 1 push fixes verified (clear on open, one per session, none while watching or after Stop); next an in-app banner when another session needs you; the dot is the sidebar rail's. [Plan](plans/background-session-notifications.md). **M**
 
 ---
 

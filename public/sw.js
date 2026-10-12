@@ -91,9 +91,21 @@ self.addEventListener('push', event => {
     renotify: true
   };
 
-  event.waitUntil(
-    self.registration.showNotification(payload.title || 'CLIde', options)
-  );
+  event.waitUntil((async () => {
+    // Chrome only lets a push skip its notification while the site is in the
+    // foreground, which is exactly when the open session already shows the event.
+    const sessionId = payload.data?.sessionId;
+    if (sessionId) {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const watching = windows.some(client =>
+        client.focused
+        && client.visibilityState === 'visible'
+        && new URL(client.url).pathname === `/session/${sessionId}`
+      );
+      if (watching) return;
+    }
+    await self.registration.showNotification(payload.title || 'CLIde', options);
+  })());
 });
 
 // Notification click event

@@ -272,7 +272,9 @@ phase done.
     `session_state` on change and on subscribe. It extends the store's existing
     per-session model, effort and fast-mode fields rather than adding a parallel
     path.
-  - Notifications keyed by turn.
+  - Notifications keyed by turn. Keep [background-session notifications](background-session-notifications.md)'
+    rules: no push for a turn you stopped, one notification per session. Fan-out
+    retires that plan's phase 3 (the orchestrator broadcast); drop it there.
   - Tests: extend `chat-run-registry.test.ts` and the conformance cases in
     `chat-session.test.ts`. Each provider, with app and provider ids unequal:
     send, stream and request round trip; abort before and after the provider id
@@ -335,7 +337,9 @@ phase done.
     measured 2026-10-11).
   - Requests: `onElicitation`; `onUserDialog` with `supportedDialogKinds`.
   - Notices: `informational`, `notification`, `model_refusal_*`,
-    `permission_denied`, `auth_status`, `memory_recall`.
+    `permission_denied`, `auth_status`, `memory_recall`. A notice that toasts
+    uses the in-app banner from background-session notifications, not a second
+    surface.
   - A one-line turn summary from `result` (the mockup's "read 6 files · edited
     3, +42 −7 · tests passed").
   - `rewindFiles` (rewind Phase B), `forwardSubagentText`, `promptSuggestions`,
@@ -355,7 +359,8 @@ phase done.
     send, from the capability modes, and shows requested against effective.
   - One client store of pending approvals and questions for every session, not
     only the one on screen. This is what lets the mockup's Home answer a
-    request from a card.
+    request from a card. Background-session notifications builds its first
+    version for the banner; extend that store, don't add a second.
   - Permission unification stays with [the Claude settings plan](claude-settings-surface.md)
     phase 6; this phase gives it the session state it needs.
   - The provider kit: one provider id list in `shared/`; a server descriptor

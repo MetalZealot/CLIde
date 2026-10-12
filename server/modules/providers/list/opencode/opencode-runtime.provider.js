@@ -155,7 +155,8 @@ async function spawnOpenCode(command, options = {}, ws, context) {
     let completeSent = false;
 
     const notifyTerminalState = ({ code = null, error = null } = {}) => {
-      if (terminalNotificationSent) {
+      // A run the user stopped exits non-zero; that is not a failure to push.
+      if (terminalNotificationSent || opencodeProcess?.aborted) {
         return;
       }
 

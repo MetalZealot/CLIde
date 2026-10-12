@@ -172,7 +172,7 @@ function buildNotificationPayload(event) {
     'permission.required': normalizedEvent.meta?.toolName
       ? `Action Required: Tool "${normalizedEvent.meta.toolName}" needs approval`
       : 'Action Required: A tool needs your approval',
-    'run.stopped': normalizedEvent.meta?.stopReason || 'Run Stopped: The run has stopped',
+    'run.stopped': 'Finished',
     'run.failed': normalizedEvent.meta?.error ? `Run Failed: ${normalizedEvent.meta.error}` : 'Run Failed: The run encountered an error',
     'agent.notification': normalizedEvent.meta?.message ? String(normalizedEvent.meta.message) : 'You have a new notification',
     'usage.reset': Array.isArray(normalizedEvent.meta?.windowLabels) && normalizedEvent.meta.windowLabels.length
@@ -185,7 +185,7 @@ function buildNotificationPayload(event) {
   const message = CODE_MAP[normalizedEvent.code] || 'You have a new notification';
 
   return {
-    title: sessionName || 'CloudCLI',
+    title: sessionName || 'CLIde',
     body: `${providerLabel}: ${message}`,
     data: {
       sessionId: normalizedEvent.sessionId || null,
@@ -193,7 +193,10 @@ function buildNotificationPayload(event) {
       provider: normalizedEvent.provider || null,
       urlPath: normalizedEvent.urlPath || null,
       sessionName,
-      tag: `${normalizedEvent.provider || 'assistant'}:${normalizedEvent.sessionId || 'none'}:${normalizedEvent.code}`
+      // One notification per session: a newer event replaces the older one.
+      tag: normalizedEvent.sessionId
+        ? `session:${normalizedEvent.sessionId}`
+        : `${normalizedEvent.provider || 'assistant'}:${normalizedEvent.code}`
     }
   };
 }

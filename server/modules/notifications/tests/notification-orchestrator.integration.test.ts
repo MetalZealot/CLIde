@@ -50,7 +50,16 @@ test('notification payload uses the app session id for a provider session id', a
     });
 
     assert.equal(payload.data.sessionId, 'app-session-1');
-    assert.match(payload.data.tag, /app-session-1/);
+    assert.equal(payload.body, 'Claude: Finished');
+
+    const approval = buildNotificationPayload({
+      provider: 'claude',
+      sessionId: 'claude-native-1',
+      kind: 'action_required',
+      code: 'permission.required',
+    });
+    // Same tag, so the phone replaces the session's notification instead of stacking.
+    assert.equal(approval.data.tag, payload.data.tag);
   });
 });
 

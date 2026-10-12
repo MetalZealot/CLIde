@@ -1445,13 +1445,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     if (!wasAborted) {
       ws.send(createCompleteMessage({ provider: 'claude', sessionId: capturedSessionId || sessionId || null, exitCode: 0 }));
     }
-    notifyRunStopped({
-      userId: ws?.userId || null,
-      provider: 'claude',
-      sessionId: sessionId || capturedSessionId || null,
-      sessionName: sessionSummary,
-      stopReason: wasAborted ? 'aborted' : 'completed'
-    });
+    if (!wasAborted) {
+      notifyRunStopped({
+        userId: ws?.userId || null,
+        provider: 'claude',
+        sessionId: sessionId || capturedSessionId || null,
+        sessionName: sessionSummary,
+      });
+    }
     // Complete
 
   } catch (error) {

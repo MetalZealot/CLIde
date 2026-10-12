@@ -14,6 +14,7 @@ import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { useAsyncAnswerQueueAutoSend } from '../../hooks/useAsyncAnswerQueueAutoSend';
 import { useSendOutboxDriver } from '../../hooks/useSendOutboxDriver';
 import { useSyncedPreferences } from '../../hooks/useSyncedPreferences';
+import { useClearSessionNotifications } from '../../hooks/useClearSessionNotifications';
 import { api } from '../../utils/api';
 import { requestStaleClaudePluginUpdate } from '../skills/hooks/useClaudePluginUpdates';
 
@@ -71,6 +72,7 @@ function AppContentInner() {
   const { ws, sendMessage, subscribe, probeConnection, isConnected } = useWebSocket();
 
   useSyncedPreferences();
+  useClearSessionNotifications(sessionId);
 
   const {
     processingSessions,
