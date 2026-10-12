@@ -439,6 +439,11 @@ test('listRunningRuns returns only currently running app sessions', async () => 
     assert.equal(work()?.agents, 1, 'a foreground agent ends with its result; a background one does not');
     send({ kind: 'agent_status', agentStatus: { taskId: 't-bg', state: 'completed' } });
     assert.equal(work()?.agents, 0, 'a status naming only the task still ends its agent');
+    send({ kind: 'tool_use', toolName: 'Bash', toolId: 'cmd' });
+    send({ kind: 'tool_use', toolName: 'Bash', toolId: 'sub-cmd', parentToolUseId: 'bg' });
+    send({ kind: 'agent_status', agentStatus: { taskId: 't-cmd', toolId: 'cmd', state: 'running' } });
+    send({ kind: 'agent_status', agentStatus: { taskId: 't-sub', toolId: 'sub-cmd', state: 'running' } });
+    assert.equal(work()?.agents, 0, 'a command reports through task events but is not an agent');
 
     send({ kind: 'tool_use', toolName: 'TaskUpdate', toolId: 'plan-1' });
     assert.equal(work()?.planRevision, 0);

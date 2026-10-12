@@ -874,11 +874,14 @@ export function readClaudeAgentHandback(raw: AnyRecord): AgentStatusInfo | null 
   return report ? { taskId: origin.senderTaskId, state: 'completed', report } : null;
 }
 
-/** The text of a `queued_command` prompt attachment; null for any other row. */
+/** Commands a running turn absorbs: a prompt sent into it, or the notice of a task that ended during it. */
+const QUEUED_TEXT_MODES = new Set(['prompt', 'task-notification']);
+
+/** The text of a `queued_command` prompt or task-notice attachment; null for any other row. */
 export function readQueuedPromptText(raw: AnyRecord): string | null {
   if (raw.type !== 'attachment' || raw.isMeta === true) return null;
   const attachment = readObjectRecord(raw.attachment);
-  if (attachment?.type !== 'queued_command' || attachment.commandMode !== 'prompt') return null;
+  if (attachment?.type !== 'queued_command' || !QUEUED_TEXT_MODES.has(String(attachment.commandMode))) return null;
   const prompt = attachment.prompt;
   const text = typeof prompt === 'string'
     ? prompt

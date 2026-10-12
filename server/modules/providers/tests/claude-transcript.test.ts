@@ -181,6 +181,9 @@ describe('claude-harness-rows', () => {
 
     assert.equal(queued({ prompt: [{ type: 'text', text: 'as blocks' }] })[0]?.content, 'as blocks');
     assert.deepEqual(queued({ prompt: 'ls', commandMode: 'bash' }), []);
+    const notice = '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>';
+    assert.equal(queued({ prompt: notice, commandMode: 'task-notification' })[0]?.content, notice,
+      'a task that ends mid-turn is noted only as an absorbed notice');
     assert.deepEqual(queued({ prompt: '   ' }), []);
     assert.deepEqual(queued({ prompt: 'hidden' }, { isMeta: true }), []);
   });

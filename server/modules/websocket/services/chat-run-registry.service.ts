@@ -21,6 +21,8 @@ const STORED_PLAN_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'update_plan']);
 type RunWork = {
   /** Launching call ids of agents still running. */
   agents: Set<string>;
+  /** Every other call: commands report through the same task events, and are not agents. */
+  otherCalls: Set<string>;
   /** Status events may name only the task; this maps it back to the call. */
   agentTasks: Map<string, string>;
   planCalls: Set<string>;
@@ -31,7 +33,7 @@ type RunWork = {
 };
 
 const createRunWork = (): RunWork => ({
-  agents: new Set(), agentTasks: new Map(), planCalls: new Set(), planRevision: 0, pushedPlan: null,
+  agents: new Set(), otherCalls: new Set(), agentTasks: new Map(), planCalls: new Set(), planRevision: 0, pushedPlan: null,
 });
 
 /** A background agent's call returns at launch; only its status events end it. */
@@ -41,8 +43,10 @@ const isAsyncLaunch = (toolUseResult: unknown): boolean => {
 };
 
 function trackRunWork(work: RunWork, message: NormalizedMessage): void {
-  if (message.parentToolUseId) return;
   const toolId = message.toolId;
+  // A subagent's commands report task events too, so they are noted before its calls are skipped.
+  if (message.kind === 'tool_use' && toolId && !AGENT_TOOLS.has(String(message.toolName))) work.otherCalls.add(toolId);
+  if (message.parentToolUseId) return;
   if (message.kind === 'tool_use' && toolId) {
     if (AGENT_TOOLS.has(String(message.toolName))) work.agents.add(toolId);
     if (STORED_PLAN_TOOLS.has(String(message.toolName))) work.planCalls.add(toolId);
@@ -56,7 +60,7 @@ function trackRunWork(work: RunWork, message: NormalizedMessage): void {
   } else if (message.kind === 'agent_status' && message.agentStatus) {
     const { taskId, state } = message.agentStatus;
     const callId = message.agentStatus.toolId ?? work.agentTasks.get(taskId);
-    if (!callId) return;
+    if (!callId || work.otherCalls.has(callId)) return;
     work.agentTasks.set(taskId, callId);
     if (state === 'running') work.agents.add(callId);
     else work.agents.delete(callId);
