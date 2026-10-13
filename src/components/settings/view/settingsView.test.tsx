@@ -1256,10 +1256,10 @@ describe('AgentToolsScreen', () => {
   let toolRequests: string[] = [];
 
   const PROJECTS = [
-    { name: 'cloudcli', displayName: 'CLIde', fullPath: '/home/tester/Projects/cloudcli' },
-    { name: 'cloudcli-wt-a', displayName: 'worktree-a', fullPath: '/home/tester/Projects/cloudcli-wt-a' },
+    { projectId: 'cloudcli', name: 'cloudcli', displayName: 'CLIde', fullPath: '/home/tester/Projects/cloudcli' },
+    { projectId: 'cloudcli-wt-a', name: 'cloudcli-wt-a', displayName: 'worktree-a', fullPath: '/home/tester/Projects/cloudcli-wt-a' },
     // Same checkout reached by a second saved row: one option, not two.
-    { name: 'cloudcli-alias', displayName: 'CLIde alias', fullPath: '/home/tester/Projects/cloudcli' },
+    { projectId: 'cloudcli-alias', name: 'cloudcli-alias', displayName: 'CLIde alias', fullPath: '/home/tester/Projects/cloudcli' },
   ];
 
   const skill = (name: string, scope: string, pluginName?: string) => ({

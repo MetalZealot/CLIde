@@ -1,7 +1,85 @@
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { Project } from '../../../../types/app';
+import {
+  findNewSessionProjectTarget,
+  readNewSessionProjectPreference,
+  resolvePrimaryCheckout,
+  toNewSessionProjectTarget,
+  writeNewSessionProjectPreference,
+  type NewSessionProjectMode,
+  type NewSessionProjectPreference,
+} from '../../../chat/utils/newSessionLauncher';
+import { buildRepositoryEntries, isDiscoveredCheckout } from '../../../sidebar/utils/utils';
 import { useGitSettings } from '../../hooks/useGitSettings';
-import { SettingsGroup, SettingsRow, SettingsScreen, SettingsTextField } from '../primitives';
+import { SettingsGroup, SettingsRow, SettingsScreen, SettingsSelect, SettingsTextField } from '../primitives';
+
+type ProjectsGitScreenProps = {
+  projects: Project[];
+};
+
+const NO_PROJECT = '';
+
+/** Which project the New Session launcher opens with. */
+function NewSessionProjectGroup({ projects }: ProjectsGitScreenProps) {
+  const { t } = useTranslation('settings');
+  const [preference, setPreference] = useState(readNewSessionProjectPreference);
+
+  const entries = useMemo(
+    () => buildRepositoryEntries(projects.filter((project) => !isDiscoveredCheckout(project))),
+    [projects],
+  );
+  const fixedProject = findNewSessionProjectTarget(projects, preference.fixed);
+  const fixedKey = fixedProject ? toNewSessionProjectTarget(fixedProject).repositoryKey : NO_PROJECT;
+
+  const update = (changes: Partial<NewSessionProjectPreference>) => {
+    writeNewSessionProjectPreference(changes);
+    setPreference(readNewSessionProjectPreference());
+  };
+
+  const chooseMode = (mode: NewSessionProjectMode) => {
+    // Fixed starts on the last-selected project's repository rather than an empty pick.
+    const seed = mode === 'fixed' && !fixedProject ? findNewSessionProjectTarget(projects, preference.last) : null;
+    const seedEntry = seed ? entries.find((entry) => entry.key === toNewSessionProjectTarget(seed).repositoryKey) : null;
+    update(seedEntry ? { mode, fixed: toNewSessionProjectTarget(resolvePrimaryCheckout(seedEntry)) } : { mode });
+  };
+
+  const chooseProject = (key: string) => {
+    const entry = entries.find((candidate) => candidate.key === key);
+    if (entry) update({ fixed: toNewSessionProjectTarget(resolvePrimaryCheckout(entry)) });
+  };
+
+  return (
+    <SettingsGroup title={t('newSessionProject.title')} description={t('newSessionProject.description')} divided>
+      <SettingsRow stacked label={t('newSessionProject.mode.label')}>
+        <SettingsSelect
+          value={preference.mode}
+          options={[
+            { value: 'last', label: t('newSessionProject.mode.last') },
+            { value: 'fixed', label: t('newSessionProject.mode.fixed') },
+            { value: 'none', label: t('newSessionProject.mode.none') },
+          ]}
+          onChange={chooseMode}
+          ariaLabel={t('newSessionProject.mode.label')}
+        />
+      </SettingsRow>
+      {preference.mode === 'fixed' && (
+        <SettingsRow stacked label={t('newSessionProject.project.label')}>
+          <SettingsSelect
+            value={fixedKey}
+            options={[
+              ...(fixedProject ? [] : [{ value: NO_PROJECT, label: t('newSessionProject.project.placeholder') }]),
+              ...entries.map((entry) => ({ value: entry.key, label: entry.displayName })),
+            ]}
+            onChange={chooseProject}
+            ariaLabel={t('newSessionProject.project.label')}
+          />
+        </SettingsRow>
+      )}
+    </SettingsGroup>
+  );
+}
 
 /**
  * Git identity saves on blur — debounced, so tabbing
@@ -9,7 +87,7 @@ import { SettingsGroup, SettingsRow, SettingsScreen, SettingsTextField } from '.
  * old explicit Save button, since these are real `git config --global` writes
  * and never per-keystroke.
  */
-export default function ProjectsGitScreen() {
+export default function ProjectsGitScreen({ projects }: ProjectsGitScreenProps) {
   const { t } = useTranslation('settings');
   const {
     gitName,
@@ -23,6 +101,7 @@ export default function ProjectsGitScreen() {
 
   return (
     <SettingsScreen>
+      <NewSessionProjectGroup projects={projects} />
       <SettingsGroup title={t('git.title')} description={t('git.description')} divided>
         <SettingsRow stacked label={t('git.name.label')} description={t('git.name.help')}>
           <SettingsTextField

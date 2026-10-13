@@ -283,7 +283,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: S
         );
 
       case 'projects-git':
-        return <ProjectsGitScreen />;
+        return <ProjectsGitScreen projects={projects} />;
 
 
       case 'browser':

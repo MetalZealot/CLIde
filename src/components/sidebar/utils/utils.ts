@@ -633,6 +633,7 @@ export const normalizeProjectForSettings = (project: Project): SettingsProject =
   // Legacy SettingsProject still expects a `name` field; use the projectId so
   // downstream consumers that rely on a stable identifier continue to work.
   return {
+    ...project,
     name: project.projectId,
     displayName:
       typeof project.displayName === 'string' && project.displayName.trim().length > 0

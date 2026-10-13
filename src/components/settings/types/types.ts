@@ -1,15 +1,11 @@
-import type { LLMProvider } from '../../../types/app';
+import type { LLMProvider, Project } from '../../../types/app';
 import type { ProviderAuthStatus } from '../../provider-auth/types';
 
 export type AgentProvider = LLMProvider;
 export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
-export type SettingsProject = {
-  name: string;
-  displayName?: string;
-  fullPath?: string;
-  path?: string;
-};
+/** A project with the legacy `name` (its projectId) that older settings screens key on. */
+export type SettingsProject = Project & { name: string };
 
 export type AuthStatus = ProviderAuthStatus;
 

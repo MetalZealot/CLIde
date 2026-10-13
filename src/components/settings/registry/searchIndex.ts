@@ -102,6 +102,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'notifications', labelKey: 'notifications.sound.title', keywords: 'tone chime audio volume' },
   { screenId: 'notifications', labelKey: 'notifications.events.title', keywords: 'action required stopped failed' },
 
+  { screenId: 'projects-git', labelKey: 'newSessionProject.mode.label', keywords: 'default project new session launcher last' },
   { screenId: 'projects-git', labelKey: 'git.name.label', keywords: 'identity commits author' },
   { screenId: 'projects-git', labelKey: 'git.email.label', keywords: 'identity commits author' },
 

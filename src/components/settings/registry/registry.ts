@@ -283,7 +283,7 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
     labelKey: 'mainTabs.projectsGit',
     icon: 'git',
     group: 'app',
-    keywords: 'projects git identity name email commits sorting sort order',
+    keywords: 'projects git identity name email commits sorting sort order default project new session',
   },
   {
     kind: 'screen',

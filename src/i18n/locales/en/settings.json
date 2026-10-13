@@ -427,6 +427,20 @@
     "save": "Save Settings",
     "cancel": "Cancel"
   },
+  "newSessionProject": {
+    "title": "New Sessions",
+    "description": "The project a new session opens with. You can still change it in the launcher.",
+    "mode": {
+      "label": "Start new sessions in",
+      "last": "Last selected project",
+      "fixed": "A specific project",
+      "none": "No project (choose each time)"
+    },
+    "project": {
+      "label": "Project",
+      "placeholder": "Choose a project"
+    }
+  },
   "git": {
     "title": "Git Configuration",
     "description": "Configure your git identity for commits. These settings will be applied globally via git config --global",

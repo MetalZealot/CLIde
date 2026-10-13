@@ -34,7 +34,12 @@ import {
   mergeFindRecords,
   searchChatFindEntries,
 } from './chatFindIndex';
-import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
+import {
+  resolveLauncherCheckoutSelection,
+  resolveNewSessionProject,
+  resolvePrimaryCheckout,
+  toNewSessionProjectTarget,
+} from './newSessionLauncher';
 import { computeTurnSummaries } from './turnDuration';
 import {
   collectPendingAsyncQuestions,
@@ -456,6 +461,29 @@ describe('newSessionLauncher', () => {
 
     assert.equal(adoptedPath, discovered.fullPath);
     assert.equal(selected, registered);
+  });
+
+  test('a new session opens in the last-selected, fixed, or no project per the setting', () => {
+    const other: Project = { projectId: 'other-project', displayName: 'other', fullPath: '/workspace/other' };
+    const projects = [mainCheckout, worktree, other];
+    const last = toNewSessionProjectTarget(worktree);
+    const fixed = toNewSessionProjectTarget(other);
+
+    assert.equal(resolveNewSessionProject(projects, { mode: 'last', fixed, last })?.projectId, 'feature-project');
+    assert.equal(resolveNewSessionProject(projects, { mode: 'fixed', fixed, last })?.projectId, 'other-project');
+    assert.equal(resolveNewSessionProject(projects, { mode: 'none', fixed, last }), null);
+    assert.equal(resolveNewSessionProject(projects, { mode: 'last', fixed, last: null }), null);
+  });
+
+  test('a remembered worktree that is gone falls back to its main checkout, then to nothing', () => {
+    const preference = { mode: 'last' as const, fixed: null, last: toNewSessionProjectTarget(worktree) };
+
+    assert.equal(resolveNewSessionProject([mainCheckout], preference)?.projectId, 'main-project');
+    assert.equal(resolveNewSessionProject([], preference), null);
+    assert.equal(
+      resolveNewSessionProject([{ ...worktree, isDiscovered: true }], preference),
+      null,
+    );
   });
 });
 

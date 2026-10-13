@@ -15,6 +15,12 @@ import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
 } from '../components/sidebar/types/types';
+import {
+  readNewSessionProjectPreference,
+  resolveNewSessionProject,
+  toNewSessionProjectTarget,
+  writeNewSessionProjectPreference,
+} from '../components/chat/utils/newSessionLauncher';
 
 import type { SessionActivityMap } from './useSessionProtection';
 import {
@@ -1208,6 +1214,7 @@ export function useProjectsState({
 
   const handleNewSession = useCallback(
     (project: Project) => {
+      writeNewSessionProjectPreference({ last: toNewSessionProjectTarget(project) });
       setSelectedProject(project);
       setSelectedSession(null);
       setActiveTab('chat');
@@ -1222,7 +1229,7 @@ export function useProjectsState({
   );
 
   const handleOpenNewSession = useCallback(() => {
-    setSelectedProject(null);
+    setSelectedProject(resolveNewSessionProject(projectsRef.current, readNewSessionProjectPreference()));
     setSelectedSession(null);
     setActiveTab('chat');
     setNewSessionTrigger((previous) => previous + 1);
@@ -1232,6 +1239,17 @@ export function useProjectsState({
       setSidebarOpen(false);
     }
   }, [isMobile, navigate]);
+
+  // A blank new-session screen (first load, deleted project) takes the preferred project too.
+  useEffect(() => {
+    if (sessionId || selectedSession || selectedProject || projects.length === 0) {
+      return;
+    }
+    const preferred = resolveNewSessionProject(projects, readNewSessionProjectPreference());
+    if (preferred) {
+      setSelectedProject(preferred);
+    }
+  }, [projects, selectedProject, selectedSession, sessionId]);
 
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
