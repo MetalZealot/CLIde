@@ -1,199 +1,233 @@
-# Source Control: review a session's work, then commit, merge or open a pull request
+# Diffs and Previews: each chat works in its own copy, is reviewed and previewed alone, then merged
 
 - Status: draft
-- Plan: [Source Control](../plans/source-control-truthfulness.md)
+- Plan: [Diffs and Previews](../plans/source-control-truthfulness.md)
 - Context: ADRs [0016](../decisions/0016-repository-grouped-checkouts.md),
   [0028](../decisions/0028-worktree-creation-precedes-phase-0.md),
   [0033](../decisions/0033-discovered-checkouts-are-derived-not-stored.md)
   · [provider capabilities](../providers.md)
 
-An agent leaves its work uncommitted. Grayson opens the review from the chat, reads
-the diff on the phone, sends line comments back, and then commits, merges or opens a
-pull request from the same screen. The Git tab stays one of the bar's five and is
-redesigned at every level; no Diff tab joins it. Repository identity (ADR 0016) and
-the truthfulness fixes stay, and come first.
+A chat that changes code works in its own copy of the project (a worktree on its own
+branch), so its edits are only its own. Grayson reviews them in the chat's **Diffs**
+tab, runs them in the chat's **Preview**, sends line comments back, and merges. `main`
+changes only on Merge. The upstream Git tab's repository views survive behind the
+Diffs header; Pi-Ops keeps the host, not per-branch test servers.
 
 ## Starting point
 
-Read from source on 2026-10-10 unless labelled.
+Read from source or measured on the date given; recalled where labelled.
 
-- The Git tab is upstream's VS Code-shaped panel with three views: Changes, History
-  and Branches. It can stage and unstage per file, discard, commit with a generated
-  message, fetch, pull, push and publish, switch, create and delete branches, and show
-  each commit's diff. It has 23 server routes. It has no line comments, no per-hunk
-  staging, and no merge or pull request.
-- On a failed commit, the server returns the hook's stderr and the client puts it in
-  the panel header (`6dc05b23`). The backlog still calls a failed commit silent;
-  nobody has checked this live.
-- Commit-message generation accepts only Claude or Cursor.
-- Nothing creates a pull request or asks the GitHub CLI anything.
-- The New Session launcher already picks or creates a worktree for a new session.
-  Creation runs `git worktree add -b` and nothing after it, so the new checkout has
-  no dependencies installed.
-- Nothing attributes file edits to a session. Tool rows show what a turn's edit tools
-  touched, but shell commands, other sessions and hand edits change files with no row.
-- Nothing shows how many live sessions share a checkout, so one checkout's diff can
-  mix several sessions' work without any sign of it.
-- Measured on 2026-10-10: CLIde's own dependency install is 1.1 GB per checkout. In
-  the seven days before, 105 commits landed on `main`, 29 of them docs-only. Agents
-  then committed after every edit.
+- The Git tab is upstream's VS Code-shaped panel: Changes, History and Branches; per-file
+  stage, discard, commit with a generated message, fetch, pull, push, publish, branch
+  switching, 23 server routes (2026-10-10). No line comments, per-hunk staging, merge
+  or pull request. Commit-message generation accepts only Claude or Cursor.
+- Sessions start on `main` by default and leave work uncommitted until Grayson tests
+  it (`AGENTS.md`, 2026-10-10). Several sessions' untested edits pile up in one
+  checkout with nothing saying whose they are; on 2026-10-12 an unattributed fix sat
+  there 18 hours and a server build shipped it with another session's work.
+- Nothing attributes an edit to a session. Tool rows show what edit tools touched;
+  shell commands, other sessions and hand edits change files with no row.
+- Worktree creation exists in the New Session launcher (`git worktree add -b`, no
+  setup). `scripts/setup-worktree.sh` runs `npm ci`.
+- Measured 2026-10-12: a fresh CLIde copy takes 0.5 s for the files and 82 s for
+  `npm ci` (1.1 GB, warm npm cache), with MemAvailable never below 1,004 MiB while
+  other sessions ran. 80 GB of disk free. An idle branch-test server holds 106 MiB;
+  production 206 MiB. A build's peak memory is unmeasured.
+- Branch testing is two fixed slots (3002, 3003), each with a database snapshot, a
+  fake home, and a fixed HTTPS route for installing a test PWA (9442, 9443). Pi-Ops
+  starts, stops and rebuilds them.
+- Product bar, recalled 2026-10-12, not re-checked: Claude Code desktop, Codex's app
+  and T3 Code give a thread its own worktree; Cursor tracks each chat's edits in one
+  folder; VS Code, Cursor and JetBrains run a project from a Run button, and Replit,
+  Bolt and Lovable keep a live preview beside the chat.
 
 ## Settled with Grayson
 
-- 2026-10-10: agents commit once per finished task, after he has tested it, never
-  per edit (`AGENTS.md`). CLIde should support reviewing before that commit.
-- 2026-10-10: adopt the following, in this order. Visible Git failures. A Changes
-  review reachable from the chat, with line comments sent to the agent. Commit and
-  Create PR at the end of the review. An isolated (worktree) option at New Session that
-  ends in Merge or Create PR. A warning when two sessions share a checkout. Per-hunk
-  stage and revert last.
-- 2026-10-10: no worktree per session by default. Use one for parallel work, risky
-  work, or work to be reviewed as a pull request.
+- 2026-10-10: agents commit once per finished task, after he has tested it, never per
+  edit. CLIde supports reviewing before that.
 - 2026-10-10: skip auto-merge, CI auto-fix and splitting changes into several PRs.
+- 2026-10-12: **a chat that changes code gets its own copy by default**; "work on
+  `main`" stays for quick jobs. This reverses 2026-10-10's "no worktree per session".
+- 2026-10-12: **in its own copy an agent commits freely on its branch**; Grayson tests
+  in the chat's Preview, and Merge is the "after he has tested it" step. The rules
+  files change when copies ship (plan phase 6), not before.
+- 2026-10-12: **the tab is Diffs**, scoped to the chat, not Source Control.
+- 2026-10-12: **Previews replace the two fixed slots**; Pi-Ops keeps production, the
+  other services, host health and recovery while CLIde is down.
+- 2026-10-12: built after the runtime rebuild.
 
 ## Design positions
 
-- **The review shows the checkout's diff, not the session's.** It shows the working
-  tree against `HEAD`, and on a branch it also shows the branch against its base.
-  Per-session attribution would have to ignore shell, hand and other-session edits,
-  so it would look complete while missing changes. Isolation is how a session gets a
-  diff of its own. Codex's Local/Worktree split and Claude desktop's
-  worktree-per-session give the same answer.
-- **One Git tab, redesigned. No Diff tab.** Changes is the Git tab's first screen and
-  the chat links to it. A second diff surface would duplicate it.
-- **The chat links to the review when a turn changed the checkout.** A `+N −M`
-  link opens Changes. Without a link on the path, the review gets skipped in favour of
-  "commit it" typed in chat. Placement is maintainer taste, and the probe settles it.
-- **Line comments go into the composer, not straight to the agent.** Tapping a line
-  drafts a comment. "Send N comments" then places one message in the composer, with
-  each comment carrying its file, line and quoted line, so a sentence of context can
-  be added before sending. It is a plain user message, so all four providers take it
-  with no capability flag. This rejects Claude desktop's send-at-once, which suits a
-  keyboard better than a phone.
-- **Commit is a person's action, taken from the review.** The commit sheet shows a
-  generated message (editable), the files with checkboxes, and Commit. An agent asked
-  in chat writes to the same history, and the Git tab shows either.
-- **The ship actions follow the checkout's branch.** On the default branch: Commit,
-  then Push. On any other branch: Commit, then Merge into the base or Create PR. Each
-  is a separate action. No "Finish" button commits, pushes, merges and deletes in one
-  step.
-- **Merging into the base defaults to squash.** One finished task becomes one commit
-  on `main`, which matches the commit rule. Fast-forward and a merge commit sit under
-  Advanced. This reverses the plan's earlier fast-forward default, because
-  fast-forward brings a branch's work-in-progress commits onto `main`. A squashed
-  branch never looks merged to Git, so removal compares trees instead of ancestry.
-- **A pull request targets the checkout's push remote, named on screen and passed
-  explicitly.** The sheet shows `owner/repo ← branch`. In a fork, the GitHub CLI's
-  default can pick the parent repository, and a pull request opened upstream by
-  accident is the worst failure in this design. A pull request to any other
-  repository is not built.
-- **Create PR depends on the host, not a provider.** The server reports whether the
-  GitHub CLI is installed and signed in for the remote's host. Without it, Create PR
-  says why and what fixes it. For a remote not on GitHub, Create PR is absent.
-- **"Ask for a review" runs the provider's own review command, when it has one.**
-  Each adapter declares the command, or declares none and the button hides. Claude's
-  is `/code-review`. The other three are unverified, and their phase checks them.
-- **Isolation is a New Session option, off by default.** The launcher's worktree choice
-  becomes one Isolated toggle: create a worktree from a chosen base and start the
-  session in it. Each isolated checkout costs a dependency install, and for CLIde
-  itself a test-server slot. That rejects Claude desktop's worktree-per-session
-  default, which assumes a laptop.
-- **A project may declare a worktree setup command.** It runs once, after creation,
-  with its output streamed. If it fails, CLIde shows the failure and keeps the
-  checkout. Without one, the first build in a new worktree fails for lack of
-  dependencies.
-- **Occupancy shows where the review is.** The review header names any other live
-  session in the same checkout. A mixed diff is the cost of not isolating, and showing
-  it is the mitigation.
-- **Per-hunk stage and revert come last.** They reuse the line addressing that
-  comments build.
+- **Isolation is the default, attribution is not attempted.** A chat's diff is its
+  copy's branch against its base plus its uncommitted edits: complete by
+  construction. Attributing edits inside a shared folder misses shell edits and
+  breaks when turns overlap, which is the common case. A `main` chat's Diffs shows the
+  checkout's whole diff, headed by the other live sessions in it.
+- **One copy per chat, made at New Session.** The launcher's Own copy toggle is on for
+  a git project and remembers the last choice per project. The copy is a worktree on
+  `clide/<slug>-<short id>` from the chosen base (default: the project's default
+  branch). Non-git projects have no toggle.
+- **Setup runs in the background; the first turn waits for it.** Files land at once;
+  the project's setup command (CLIde: `npm ci`, plus the Claude memory link) streams
+  in the chat while Grayson types. A sent message waits with "Setting up the copy ·
+  1:12", because an agent that builds or tests before dependencies exist fails in
+  ways that look like code bugs. Setups run one at a time.
+- **Diffs is the chat's review, Repository is the project's.** The tab holds the
+  chat's changes only. History, Branches, fetch, pull and push move to a Repository
+  sheet opened from the Diffs header, because they describe the repository, not the
+  chat. Placement in the sheet is maintainer taste; the probe settles it.
+- **Line comments go into the composer, not straight to the agent.** Each carries its
+  file, line and quoted line; one message holds them all, so context can be added.
+  All four providers take it as a plain user message.
+- **Merge is a person's action and squashes.** One finished task becomes one commit on
+  the base, which matches the commit rule. It runs in the base's checkout after a
+  preflight; fast-forward and a merge commit sit under Advanced.
+- **Conflicts are resolved in the chat's copy, by its agent, never in `main`.** A
+  conflicted merge aborts and restores the base. "Update from main" asks the agent to
+  bring the base into its branch and resolve there. The Diffs header shows when the
+  base has moved since the copy was made.
+- **Removing a copy is offered after a merge, ticked by default, and refuses unsafe
+  removal.** It refuses while there is uncommitted, unmerged (tree comparison, so a
+  squash counts as merged) or unpushed work, and keeps the branch unless asked.
+  Copies are 1.1 GB each for CLIde; leaving them by default rebuilds today's pile.
+- **A Preview runs one copy.** A project declares a preview command (CLIde: the
+  branch-test build and serve, with its database snapshot and fake home; a site:
+  its dev or static server). The Preview tab starts it, shows its log and address,
+  and offers Restart and Stop. A preview is a systemd user unit, so it outlives a
+  CLIde restart and Pi-Ops can list it.
+- **Three ways to look at one preview.** Inline in the Preview tab, as an embedded
+  frame, for a quick look without leaving the chat; Open in browser, full screen, for
+  layout checks, since the inline view sits between the header and the bar; and a
+  phone address, for installed-app behaviour a frame cannot show (standalone mode,
+  safe areas). A project that refuses framing shows Open in browser instead. "Have
+  the agent check it" opens the same address in the chat's Browser, which is the
+  agent's view, not Grayson's.
+- **Previews are limited by memory, not by count.** Builds queue one at a time. A
+  preview stops after 30 idle minutes (no requests). A start is refused, with the
+  reason, when MemAvailable would fall under a floor: 600 MiB to start with, to be
+  measured against a real build in phase 4.
+- **Two fixed phone addresses survive.** 3002 and 3003 become small proxies behind the
+  existing HTTPS routes (9442, 9443). "Use on phone address A" points one at any
+  preview, so an installed test PWA keeps its origin and nothing needs `sudo`.
+- **Previews are tailnet-only.** They take ports from a fixed range bound for the
+  tailnet; ufw keeps LAN off, as for the slots. A preview never uses production's
+  database.
+- **Merging into the serving checkout says what follows.** For CLIde's own `main`, the
+  merge sheet says whether a client build or a server restart is needed, offers the
+  build (queued), and leaves the restart to Pi-Ops or an explicit action.
+- **Create PR depends on the host, targets the push remote, and is named on screen.**
+  `owner/repo ← branch`, passed explicitly; in a fork the GitHub CLI's default can pick
+  the parent, and an accidental upstream pull request is the worst failure here.
+  Without the GitHub CLI signed in for the remote's host, Create PR says why.
+- **"Ask for a review" runs the provider's own review command**, declared per adapter
+  or absent. Claude's is `/code-review`; the others are verified in their phase.
+- **Per-hunk stage and revert come last**, on the line addressing comments build.
 
 ### Guardrails
 
-- **Read-only** (status, log, diff, listings, fetch, previews): no confirmation.
-- **Working-tree mutations** (switch, restore, discard, delete-untracked, merge,
-  worktree removal): a state-aware preflight first. A dirty or conflicted target is
-  refused by default.
+- **Read-only** (status, log, diff, listings, fetch, preview logs): no confirmation.
+- **Working-tree mutations** (switch, restore, discard, merge, copy removal): one
+  shared preflight first. A dirty or conflicted target is refused by default.
 - **History and remote mutations** (commit, amend, branch deletion, push, pull
-  request): explicit targets, and never an unqualified force push.
-- **Self-hosting**: CLIde knows which checkout serves it and any registered dev or
-  test workspaces, and it blocks or elevates actions that rewrite them. A merge into
-  the serving checkout reports whether a client build or a server restart is needed
-  before the change shows.
+  request): explicit targets, never an unqualified force push.
+- **Self-hosting**: CLIde knows which checkout serves it and blocks or elevates
+  actions that rewrite it. A preview never binds 3001.
 
 ## Target design
 
-### The Git tab
+### The bar
 
-Phone first, with the same screens in the desktop side panel. Every level below gets
+Chat, **Diffs**, Files, Terminal, **Preview**, as in the 2026-09-29 mockup. Diffs
+carries a count badge of changed files; Preview a dot while running. Every level gets
 probed before it is built.
 
-- **Header**: checkout folder, branch, ahead/behind, and occupancy.
-- **Changes** (default): a summary line (`+N −M`, file count), then file chips that
-  mark a file as viewed. Each file is a collapsible unified diff, loaded on demand.
-  Lockfiles, generated files and very large files start collapsed with their size
-  shown. Tapping a line opens a comment field. Footer: Send N comments, Ask for a
-  review, Commit….
-- **Commit sheet**: message, files, Commit. After a commit it offers Push on the
-  default branch, or Merge… and Create PR on any other branch.
-- **Merge sheet**: source and target, the branch's commits and files, the strategy,
-  the preflight's results, then Merge. Removing the worktree is a separate action
-  afterwards, and it keeps the branch by default.
-- **Pull request sheet**: `owner/repo ← branch`, a title and body generated from the
-  commits, a draft toggle, and Create. It returns the PR's link.
-- **History and Branches**: restyled onto the same row and diff components. Their
-  behaviour changes only where Phase 0 changes how refs and state are shown.
+### Diffs
+
+- **Header**: the copy's branch and base, ahead/behind, "base moved" when it has, and
+  a Repository button. A `main` chat's header names the other live sessions.
+- **Body**: `+N −M` and file count; file chips that mark a file viewed; each file a
+  collapsible unified diff loaded on demand. Lockfiles, generated and very large files
+  start collapsed with their size. Tapping a line opens a comment field.
+- **Footer**: Send N comments, Ask for a review, Merge… (Commit… in a `main` chat).
+- **Merge sheet**: source, target, the branch's commits and files, strategy, the
+  preflight's result, what follows for a serving checkout, "Remove this copy"
+  (ticked), then Merge. Create PR sits beside Merge.
+- **Repository sheet**: History, Branches, fetch, pull, push, restyled onto the same
+  row and diff components.
+
+### Preview
+
+Not running: the project's preview command and Start. Building: the queue position or
+the streamed build log. Running: the live page inline, with the address, Open in
+browser, the phone-address picker, Have the agent check it, Restart, Stop, and the
+log behind a toggle. Stopped by idle or a failure: why, and Start.
 
 ### From the chat
 
-The `+N −M` link opens Changes. "Send N comments" fills the composer of the session
-the review was opened from.
+A turn that changed files ends with a `+N −M` link to Diffs. The finished-session
+card offers Review N files and Preview, as in the mockup.
 
 ### Server contract
 
-- Every mutation returns either success, or a failure with `code`, `message` and
-  `detail`, where `detail` carries git's or a hook's stderr. The client shows the
-  failure beside the action that failed and keeps what was typed.
-- New reads: a review summary (per-file counts, base, occupancy) and host
-  capabilities (GitHub CLI present and signed in, the remote's host).
-- New mutations: a pull request with an explicit remote and base; a merge with an
-  explicit source, target and strategy; running a worktree's setup command.
-- Each mutation writes one `[git]` log line: operation, checkout, result, duration.
+- Every mutation returns success, or a failure with `code`, `message` and `detail`
+  (git's or a hook's stderr). The client shows it beside the action and keeps what was
+  typed.
+- Reads: a chat's review summary (per-file counts, base, base moved, occupancy for
+  `main` chats); host capabilities (GitHub CLI state, the remote's host); previews
+  (unit, copy, port, state, phone address, idle time).
+- Mutations: create a copy and run its setup; merge with explicit source, target and
+  strategy; remove a copy; a pull request with an explicit remote and base; start,
+  restart and stop a preview; point a phone address.
+- Log lines: `[git]` per mutation (operation, checkout, result, ms); `[copy]` per
+  setup (copy, ms, exit); `[preview]` per start, stop, idle stop and refusal (copy,
+  port, build ms, MemAvailable).
 
 ### Lifecycle
 
-- The diff refreshes when a turn ends, when the tab gains focus, and when asked. A
-  file that changes while open is marked as updated, not swapped silently.
-- Comment drafts are stored per `session_id` in the browser until sent. A draft whose
-  quoted line has gone shows as outdated and is never deleted silently.
-- An isolated session ends in Merge, Create PR, or Keep. Removal is a separate step.
-  It refuses while there is uncommitted, unmerged (tree comparison) or unpushed work.
-  The Worktrees page shows each worktree's age and size, so a kept one stays visible.
+- A copy is created with its chat, set up once, and removed by Grayson after a merge or
+  from the Worktrees page, which shows each copy's age, size and chat.
+- Diffs refreshes when a turn ends, when the tab gains focus, and when asked. A file
+  that changes while open is marked updated, not swapped silently.
+- Comment drafts are stored per `session_id` in the browser until sent; a draft whose
+  line has gone shows as outdated and is never dropped silently.
+- A preview starts on request, stops on Stop, idle or failure, and survives CLIde
+  restarting. Removing a copy stops its preview first.
 
 ### Failure handling
 
-Each of these has a stated outcome on screen: a hook rejecting a commit; a rejected
-push (offer Pull); a merge conflict (abort, restore the target, list the files); the
-GitHub CLI missing, signed out, or offline; a failed setup command; a diff too large
-to render.
+Each has a stated outcome on screen: setup failing (output, Retry, or Continue on
+`main`); a hook rejecting a commit; a rejected push (offer Pull); a merge conflict
+(abort, restore the base, list the files, offer Update from main); the GitHub CLI
+missing, signed out or offline; a preview build failing (its log); a preview refused
+for memory (MemAvailable and what to stop); a diff too large to render.
+
+## Pre-mortem: it failed in six months because…
+
+- **Waiting 1.5 minutes per new chat felt slow**, so chats went back to `main`. The
+  plan measures the wait in use and, if needed, keeps one prepared copy ready.
+- **Copies piled up**: removal after merge is ticked by default, and the Worktrees page
+  lists age and size.
+- **Long-running chats conflicted at merge**: "base moved" shows early, and Update from
+  main resolves in the copy.
+- **Previews starved the Pi**: idle stop, the memory floor and the build queue, with
+  every refusal logged.
+- **A test PWA lost its address**: the phone addresses are proxies, so their origins
+  never change.
 
 ## What Grayson gives up
 
-- A session in a shared checkout shows every session's edits. Only isolation gives a
-  per-session diff.
-- Each isolated session costs a dependency install (1.1 GB for CLIde) and, for CLIde,
-  a test-server slot to verify on.
-- A squash merge leaves the branch's step-by-step commits off `main`. They exist only
+- Each CLIde copy costs 1.1 GB and about 1.5 minutes of setup.
+- A `main` chat still shares one diff with every other `main` chat.
+- A squash merge leaves the branch's step-by-step commits off the base; they live only
   until the branch is deleted.
 - A comment drafted on the phone is not on the laptop.
 - CI results, auto-merge and pull request discussion stay on GitHub's page.
 
 ## Not doing
 
-- A Diff tab, or upstream's standalone Worktrees tab with its destructive defaults
-  and hidden cleanup.
-- Per-session edit attribution.
-- A pull request to any repository other than the checkout's push remote. Upstream
-  pull requests stay a manual, approved step.
+- Per-session edit attribution inside a shared checkout, or turn snapshots to attempt
+  it.
+- Upstream's standalone Worktrees tab with its destructive defaults and hidden cleanup.
+- A pull request to any repository other than the checkout's push remote.
 - A split diff view, auto-merge, CI auto-fix, or splitting changes into several PRs.
 - Reviewing other people's pull requests inside CLIde.
