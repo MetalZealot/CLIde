@@ -1,7 +1,7 @@
 # 0078 — Agents and background commands sit behind one header button
 
 - Date: 2026-10-10
-- Status: Accepted; supersedes 0076 for agents and background commands, and for a finished plan; its header button and list superseded by 0080
+- Status: Accepted; supersedes 0076 for agents and background commands, and for a finished plan; its header button and list superseded by 0080; its finished plan superseded by 0081
 
 ## Decision
 

@@ -1060,6 +1060,12 @@ function ChatInterface({
   });
 
   const sessionPlan = useSessionPlan(selectedSession?.id || currentSessionId || null, loadedRecords);
+  const lastFinishedPlan = useMemo(() => {
+    for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+      if (chatMessages[index].finishedPlan) return chatMessages[index].finishedPlan ?? null;
+    }
+    return null;
+  }, [chatMessages]);
   const stopAgentSessionId = selectedSession?.id || currentSessionId || null;
   const [backgroundRunning, setBackgroundRunning] = useState<BackgroundRunning | null>(null);
   const handleStopAgent = useCallback((taskId: string) => {
@@ -1077,7 +1083,7 @@ function ChatInterface({
     <ChatBrowserContext.Provider value={browserState}>
       <ActivityLineSlotProvider>
       <div className={pageScroll ? 'flex flex-1 flex-col' : 'flex h-full min-h-0 flex-col'}>
-        <PlanBanner plan={sessionPlan} isVisible={isVisible} />
+        <PlanBanner plan={sessionPlan} finishedInChat={lastFinishedPlan} isVisible={isVisible} />
         <BackgroundWork
           sessionId={stopAgentSessionId}
           messages={chatMessages}
