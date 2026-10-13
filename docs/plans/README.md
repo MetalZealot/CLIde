@@ -35,6 +35,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [CLIde harness](clide-harness.md) | not started | Phase 0: inventory what each adapter injects and what each provider already tells its agent |
 | [Scheduled tasks](scheduled-tasks.md) | not started | Phase 0: Grayson agrees the positions |
 | [Sidebar rail](sidebar-rail.md) | not started | Phase 0: Grayson agrees the design |
+| [Desktop panes](desktop-panes.md) | not started | Phase 0: desktop frame in the probe harness, then the layout probe |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

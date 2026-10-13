@@ -52,6 +52,7 @@ main checkout only).
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — capabilities advertise Default, Accept Edits, Bypass and Plan; the runtime only adds `-f` for `skipPermissions`. Map `--mode=plan`/`--force`, or stop advertising. **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
+- [ ] The history walk's `rerenderBounded` target fails on `main`: more rows re-render per scroll-up step than budgeted. It broke between `1ace705a` and `c9cf0b64`; bisect it with `npm run bench:chat-history:browser`. **S**
 - [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–6, 8 and 9 complete. Position faults fixed (`61440326`, `3a83002a`); a walk now checks position and per-step work in both scroll modes. Next: cut the ~50 ms fixed frame cost of scroll restoration, then load history ahead. [Plan](plans/chat-history-performance.md). **L**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Open in CLI view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
@@ -135,7 +136,7 @@ new work.
 - [ ] Conversation "map" sidebar: a minimap of user/assistant messages, tap to scroll. Depends on the direct-navigation foundation and stable rendering in the [history performance plan](plans/chat-history-performance.md); its visual design remains separate. **L**
 - [ ] Audit which Codex commands and config keys CLIde lacks; give each a destination. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
-- [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
+- [ ] More IDE-like desktop layout: chat centre, tabbed side panel, terminal drawer. [Plan](plans/desktop-panes.md). **L**
 - [ ] **Claude's terminal in the Terminal tab.** A read-only feed of every command the agent runs, with its output and running state, beside Your shell behind a switch, as in the mobile-agent mockup. Built from the Bash calls Chat already receives; needs no PTY. Not yet planned. **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
