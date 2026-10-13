@@ -50,12 +50,21 @@ const CURSORS: Array<{ value: TerminalCursorStyle; labelKey: string }> = [
 ];
 
 /** Per-device preferences for every terminal; changes apply as they are picked. */
+const findHeaderMenuTrigger = () => document.querySelector('[data-main-content-header-menu-trigger]');
+
 export default function TerminalSettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const prefs = useSyncExternalStore(terminalPrefs.subscribe, terminalPrefs.get);
 
   return (
-    <BottomSheet open={open} onClose={onClose} title={t('terminal.settings.title')}>
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title={t('terminal.settings.title')}
+      anchor={findHeaderMenuTrigger}
+      popoverClassName="w-[24rem]"
+      popoverPlacement="auto"
+    >
       <div className="px-4 pb-4 pt-1">
         <h3 className="mb-2.5 mt-1 text-base font-semibold">{t('terminal.settings.title')}</h3>
         <Row label={t('terminal.settings.fontSize')}>

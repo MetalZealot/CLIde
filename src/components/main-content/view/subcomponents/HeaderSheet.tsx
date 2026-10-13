@@ -73,7 +73,9 @@ export default function HeaderSheet({ anchorRef, enabled }: { anchorRef: RefObje
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      close();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);

@@ -75,7 +75,9 @@ export default function QueuedMessagesRow({
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setIsExpanded(false);
     };
     const collapseOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsExpanded(false);
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setIsExpanded(false);
     };
     document.addEventListener('click', collapseOutside);
     document.addEventListener('keydown', collapseOnEscape);

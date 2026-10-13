@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '../../../lib/utils';
@@ -151,6 +151,8 @@ type ContextMenuOverlayProps = {
   maxHeight?: number;
   /** `dialog` for a small form (checkboxes, buttons) that isn't a list of menu items. */
   role?: 'menu' | 'dialog';
+  /** Extra inline style for the menu box, such as a measured width. */
+  style?: CSSProperties;
 };
 
 /**
@@ -170,6 +172,7 @@ export default function ContextMenuOverlay({
   placement = 'auto',
   maxHeight,
   role = 'menu',
+  style,
 }: ContextMenuOverlayProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -228,6 +231,7 @@ export default function ContextMenuOverlay({
   useEffect(() => {
     const handleEscapeKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         onDismiss();
       }
     };
@@ -312,6 +316,7 @@ export default function ContextMenuOverlay({
         role={role}
         aria-label={ariaLabel}
         style={{
+          ...style,
           position: 'absolute',
           left: position?.x ?? 0,
           top: position?.y ?? 0,

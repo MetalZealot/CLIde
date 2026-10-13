@@ -349,7 +349,9 @@ export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSet
   useEffect(() => {
     if (!isFullscreen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsFullscreen(false);
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setIsFullscreen(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

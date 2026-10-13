@@ -2,8 +2,10 @@ import * as React from 'react';
 
 import { cn } from '../../../lib/utils';
 
-import { Dialog, DialogContent, DialogTitle } from './Dialog';
+import ContextMenuOverlay, { anchorFromElement } from './ContextMenuOverlay';
+import { Dialog, DialogContent, DialogTitle, FOCUSABLE_SELECTOR } from './Dialog';
 import { useCloseOnBack } from './useCloseOnBack';
+import { useSheetAsPopover } from './useSheetAsPopover';
 import { SHEET_CLOSE_MS, SHEET_EASE, useSheetDrag } from './useSheetDrag';
 
 type BottomSheetProps = {
@@ -12,14 +14,39 @@ type BottomSheetProps = {
   /** Read by screen readers only. */
   title: string;
   className?: string;
+  /** Wider than a phone, the sheet becomes a popover hanging from this element, when it returns one. */
+  anchor?: () => Element | null;
+  /** Classes for the popover box, usually its width. */
+  popoverClassName?: string;
+  /** Popover as wide as its anchor. */
+  matchAnchorWidth?: boolean;
+  /** `auto` for an anchor near the top of the screen. */
+  popoverPlacement?: 'auto' | 'above';
   children: React.ReactNode;
 };
+
+const POPOVER_MAX_HEIGHT_RATIO = 0.7;
 
 /**
  * A sheet that rises from the bottom edge. It closes on a drag down, a tap
  * outside, Escape, or the back gesture, and slides away on each.
  */
-export default function BottomSheet({ open, onClose, title, className, children }: BottomSheetProps) {
+export default function BottomSheet({
+  open,
+  onClose,
+  title,
+  className,
+  anchor,
+  popoverClassName,
+  matchAnchorWidth = false,
+  popoverPlacement = 'above',
+  children,
+}: BottomSheetProps) {
+  const asPopover = useSheetAsPopover();
+  // Read during render: the anchor belongs to another component and is already mounted.
+  const anchorElement = open && asPopover ? anchor?.() ?? null : null;
+  const isPopover = Boolean(anchorElement);
+  const popoverBodyRef = React.useRef<HTMLDivElement | null>(null);
   const sheetRef = React.useRef<HTMLDivElement | null>(null);
   const overlayRef = React.useRef<HTMLDivElement | null>(null);
   const closingRef = React.useRef(false);
@@ -48,8 +75,40 @@ export default function BottomSheet({ open, onClose, title, className, children 
     window.setTimeout(() => onCloseRef.current(), SHEET_CLOSE_MS);
   }, []);
 
-  useCloseOnBack(open, requestClose);
-  useSheetDrag(sheetRef, overlayRef, open, requestClose);
+  useCloseOnBack(open && !anchorElement, requestClose);
+  useSheetDrag(sheetRef, overlayRef, open && !anchorElement, requestClose);
+
+  // Focus moves in so Escape reaches the popover (a terminal would swallow it), and back on close.
+  React.useEffect(() => {
+    if (!isPopover) return undefined;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = window.requestAnimationFrame(() => {
+      const body = popoverBodyRef.current;
+      if (body && !body.contains(document.activeElement)) body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      previous?.focus();
+    };
+  }, [isPopover]);
+
+  if (anchorElement) {
+    return (
+      <ContextMenuOverlay
+        role="dialog"
+        ariaLabel={title}
+        anchor={anchorFromElement(anchorElement, { x: 0, y: 0 })}
+        anchorElement={anchorElement}
+        placement={popoverPlacement}
+        maxHeight={Math.round(window.innerHeight * POPOVER_MAX_HEIGHT_RATIO)}
+        onDismiss={onClose}
+        style={matchAnchorWidth ? { width: anchorElement.getBoundingClientRect().width } : undefined}
+        className={cn('flex max-w-[calc(100vw-20px)] select-text flex-col overflow-hidden rounded-xl pt-1 shadow-2xl', popoverClassName)}
+      >
+        <div ref={popoverBodyRef} className="contents">{children}</div>
+      </ContextMenuOverlay>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && requestClose()}>

@@ -72,6 +72,8 @@ function ForkAnswerButton({ onFork }: { onFork: () => Promise<void> }) {
  * Bottom sheet for `/btw`. The conversation stays visible behind it and keeps
  * running. Closing only hides the history; Clear is the discard.
  */
+const findComposer = () => document.querySelector('[data-chat-composer]');
+
 export default function SideQuestionSheet({ open, entries, onAsk, onClose, onClear, onFork }: SideQuestionSheetProps) {
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -92,7 +94,13 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose, onCle
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Side question">
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title="Side question"
+      anchor={findComposer}
+      matchAnchorWidth
+    >
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 pb-3 pt-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-foreground">
           <MessageCircleQuestionIcon className="h-4 w-4" />

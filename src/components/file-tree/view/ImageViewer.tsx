@@ -57,7 +57,7 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
     };
   }, [imagePath]);
 
-  // Window capture runs before the composer's document-level Escape-to-Stop listener.
+  // Prevented, so the composer's Escape-to-Stop ignores it.
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;

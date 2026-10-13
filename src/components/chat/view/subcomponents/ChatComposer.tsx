@@ -496,7 +496,7 @@ function ChatComposer({
         <RewindEditCard onCancel={onCancelRewindEdit} />
       )}
 
-      {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">
+      {!hasQuestionPanel && <div data-chat-composer className="relative mx-auto max-w-[54.25rem]">
         {showFileDropdown && filteredFiles.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-card/95 shadow-lg">
             {filteredFiles.map((file, index) => (

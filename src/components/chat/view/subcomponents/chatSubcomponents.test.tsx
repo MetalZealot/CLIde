@@ -1725,6 +1725,19 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
       }
     });
     test('background work: a mark on the activity line lists running and finished work, stops one, clears the finished, and opens a command', async () => {
+      // Stop's own rule: it acts only on an Escape that reaches the window unhandled.
+      let escapesReachingStop = 0;
+      const stopListener = (event: KeyboardEvent) => {
+        if (event.key === 'Escape' && !event.defaultPrevented) escapesReachingStop += 1;
+      };
+      const escape = () => React.act(async () => {
+        (document.activeElement ?? document.body).dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      });
+      const resizeTo = (width: number) => React.act(async () => {
+        Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+        window.dispatchEvent(new Event('resize'));
+      });
+      window.addEventListener('keydown', stopListener);
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
@@ -1762,9 +1775,23 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
         const button = container.querySelector<HTMLButtonElement>('button[aria-label="Background work, 1 running"]');
         assert.equal(button?.textContent, '1');
         assert.ok(button?.querySelector('svg.lucide-layers'), 'a command in the list shows the layers icon');
-        await React.act(async () => button?.click());
 
+        // A phone gets a sheet, and an item full screen over it.
+        await resizeTo(384);
+        await React.act(async () => button?.click());
+        assert.ok(document.querySelector('[role="dialog"][aria-modal="true"]'), 'a modal sheet');
+        await React.act(async () => (document.querySelectorAll<HTMLButtonElement>('[role="dialog"] li button')[2]).click());
+        assert.ok(document.querySelector('[role="dialog"][aria-modal="true"][aria-label="npm run build"]'), 'the command full screen');
+        await escape();
+        assert.ok(document.querySelector('[role="dialog"] li'), 'Escape returns to the sheet');
+        await escape();
+        await React.act(() => new Promise((resolve) => setTimeout(resolve, 260)));
+        assert.equal(document.querySelector('[role="dialog"]'), null, 'and then closes it');
+        await resizeTo(1024);
+
+        await React.act(async () => button?.click());
         const list = document.querySelector<HTMLElement>('[role="dialog"]');
+        assert.equal(list?.getAttribute('aria-modal'), null, 'wider than a phone, a popover');
         assert.match(list?.textContent ?? '', /^Background work/);
         assert.ok(list);
         const rows = [...list.querySelectorAll('li')];
@@ -1775,9 +1802,10 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
         assert.deepEqual(stopped, ['t-1']);
 
         await React.act(async () => (rows[1].querySelector('button') as HTMLButtonElement).click());
-        const command = document.querySelector<HTMLElement>('[role="dialog"][aria-label="npm run build"]');
-        assert.match(command?.textContent ?? '', /\$ npm run build.*Its output is no longer saved/);
-        await React.act(async () => (command?.querySelector('button[aria-label="Back"]') as HTMLButtonElement).click());
+        const command = document.querySelector<HTMLElement>('[role="dialog"] [aria-label="npm run build"]');
+        assert.match(command?.textContent ?? '', /\$ npm run build.*Its output is no longer saved/, 'the command opens inside the popover');
+        await escape();
+        assert.ok(document.querySelector('[role="dialog"] li'), 'Escape steps back to the list');
 
         const clear = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((item) => item.textContent === 'Clear');
         await React.act(async () => clear?.click());
@@ -1796,7 +1824,11 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
         assert.match(extra?.textContent ?? '', /Command.*until done; do sleep 2; done.*from Find callers/);
         await React.act(async () => (extra?.querySelector('button + button') as HTMLButtonElement).click());
         assert.deepEqual(stopped, ['t-1', 'sub-sh']);
+        await escape();
+        assert.equal(document.querySelector('[role="dialog"]'), null, 'Escape closes the popover');
+        assert.equal(escapesReachingStop, 0, 'no Escape that closed something reached Stop');
       } finally {
+        window.removeEventListener('keydown', stopListener);
         await React.act(async () => root.unmount());
         container.remove();
         localStorage.removeItem('clide.backgroundCleared.s');

@@ -982,9 +982,11 @@ function ChatInterface({
       requestAbortSession();
     };
 
-    document.addEventListener('keydown', handleGlobalEscape, { capture: true });
+    // Window bubble runs after every other handler, so an overlay that consumed Escape
+    // (preventDefault or stopPropagation) never arms Stop.
+    window.addEventListener('keydown', handleGlobalEscape);
     return () => {
-      document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
+      window.removeEventListener('keydown', handleGlobalEscape);
     };
   }, [canAbortSession, disarmStop, requestAbortSession]);
 

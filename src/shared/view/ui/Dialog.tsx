@@ -98,7 +98,7 @@ interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   overlayRef?: React.Ref<HTMLDivElement>;
 }
 
-const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+export const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, children, onEscapeKeyDown, onPointerDownOutside, wrapperClassName, overlayRef, ...props }, ref) => {
@@ -123,6 +123,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
+          e.preventDefault();
           e.stopPropagation();
           onEscapeKeyDown?.();
           onOpenChange(false);

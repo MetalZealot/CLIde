@@ -1,9 +1,9 @@
-import { ArrowLeft, Bot, Check, CircleSlash, Layers, Loader2, SquareTerminal, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Bot, Check, CircleSlash, Layers, Loader2, SquareTerminal, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-import { BottomSheet, PageScrollLock, useCloseOnBack } from '../../../../shared/view/ui';
+import { BottomSheet, useCloseOnBack, useSheetAsPopover } from '../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../utils/api';
 import { normalizedToChatMessages } from '../../hooks/useChatMessages';
 import type { ChatMessage } from '../../types/types';
@@ -12,7 +12,7 @@ import { applyLiveTasks, listBackgroundWork, mergeBackgroundWork, type Backgroun
 import { formatDuration } from '../../utils/chatFormatting';
 
 import { useActivityLineSlot } from './ActivityLineSlot';
-import { AgentViewer } from './SubagentActivity';
+import { AgentViewer, ViewerFrame } from './SubagentActivity';
 
 type BackgroundWorkProps = {
   sessionId: string | null;
@@ -174,49 +174,14 @@ function WorkRow({ item, now, onOpen, onStop }: {
   );
 }
 
-function FullScreen({ label, title, subtitle, isMono = false, onBack, action, children }: {
-  label: string;
-  title: string;
-  subtitle?: string;
-  isMono?: boolean;
-  onBack: () => void;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  const { t } = useTranslation('chat');
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true" aria-label={label}>
-      <PageScrollLock />
-      <div className="app-bar flex shrink-0 select-none items-center gap-1 border-b border-border/60 px-2 sm:px-3">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label={t('backgroundWork.back')}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="truncate font-semibold">{title}</span>
-          {subtitle && <span className={`truncate text-sm text-muted-foreground ${isMono ? 'font-mono' : ''}`}>{subtitle}</span>}
-        </div>
-        {action}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-2 sm:px-6">
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/** A background command full screen: its command line and the end of its output, live while it runs. */
-function CommandViewer({ item, sessionId, now, onBack, onStop }: {
+/** A background command: its command line and the end of its output, live while it runs. */
+function CommandViewer({ item, sessionId, now, onBack, onStop, embedded }: {
   item: BackgroundWorkItem;
   sessionId: string | null;
   now: number;
   onBack: () => void;
   onStop?: (taskId: string) => void;
+  embedded: boolean;
 }) {
   const { t } = useTranslation('chat');
   const [output, setOutput] = useState<BackgroundOutput | null | undefined>(undefined);
@@ -249,11 +214,13 @@ function CommandViewer({ item, sessionId, now, onBack, onStop }: {
   }, [sessionId, item.taskId, isRunning]);
 
   return (
-    <FullScreen
+    <ViewerFrame
       label={item.title}
       title={t('backgroundWork.command')}
       subtitle={(item.launchedBy ? t('backgroundWork.launchedBy', { name: item.launchedBy }) : item.description) || undefined}
+      backLabel={t('backgroundWork.back')}
       onBack={onBack}
+      embedded={embedded}
       action={isRunning && onStop && item.taskId ? (
         <button type="button" onClick={() => onStop(item.taskId as string)} className="h-8 shrink-0 rounded-md border border-border px-3 text-sm">
           {t('activity.agent.stop')}
@@ -279,7 +246,7 @@ function CommandViewer({ item, sessionId, now, onBack, onStop }: {
           </pre>
         </>
       )}
-    </FullScreen>
+    </ViewerFrame>
   );
 }
 
@@ -293,6 +260,8 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
   const slot = useActivityLineSlot();
   const [isOpen, setIsOpen] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const asPopover = useSheetAsPopover();
+  const markRef = useRef<HTMLButtonElement | null>(null);
   const { cleared, clear } = useClearedWork(sessionId);
   const loaded = useMemo(() => listBackgroundWork(messages, isLive), [messages, isLive]);
   const signature = `${isLive}|${loaded.map((item) => `${item.key}:${item.state}`).join(',')}`;
@@ -332,6 +301,15 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
   const MarkIcon = agentsOnly ? Bot : Layers;
 
   const closeViewer = () => setOpenKey(null);
+  const viewer = (embedded: boolean) => {
+    if (opened?.kind === 'agent' && !opened.liveOnly) {
+      return <AgentViewer message={opened.message} isLive={isLive} onFileOpen={onFileOpen} onClose={closeViewer} embedded={embedded} />;
+    }
+    if (opened?.kind === 'command') {
+      return <CommandViewer item={opened} sessionId={sessionId} now={now} onBack={closeViewer} onStop={onStop} embedded={embedded} />;
+    }
+    return null;
+  };
   const listBody = (
     <>
       <h3 className="mb-1 mt-2 text-chat-meta font-medium uppercase tracking-wide text-muted-foreground">{t('backgroundWork.sectionRunning')}</h3>
@@ -363,6 +341,7 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
       {slot && createPortal(
         // An icon and a count: a label here would truncate the Working text on a phone. Line height, so the row never grows.
         <button
+          ref={markRef}
           type="button"
           onClick={() => setIsOpen(true)}
           aria-label={running.length
@@ -383,16 +362,23 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
         slot,
       )}
 
-      {/* Hidden, not closed, under an opened item: back returns to the list. */}
-      <BottomSheet open={isOpen && !opened} onClose={closeAll} title={title}>
-        <h2 className="shrink-0 px-4 pb-1 pt-2 text-base font-semibold">{title}</h2>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{listBody}</div>
+      {/* Phone: hidden, not closed, under an opened item, so back returns to the list. Wider: the item opens inside it. */}
+      <BottomSheet
+        open={isOpen && (asPopover || !opened)}
+        onClose={closeAll}
+        title={title}
+        anchor={() => markRef.current}
+        popoverClassName={opened && asPopover ? 'h-[70vh] w-[44rem]' : 'w-[26rem]'}
+      >
+        {asPopover && opened ? viewer(true) : (
+          <>
+            <h2 className="shrink-0 px-4 pb-1 pt-2 text-base font-semibold">{title}</h2>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{listBody}</div>
+          </>
+        )}
       </BottomSheet>
 
-      {opened?.kind === 'agent' && !opened.liveOnly && <AgentViewer message={opened.message} isLive={isLive} onFileOpen={onFileOpen} onClose={closeViewer} />}
-      {opened?.kind === 'command' && (
-        <CommandViewer item={opened} sessionId={sessionId} now={now} onBack={closeViewer} onStop={onStop} />
-      )}
+      {!asPopover && viewer(false)}
     </>
   );
 }

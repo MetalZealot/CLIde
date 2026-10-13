@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { PageScrollLock, Shimmer, useCloseOnBack } from '../../../../shared/view/ui';
@@ -107,12 +107,75 @@ function useAgentSummary(message: ChatMessage, isLive: boolean) {
   return { type, description, label: description ? `${type} · ${description}` : type, isRunning, failure, details };
 }
 
-interface AgentViewerProps extends SubagentActivityProps {
-  onClose: () => void;
+type ViewerFrameProps = {
+  label: string;
+  title: string;
+  subtitle?: string;
+  isMono?: boolean;
+  backLabel: string;
+  onBack: () => void;
+  action?: ReactNode;
+  /** Inside a popover rather than full screen. */
+  embedded?: boolean;
+  children: ReactNode;
+};
+
+/** A detail view with a back arrow: full screen, or filling the popover it sits in. Escape goes back. */
+export function ViewerFrame({ label, title, subtitle, isMono = false, backLabel, onBack, action, embedded = false, children }: ViewerFrameProps) {
+  useEffect(() => {
+    // Capture and stopped, so an enclosing popover stays open on the step back.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      onBack();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [onBack]);
+
+  const content = (
+    <>
+      <div className={`${embedded ? 'h-12' : 'app-bar'} flex shrink-0 select-none items-center gap-1 border-b border-border/60 px-2 sm:px-3`}>
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label={backLabel}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent"
+        >
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <div className="flex min-w-0 flex-1 flex-col leading-tight">
+          <span className="truncate font-semibold">{title}</span>
+          {subtitle && <span className={`truncate text-sm text-muted-foreground ${isMono ? 'font-mono' : ''}`}>{subtitle}</span>}
+        </div>
+        {action}
+      </div>
+      <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 ${embedded ? 'pb-4' : 'pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:px-6'}`}>
+        {children}
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex min-h-0 flex-1 flex-col" role="group" aria-label={label}>{content}</div>;
+  }
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true" aria-label={label}>
+      <PageScrollLock />
+      {content}
+    </div>,
+    document.body,
+  );
 }
 
-/** An agent's whole transcript, full screen; whoever opens it owns the back-gesture entry. */
-export function AgentViewer({ message, isLive, onFileOpen, onClose }: AgentViewerProps) {
+interface AgentViewerProps extends SubagentActivityProps {
+  onClose: () => void;
+  embedded?: boolean;
+}
+
+/** An agent's whole transcript; whoever opens it owns the back-gesture entry. */
+export function AgentViewer({ message, isLive, onFileOpen, onClose, embedded = false }: AgentViewerProps) {
   const { t } = useTranslation('chat');
   const { type, description, label, isRunning, failure, details } = useAgentSummary(message, isLive);
   const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(() => new Set());
@@ -123,13 +186,6 @@ export function AgentViewer({ message, isLive, onFileOpen, onClose }: AgentViewe
       return next;
     });
   }, []);
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
   const history = useHistoryDetail(message, true);
   const full = history.message;
 
@@ -140,64 +196,46 @@ export function AgentViewer({ message, isLive, onFileOpen, onClose }: AgentViewe
   const result = (message.subagentState?.report
     ?? (full.toolResult && !launchOnly ? readAgentResultText(full.toolResult.content) : '')).trim();
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true" aria-label={label}>
-      <PageScrollLock />
-      <div className="app-bar flex shrink-0 select-none items-center gap-1 border-b border-border/60 px-2 sm:px-3">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('activity.agent.back')}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <div className="flex min-w-0 flex-1 flex-col leading-tight">
-          <span className="truncate font-semibold">{type}</span>
-          {description && <span className="truncate text-sm text-muted-foreground">{description}</span>}
-        </div>
+  return (
+    <ViewerFrame label={label} title={type} subtitle={description || undefined} backLabel={t('activity.agent.back')} onBack={onClose} embedded={embedded}>
+      <div className="flex gap-1.5 py-1 text-chat-meta text-muted-foreground">
+        {isRunning && <Shimmer>{`${t('claudeStatus.actions.working', { defaultValue: 'Working' })}…`}</Shimmer>}
+        {details.length > 0 && <span className="tabular-nums">{isRunning ? '· ' : ''}{details.join(' · ')}</span>}
+        {failure && <span className="text-red-600 dark:text-red-400">· {t(`activity.status.${failure}`)}</span>}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] pt-2 sm:px-6">
-        <div className="flex gap-1.5 py-1 text-chat-meta text-muted-foreground">
-          {isRunning && <Shimmer>{`${t('claudeStatus.actions.working', { defaultValue: 'Working' })}…`}</Shimmer>}
-          {details.length > 0 && <span className="tabular-nums">{isRunning ? '· ' : ''}{details.join(' · ')}</span>}
-          {failure && <span className="text-red-600 dark:text-red-400">· {t(`activity.status.${failure}`)}</span>}
-        </div>
-        {prompt && (
-          <TextLine
-            label={t('activity.agent.asked', { text: firstLine(prompt) })}
-            text={prompt}
-            isOpen={openKeys.has('prompt')}
-            onToggle={() => toggle('prompt')}
-          />
-        )}
-        {children.map((child) => {
-          const key = `call:${child.toolId}`;
-          return (
-            <div key={key}>
-              <OperationRow message={child} messageKey={key} isOpen={openKeys.has(key)} isLive={isLive} onToggle={toggle} />
-              {openKeys.has(key) && <OperationDetail message={child} onFileOpen={onFileOpen} />}
-            </div>
-          );
-        })}
-        {result && (
-          <section className="mt-4">
-            <h3 className="mb-1 text-chat-meta font-medium uppercase tracking-wide text-muted-foreground">{t('activity.agent.report')}</h3>
-            <Markdown>{result}</Markdown>
-          </section>
-        )}
-        {history.status === 'loading' && (
-          <div className="text-chat-meta leading-6 text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
-        )}
-        {history.status === 'error' && (
-          <div className="flex gap-2 text-chat-meta leading-6 text-red-600 dark:text-red-400" role="alert">
-            {t('tools.detailFailed')}
-            <button type="button" className="underline" onClick={history.request}>{t('tools.retryDetail')}</button>
+      {prompt && (
+        <TextLine
+          label={t('activity.agent.asked', { text: firstLine(prompt) })}
+          text={prompt}
+          isOpen={openKeys.has('prompt')}
+          onToggle={() => toggle('prompt')}
+        />
+      )}
+      {children.map((child) => {
+        const key = `call:${child.toolId}`;
+        return (
+          <div key={key}>
+            <OperationRow message={child} messageKey={key} isOpen={openKeys.has(key)} isLive={isLive} onToggle={toggle} />
+            {openKeys.has(key) && <OperationDetail message={child} onFileOpen={onFileOpen} />}
           </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+        );
+      })}
+      {result && (
+        <section className="mt-4">
+          <h3 className="mb-1 text-chat-meta font-medium uppercase tracking-wide text-muted-foreground">{t('activity.agent.report')}</h3>
+          <Markdown>{result}</Markdown>
+        </section>
+      )}
+      {history.status === 'loading' && (
+        <div className="text-chat-meta leading-6 text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
+      )}
+      {history.status === 'error' && (
+        <div className="flex gap-2 text-chat-meta leading-6 text-red-600 dark:text-red-400" role="alert">
+          {t('tools.detailFailed')}
+          <button type="button" className="underline" onClick={history.request}>{t('tools.retryDetail')}</button>
+        </div>
+      )}
+    </ViewerFrame>
   );
 }
 
