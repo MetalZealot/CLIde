@@ -40,6 +40,10 @@ Read from source or measured on the date given; recalled where labelled.
   and T3 Code give a thread its own worktree; Cursor tracks each chat's edits in one
   folder; VS Code, Cursor and JetBrains run a project from a Run button, and Replit,
   Bolt and Lovable keep a live preview beside the chat.
+- Product bar for review, from Grayson's screenshots 2026-10-13: a scope picker
+  (working tree, branch, latest turn, any turn; Claude's desktop app adds staged and
+  unstaged), unified/split, wrap and whitespace toggles, and an in-chat card per turn
+  listing edited files with counts, a folder tree when long, Review and Undo.
 
 ## Settled with Grayson
 
@@ -55,6 +59,9 @@ Read from source or measured on the date given; recalled where labelled.
 - 2026-10-12: **Previews replace the two fixed slots**; Pi-Ops keeps production, the
   other services, host health and recovery while CLIde is down.
 - 2026-10-12: built after the runtime rebuild.
+- 2026-10-13: **a copy's turns are snapshotted**, so Diffs scopes to one turn and
+  each turn ends with an edited-files card; split view on wide screens; Undo for
+  the latest turn. Reverses the earlier "no turn snapshots" and "no split view".
 
 ## Design positions
 
@@ -63,6 +70,18 @@ Read from source or measured on the date given; recalled where labelled.
   construction. Attributing edits inside a shared folder misses shell edits and
   breaks when turns overlap, which is the common case. A `main` chat's Diffs shows the
   checkout's whole diff, headed by the other live sessions in it.
+- **A copy snapshots each turn's start and end.** In its own copy the chat's agent is
+  the only writer, so the difference between the two is exactly that turn's edits,
+  shell edits included. A snapshot is a git tree written through a temporary index
+  (no file, branch or staging change), pinned by a hidden ref so gc keeps it. It is
+  git-level, so every provider gets it with no capability flag. A `main` chat offers
+  a turn's diff only when no other session ran during it; otherwise it says why.
+  Hand edits made during a turn show in that turn: accepted.
+- **Scopes are This chat, Last turn, Turn ▸ and Not committed yet.** Staged and
+  unstaged are left out: agents do not stage, and neither does Grayson.
+- **Undo reverts the latest turn only**, in a copy, through the shared preflight,
+  refusing when a touched file has changed since. The next message tells the agent
+  its files were put back, so it does not build on code that has gone.
 - **One copy per chat, made at New Session.** The launcher's Own copy toggle is on for
   a git project and remembers the last choice per project. The copy is a worktree on
   `clide/<slug>-<short id>` from the chosen base (default: the project's default
@@ -144,10 +163,13 @@ probed before it is built.
 ### Diffs
 
 - **Header**: the copy's branch and base, ahead/behind, "base moved" when it has, and
-  a Repository button. A `main` chat's header names the other live sessions.
+  a Repository button. A `main` chat's header names the other live sessions. Below
+  it, the scope picker (turns listed by their prompt's first words) and toggles for
+  wrap, ignore whitespace and, on a wide screen, split view.
 - **Body**: `+N −M` and file count; file chips that mark a file viewed; each file a
-  collapsible unified diff loaded on demand. Lockfiles, generated and very large files
-  start collapsed with their size. Tapping a line opens a comment field.
+  collapsible diff (unified on the phone) loaded on demand. Lockfiles, generated and
+  very large files start collapsed with their size. Tapping a line opens a comment
+  field.
 - **Footer**: Send N comments, Ask for a review, Merge… (Commit… in a `main` chat).
 - **Merge sheet**: source, target, the branch's commits and files, strategy, the
   preflight's result, what follows for a serving checkout, "Remove this copy"
@@ -164,8 +186,11 @@ log behind a toggle. Stopped by idle or a failure: why, and Start.
 
 ### From the chat
 
-A turn that changed files ends with a `+N −M` link to Diffs. The finished-session
-card offers Review N files and Preview, as in the mockup.
+A turn that changed files ends with a card: "Edited N files +A −B", each file with its
+counts (a folder tree with per-folder totals past about 8 files), Review and, on the
+latest turn, Undo. A file opens Diffs on that turn at that file; Review opens the
+turn. Counts come from the snapshots, not from tool rows. The finished-session card
+offers Review N files and Preview, as in the mockup.
 
 ### Server contract
 
@@ -173,19 +198,20 @@ card offers Review N files and Preview, as in the mockup.
   (git's or a hook's stderr). The client shows it beside the action and keeps what was
   typed.
 - Reads: a chat's review summary (per-file counts, base, base moved, occupancy for
-  `main` chats); host capabilities (GitHub CLI state, the remote's host); previews
+  `main` chats), for the whole chat or one turn; the chat's turn list; host capabilities (GitHub CLI state, the remote's host); previews
   (unit, copy, port, state, phone address, idle time).
 - Mutations: create a copy and run its setup; merge with explicit source, target and
   strategy; remove a copy; a pull request with an explicit remote and base; start,
-  restart and stop a preview; point a phone address.
+  restart and stop a preview; point a phone address; undo the latest turn.
 - Log lines: `[git]` per mutation (operation, checkout, result, ms); `[copy]` per
-  setup (copy, ms, exit); `[preview]` per start, stop, idle stop and refusal (copy,
+  setup (copy, ms, exit); `[turn]` gains snapshot ms or failure; `[preview]` per start, stop, idle stop and refusal (copy,
   port, build ms, MemAvailable).
 
 ### Lifecycle
 
 - A copy is created with its chat, set up once, and removed by Grayson after a merge or
-  from the Worktrees page, which shows each copy's age, size and chat.
+  from the Worktrees page, which shows each copy's age, size and chat. Its turn
+  snapshot refs go with it.
 - Diffs refreshes when a turn ends, when the tab gains focus, and when asked. A file
   that changes while open is marked updated, not swapped silently.
 - Comment drafts are stored per `session_id` in the browser until sent; a draft whose
@@ -199,7 +225,9 @@ Each has a stated outcome on screen: setup failing (output, Retry, or Continue o
 `main`); a hook rejecting a commit; a rejected push (offer Pull); a merge conflict
 (abort, restore the base, list the files, offer Update from main); the GitHub CLI
 missing, signed out or offline; a preview build failing (its log); a preview refused
-for memory (MemAvailable and what to stop); a diff too large to render.
+for memory (MemAvailable and what to stop); a diff too large to render; a turn
+whose snapshot failed (its scope says unavailable, never shows a wrong diff); Undo
+refused (which files changed since).
 
 ## Pre-mortem: it failed in six months because…
 
@@ -211,6 +239,9 @@ for memory (MemAvailable and what to stop); a diff too large to render.
   main resolves in the copy.
 - **Previews starved the Pi**: idle stop, the memory floor and the build queue, with
   every refusal logged.
+- **Turn diffs went quietly wrong**: a turn boundary missed by the runtime merges two
+  turns. Snapshots are taken from the runtime's own turn start and end, and a
+  missing one marks the turn unavailable rather than guessing.
 - **A test PWA lost its address**: the phone addresses are proxies, so their origins
   never change.
 
@@ -221,13 +252,16 @@ for memory (MemAvailable and what to stop); a diff too large to render.
 - A squash merge leaves the branch's step-by-step commits off the base; they live only
   until the branch is deleted.
 - A comment drafted on the phone is not on the laptop.
+- Hand edits made in a copy while a turn runs are counted as that turn's.
+- Undo reaches back one turn only.
 - CI results, auto-merge and pull request discussion stay on GitHub's page.
 
 ## Not doing
 
-- Per-session edit attribution inside a shared checkout, or turn snapshots to attempt
-  it.
+- Per-session edit attribution inside a shared checkout; turn snapshots there serve
+  only a turn no other session overlapped.
+- Staged and unstaged scopes.
 - Upstream's standalone Worktrees tab with its destructive defaults and hidden cleanup.
 - A pull request to any repository other than the checkout's push remote.
-- A split diff view, auto-merge, CI auto-fix, or splitting changes into several PRs.
+- A split diff view on the phone, auto-merge, CI auto-fix, or splitting changes into several PRs.
 - Reviewing other people's pull requests inside CLIde.

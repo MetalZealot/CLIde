@@ -60,12 +60,20 @@ identity, integration and cleanup behaviour get replaced.
 
 - [ ] **3. Diffs.** One probe page first, covering every level on the phone: the
       bar with Diffs and Preview, the review, a file's diff, a line comment, the
-      merge and pull request sheets, the Repository sheet, the chat's `+N −M` link
-      and the finished-session card. Then build the review (branch against base plus
-      uncommitted; on-demand per-file diffs; collapsed large and generated files;
-      viewed chips; line comments drafted per `session_id`; "Send N comments" filling
-      the composer), "base moved", and the Repository sheet (History, Branches, fetch,
-      pull, push on the shared row and diff components).
+      merge and pull request sheets, the Repository sheet, the scope picker and view
+      toggles, the per-turn edited-files card (short list and folder tree) and the
+      finished-session card. Then build:
+  1. Turn snapshots: a tree via a temporary index at each turn's start and end,
+     pinned under a hidden ref, deleted with the copy. Hooks the rebuilt runtime's
+     own turn start and end; if it exposes neither, add that there first.
+  2. The review (branch against base plus uncommitted; on-demand per-file diffs;
+     collapsed large and generated files; viewed chips; line comments drafted per
+     `session_id`; "Send N comments" filling the composer), "base moved".
+  3. Scopes This chat, Last turn, Turn ▸, Not committed yet; wrap and whitespace
+     toggles; split view on wide screens only.
+  4. The per-turn card in the chat, counted from snapshots.
+  5. The Repository sheet (History, Branches, fetch, pull, push on the shared row
+     and diff components).
 
 - [ ] **4. Previews.**
   1. A per-project preview command; CLIde's generalises `cloudcli-branch-test`
@@ -101,7 +109,9 @@ identity, integration and cleanup behaviour get replaced.
       the Preview; Merge is his. Retire the two branch-test slots once previews cover
       them.
 
-- [ ] **7. Per-hunk stage and revert**, on the line addressing from Phase 3.
+- [ ] **7. Per-hunk stage and revert**, on the line addressing from Phase 3, and
+      **Undo the latest turn** from its card: preflight, refusal naming files changed
+      since, and a note to the agent in the next message.
 
 ## Done when
 
@@ -134,6 +144,10 @@ Tests needed, at minimum:
 - a phone address re-pointed between previews
 - a squashed branch counting as merged
 - the comment-to-composer message format
+- a turn's diff including a shell-command edit, and excluding the turn before
+- a turn snapshot leaving the index, branch and files untouched, and surviving gc
+- a `main` chat's turn scope refused when another session overlapped it
+- Undo refused when a touched file changed after the turn
 
 ## Not doing
 
