@@ -118,7 +118,7 @@ function ProbeControls({ entry, state, onChange }: {
             </Choice>
           ))}
         </div>
-        <a href="?" target="_top" className="text-primary underline">All probes</a>
+        <a href="?" target={isEmbedded ? '_parent' : undefined} className="text-primary underline">All probes</a>
       </div>
     </div>
   );
