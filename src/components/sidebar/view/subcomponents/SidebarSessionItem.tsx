@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
-import { Bot, Check, Folder, ListChecks, Pin, X } from 'lucide-react';
+import { Bot, Check, Folder, Pin, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import {
@@ -183,16 +183,6 @@ export default function SidebarSessionItem({
       className="absolute inset-x-0 bottom-0 h-0.5"
     />
   );
-  // Bottom row, right end: under the status column, clear of the pin and time.
-  const planCount = planProgress && (
-    <span
-      className="ml-auto flex flex-shrink-0 items-center gap-0.5 text-xs tabular-nums text-muted-foreground"
-      title={t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}
-    >
-      <ListChecks className="!h-[1.1em] !w-[1.1em]" aria-hidden="true" />
-      {planProgress.done}/{planProgress.total}
-    </span>
-  );
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
   const hasDesktopActions = Boolean(onOpenActionsMenu && !isSelectionMode && !isEditing);
   // The trigger remains outside the session link, but this slot makes the title
@@ -211,6 +201,12 @@ export default function SidebarSessionItem({
           <Pin className="!h-[1em] !w-[1em] text-primary" />
           <span className="sr-only">{t('sessions.pinned', 'Pinned')}</span>
         </>
+      )}
+      {/* The row's segmented bar shows the plan; the count is for screen readers. */}
+      {planProgress && (
+        <span className="sr-only">
+          {t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}
+        </span>
       )}
       {runningWork && runningWork.agents > 0 && (
         <span className="flex items-center gap-0.5 tabular-nums" title={t('sessions.agentsRunning', { count: runningWork.agents, defaultValue: '{{count}} agents running' })}>
@@ -404,7 +400,6 @@ export default function SidebarSessionItem({
                     </Badge>
                   )}
                   {checkoutBadge}
-                  {planCount}
                 </div>
               </div>
             </div>
@@ -500,7 +495,6 @@ export default function SidebarSessionItem({
                   </Badge>
                 )}
                 {checkoutBadge}
-                {planCount}
                 {!projectEyebrow && desktopActionSlot}
               </div>
             </div>
