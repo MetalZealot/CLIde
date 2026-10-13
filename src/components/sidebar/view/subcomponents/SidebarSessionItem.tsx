@@ -7,6 +7,7 @@ import {
   buttonVariants,
   anchorFromElement,
   RowActionsTrigger,
+  SegmentedProgress,
   Tooltip,
   type ContextMenuAnchor,
 } from '../../../../shared/view/ui';
@@ -180,10 +181,11 @@ export default function SidebarSessionItem({
   const runningWork = useRunningWork(isProcessing ? session.id : null);
   const planProgress = runningWork?.plan ?? null;
   const planLine = planProgress && (
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute bottom-0 left-0 h-0.5 bg-primary/70"
-      style={{ width: `${(planProgress.done / planProgress.total) * 100}%` }}
+    <SegmentedProgress
+      done={planProgress.done}
+      total={planProgress.total}
+      doneClassName="bg-primary/70"
+      className="absolute inset-x-0 bottom-0 h-0.5"
     />
   );
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
@@ -205,9 +207,10 @@ export default function SidebarSessionItem({
           <span className="sr-only">{t('sessions.pinned', 'Pinned')}</span>
         </>
       )}
+      {/* The row's segmented bar shows the plan; the count is for screen readers. */}
       {planProgress && (
-        <span className="tabular-nums" title={t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}>
-          {planProgress.done}/{planProgress.total}
+        <span className="sr-only">
+          {t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}
         </span>
       )}
       {runningWork && runningWork.agents > 0 && (
@@ -366,7 +369,6 @@ export default function SidebarSessionItem({
             {...longPress}
           >
             {accentStrip}
-          {planLine}
             {planLine}
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
@@ -448,6 +450,7 @@ export default function SidebarSessionItem({
           onContextMenu={isSelectionMode ? undefined : openSessionMenuAtCursor}
         >
           {accentStrip}
+          {planLine}
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
               {projectEyebrow && (

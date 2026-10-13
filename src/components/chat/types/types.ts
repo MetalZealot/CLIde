@@ -5,7 +5,7 @@ import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
 } from '../../sidebar/types/types';
-import type { AgentStatusInfo, CompactBoundaryInfo, UsageLimitStop } from '../../../stores/useSessionStore';
+import type { AgentStatusInfo, CompactBoundaryInfo, SessionPlan, UsageLimitStop } from '../../../stores/useSessionStore';
 import type {
   MarkSessionIdle,
   MarkSessionProcessing,
@@ -101,6 +101,8 @@ export interface ChatMessage {
   compactBoundary?: CompactBoundaryInfo;
   /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
   isSystemNotice?: boolean;
+  /** A plan that finished in this turn, shown as a card at the turn's end. */
+  finishedPlan?: SessionPlan;
   /** Set when the provider stopped the turn on a usage limit; allows the Auto-Continue offer. */
   usageLimit?: UsageLimitStop;
   /** Output tokens the provider recorded for this row's model step; history rows only. */

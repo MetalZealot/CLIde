@@ -36,6 +36,101 @@ export function planFromListCall(toolName: string | undefined, toolInput: unknow
   return steps.length ? { steps } : null;
 }
 
+/** Codex history keeps each `update_plan` call, which restates the whole plan as `{ plan: [{ step, status }] }`. */
+function planFromCodexCall(toolInput: unknown): SessionPlan | null {
+  const items = parseInput(toolInput)?.plan;
+  if (!Array.isArray(items)) return null;
+  const steps = items.flatMap((item: any, index: number): SessionPlanStep[] => {
+    const subject = typeof item?.step === 'string' ? item.step.trim() : '';
+    if (!subject) return [];
+    const status = item.status === 'completed' ? 'completed' : item.status === 'in_progress' || item.status === 'inProgress' ? 'in_progress' : 'pending';
+    return [{ id: String(index + 1), subject, status }];
+  });
+  return steps.length ? { steps } : null;
+}
+
+type ResultLike = { content?: unknown; isError?: boolean; toolUseResult?: unknown } | null | undefined;
+
+/** The id Claude gave a created task: structured output first, else its "Task #N created" text. */
+function createdTaskId(result: ResultLike): string | null {
+  const structured = (result?.toolUseResult as { task?: { id?: unknown } } | undefined)?.task?.id;
+  if (structured !== undefined && structured !== null && String(structured)) return String(structured);
+  const match = /Task #(\w+)/.exec(typeof result?.content === 'string' ? result.content : '');
+  return match ? match[1] : null;
+}
+
+/**
+ * Each plan the transcript shows finishing, keyed by the record that finished it. A plan rebuilt from
+ * single-task calls counts only when every step's name is known, so a page boundary cannot invent one.
+ */
+export function findFinishedPlans(records: NormalizedMessage[]): Map<NormalizedMessage, SessionPlan> {
+  const finished = new Map<NormalizedMessage, SessionPlan>();
+  const results = new Map<string, ResultLike>();
+  for (const record of records) {
+    if (record.kind === 'tool_result' && record.toolId) results.set(record.toolId, (record.toolResult ?? record) as ResultLike);
+  }
+
+  type Step = { subject: string | null; status: SessionPlanStep['status']; activeForm?: string };
+  let steps = new Map<string, Step>();
+  let isStored = false;
+  let wasDone = false;
+  const isDone = () => steps.size > 0 && [...steps.values()].every((step) => step.status === 'completed');
+
+  for (const record of records) {
+    if (record.parentToolUseId) continue;
+    const name = String(record.toolName ?? '');
+    let changed = false;
+    if (record.kind === 'plan_updated' || (record.kind === 'tool_use' && !STORED_PLAN_TOOLS.has(name))) {
+      const plan = record.kind === 'plan_updated'
+        ? record.plan ?? null
+        : name === 'update_plan' ? planFromCodexCall(record.toolInput) : planFromListCall(name, record.toolInput);
+      if (!plan) continue;
+      steps = new Map(plan.steps.map((step) => [step.id, { subject: step.subject, status: step.status, activeForm: step.activeForm }]));
+      isStored = false;
+      changed = true;
+    } else if (record.kind === 'tool_use' && record.toolId) {
+      const result = record.toolResult ?? results.get(record.toolId);
+      if (result?.isError) continue;
+      const input = parseInput(record.toolInput);
+      if (name === 'TaskCreate') {
+        // A task created after a finished plan, or after a whole-list plan, starts the next plan.
+        if (!isStored || isDone()) steps = new Map();
+        isStored = true;
+        const id = createdTaskId(result) ?? String(steps.size + 1);
+        steps.set(id, { subject: typeof input?.subject === 'string' && input.subject ? input.subject : null, status: 'pending', activeForm: input?.activeForm });
+        changed = true;
+      } else if (name === 'TaskUpdate' && input?.taskId !== undefined) {
+        const id = String(input.taskId);
+        if (input.status === 'deleted') {
+          steps.delete(id);
+        } else {
+          const step = steps.get(id) ?? { subject: null, status: 'pending' as const };
+          if (typeof input.subject === 'string' && input.subject) step.subject = input.subject;
+          if (input.status === 'pending' || input.status === 'in_progress' || input.status === 'completed') step.status = input.status;
+          steps.set(id, step);
+        }
+        isStored = true;
+        changed = true;
+      }
+    }
+    if (!changed) continue;
+    const done = isDone();
+    if (done && !wasDone && [...steps.values()].every((step) => step.subject)) {
+      finished.set(record, {
+        steps: [...steps].map(([id, step]) => ({ id, subject: step.subject as string, status: step.status, ...(step.activeForm ? { activeForm: step.activeForm } : {}) })),
+      });
+    }
+    wasDone = done;
+  }
+  return finished;
+}
+
+/** Same steps in the same order, so a finished plan in the chat can stand in for the banner. */
+export function isSamePlan(a: SessionPlan | null | undefined, b: SessionPlan | null | undefined): boolean {
+  if (!a || !b || a.steps.length !== b.steps.length) return false;
+  return a.steps.every((step, index) => step.subject === b.steps[index].subject);
+}
+
 export type PlanSignals = {
   /** Bumps each time a stored-plan call finishes, so the stored plan is read again. */
   revision: number;

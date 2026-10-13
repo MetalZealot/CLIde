@@ -6,7 +6,7 @@ import test, { describe } from 'node:test';
 import { type Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
-import { readPlanSignals } from '../hooks/useSessionPlan';
+import { findFinishedPlans, isSamePlan, readPlanSignals } from '../hooks/useSessionPlan';
 import { applyLiveTasks, listBackgroundWork, mergeBackgroundWork } from './backgroundWork';
 import type { ChatMessage } from '../types/types';
 
@@ -836,6 +836,58 @@ test('the plan banner re-reads a stored plan after each change, and takes a stat
   assert.equal(afterStored.revision, 1);
   assert.equal(afterStored.stated, null, 'a stored change outranks an earlier stated plan');
   assert.equal(readPlanSignals([create, created, pushed]).stated?.steps[0].subject, 'Live', 'a pushed plan outranks an earlier stored change');
+});
+
+test('a finished plan becomes a card at the end of its turn, rebuilt from any provider\'s plan calls', () => {
+  let seq = 0;
+  const row = (kind: string, extra: Record<string, unknown> = {}) => ({
+    id: `r${seq += 1}`, sessionId: 's', timestamp: '2026-10-13T00:00:00Z', provider: 'claude', kind, ...extra,
+  }) as any;
+  const ok = (toolUseResult?: unknown, content = '') => ({ content, isError: false, toolUseResult });
+  const todos = (...statuses: string[]) => row('tool_use', {
+    toolName: 'TodoWrite', toolId: `t${seq}`, toolInput: JSON.stringify({ todos: statuses.map((status, index) => ({ content: `Step ${index + 1}`, status })) }),
+  });
+  const create = (subject: string, result: unknown) => row('tool_use', { toolName: 'TaskCreate', toolId: `c${seq}`, toolInput: JSON.stringify({ subject }), toolResult: result });
+  const update = (taskId: string, status: string, result: unknown = ok()) => row('tool_use', { toolName: 'TaskUpdate', toolId: `u${seq}`, toolInput: JSON.stringify({ taskId, status }), toolResult: result });
+  const subjects = (records: any[]) => [...findFinishedPlans(records).values()].map((plan) => plan.steps.map((step) => step.subject).join(','));
+
+  // Whole-list calls: one card when the list first reads all done, not again when it is restated.
+  const listFinish = todos('completed', 'completed');
+  const listed = [todos('completed', 'in_progress'), listFinish, todos('completed', 'completed')];
+  assert.deepEqual([...findFinishedPlans(listed).keys()], [listFinish]);
+
+  // Single-task calls take the id from structured output, else from the result text; a failed call changes nothing.
+  const tasks = [
+    create('Read', ok({ task: { id: '1', subject: 'Read' } })),
+    create('Write', ok(undefined, 'Task #2 created successfully: Write')),
+    update('1', 'completed'),
+    update('2', 'completed', { content: 'no such task', isError: true }),
+    update('2', 'completed'),
+    create('Ship', ok({ task: { id: '3', subject: 'Ship' } })),
+    update('3', 'completed'),
+  ];
+  assert.deepEqual(subjects(tasks), ['Read,Write', 'Ship'], 'a task created after a finished plan starts the next one');
+  assert.deepEqual(subjects([update('7', 'completed')]), [], 'a step whose creation is on an unloaded page is never guessed');
+  assert.deepEqual(subjects([update('9', 'deleted'), create('Only', ok({ task: { id: '1' } })), update('1', 'completed')]), ['Only']);
+
+  // Codex: history keeps update_plan calls, live sessions push plan_updated.
+  const codexPlan = JSON.stringify({ plan: [{ step: 'Scan', status: 'completed' }, { step: 'Fix', status: 'completed' }] });
+  assert.deepEqual(subjects([row('tool_use', { provider: 'codex', toolName: 'update_plan', toolId: 'p1', toolInput: codexPlan })]), ['Scan,Fix']);
+  assert.deepEqual(subjects([row('plan_updated', { provider: 'codex', plan: { steps: [{ id: '1', subject: 'Live', status: 'completed' }] } })]), ['Live']);
+  assert.deepEqual(subjects([{ ...listFinish, parentToolUseId: 'agent-1' }]), [], 'a subagent\'s own checklist is not the session\'s plan');
+
+  // The card follows the work the plan finished in and comes before the reply, never between activity rows.
+  const prompt = (content: string) => row('text', { role: 'user', content });
+  const reply = row('text', { role: 'assistant', content: 'All steps done.' });
+  const chat = normalizedToChatMessages([prompt('Go'), todos('in_progress'), todos('completed'), reply, prompt('Next')]);
+  const cardAt = chat.findIndex((message) => message.finishedPlan);
+  assert.ok(chat[cardAt - 1]?.isToolUse);
+  assert.equal(chat[cardAt + 1]?.content, 'All steps done.');
+  const silent = normalizedToChatMessages([prompt('Go'), todos('completed'), prompt('Next')]);
+  assert.equal(silent[silent.findIndex((message) => message.finishedPlan) + 1]?.content, 'Next', 'a turn with no reply ends on the card');
+  assert.equal(chat.filter((message) => message.finishedPlan).length, 1);
+  assert.ok(isSamePlan(chat[cardAt].finishedPlan, { steps: [{ id: 'x', subject: 'Step 1', status: 'completed' }] }));
+  assert.ok(!isSamePlan(chat[cardAt].finishedPlan, { steps: [{ id: '1', subject: 'Other', status: 'completed' }] }));
 });
 
 test('background work lists every agent and background command, with how each ended', () => {

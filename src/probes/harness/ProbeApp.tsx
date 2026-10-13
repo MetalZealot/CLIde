@@ -118,7 +118,7 @@ function ProbeControls({ entry, state, onChange }: {
             </Choice>
           ))}
         </div>
-        <a href="/probe.html" target="_top" className="text-primary underline">All probes</a>
+        <a href="?" target={isEmbedded ? '_parent' : undefined} className="text-primary underline">All probes</a>
       </div>
     </div>
   );
@@ -218,7 +218,7 @@ function ProbeIndex({ missing }: { missing?: string | null }) {
         <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
           {PROBES.map(({ name, probe }) => (
             <li key={name}>
-              <a href={`/probe.html?p=${encodeURIComponent(name)}`} className="flex flex-col gap-0.5 px-4 py-3">
+              <a href={`?p=${encodeURIComponent(name)}`} className="flex flex-col gap-0.5 px-4 py-3">
                 <span className="flex items-baseline justify-between gap-3">
                   <span className="font-medium">{probe.title}</span>
                   <span className="flex-none text-xs tabular-nums text-muted-foreground">{probe.date}</span>

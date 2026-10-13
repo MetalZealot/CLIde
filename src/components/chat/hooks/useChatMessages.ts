@@ -13,6 +13,8 @@ import {
   extractInternalMemoryCitation,
 } from '../utils/chatFormatting';
 
+import { findFinishedPlans } from './useSessionPlan';
+
 function formatToolResultContent(content: unknown): string {
   // JSON.stringify answers undefined, not a string, for a tool_result block
   // carrying no content — normalization passes that through verbatim.
@@ -222,7 +224,19 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
     if (isBackgroundCommand((result as { toolUseResult?: unknown } | undefined)?.toolUseResult)) backgroundCommandIds.add(msg.toolId);
   }
 
+  // A finished plan's card waits for the next text row, so it sits after the work it finished in, never inside it.
+  const finishedPlans = findFinishedPlans(messages);
+  let planCards: ChatMessage[] = [];
+
   for (const msg of messages) {
+    if (msg.kind === 'text' && !msg.parentToolUseId && planCards.length) {
+      converted.push(...planCards);
+      planCards = [];
+    }
+    const finishedPlan = finishedPlans.get(msg);
+    if (finishedPlan) {
+      planCards.push({ type: 'assistant', id: `plan-done:${msg.id ?? msg.toolId}`, content: '', timestamp: msg.timestamp, finishedPlan });
+    }
     // A subagent's own rows render inside its agent call, never as the session's.
     if (msg.parentToolUseId) continue;
     // Its call's row and the background-work list show how it ended, even with the call on an unloaded page.
@@ -501,6 +515,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
     }
     displayCache.set(msg, { result, agentKey, messages: converted.slice(outputStart) });
   }
+  converted.push(...planCards);
 
   return converted;
 }

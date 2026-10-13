@@ -27,6 +27,7 @@ export function isChatFindConversationMessage(message: ChatMessage): boolean {
     && !message.isCompactBoundary
     && !message.isSystemNotice
     && !message.isTaskNotification
+    && !message.finishedPlan
     && !message.isLocalCommandStdout;
 }
 

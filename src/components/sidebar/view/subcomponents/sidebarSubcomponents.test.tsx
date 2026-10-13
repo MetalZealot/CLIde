@@ -906,7 +906,7 @@ describe('SidebarResizeHandle', () => {
   });
 });
 
-test('a running session row shows its plan progress and agents out, and an idle one shows neither', async () => {
+test('a running session row shows its plan as a segmented bar and its agents out, and an idle one shows neither', async () => {
   const t = ((key: string, options?: unknown) => (typeof options === 'string' ? options : key)) as unknown as TFunction;
   const session = { id: 'busy', summary: 'Busy one', createdAt: '2026-10-10T00:00:00.000Z', __provider: 'claude' } as const;
   const project = { name: 'p', displayName: 'P', path: '/p', fullPath: '/p' } as unknown as Project;
@@ -935,12 +935,18 @@ test('a running session row shows its plan progress and agents out, and an idle 
   document.body.appendChild(container);
   const root = createRoot(container);
   await React.act(async () => root.render(row(true)));
-  assert.match(container.textContent ?? '', /3\/8/);
-  assert.equal(container.querySelectorAll('.lucide-bot').length, 2, 'both row layouts carry the count');
-  assert.ok(container.querySelector('span[style*="width: 37.5%"]'), 'the progress line runs 3 of 8');
+  assert.doesNotMatch(container.textContent ?? '', /3\/8/, 'the bar carries the plan; no visible count');
+  assert.match(container.querySelector('.sr-only')?.parentElement?.textContent ?? '', /sessions\.planProgress/, 'screen readers still get the count');
+  assert.equal(container.querySelectorAll('.lucide-bot').length, 2, 'both row layouts carry the agent count');
+  const bars = [...container.querySelectorAll('span[aria-hidden="true"].flex.gap-0\\.5')];
+  assert.equal(bars.length, 2, 'both row layouts draw the bar once');
+  for (const bar of bars) {
+    assert.equal(bar.children.length, 8, 'one segment per step');
+    assert.equal(bar.querySelectorAll('.bg-primary\\/70').length, 3, '3 of 8 filled');
+  }
 
   await React.act(async () => root.render(row(false)));
-  assert.doesNotMatch(container.textContent ?? '', /3\/8/);
+  assert.equal(container.querySelectorAll('span[aria-hidden="true"].flex.gap-0\\.5').length, 0);
   assert.equal(container.querySelectorAll('.lucide-bot').length, 0);
   setRunningWork(new Map());
   await React.act(async () => root.unmount());

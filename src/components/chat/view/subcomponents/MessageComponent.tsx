@@ -31,6 +31,7 @@ import { DISCLOSED_TEXT_CLASS, StaticRow, TextDisclosure } from './DisclosureRow
 import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
 import CollapsibleMessageText from './CollapsibleMessageText';
+import FinishedPlanCard from './FinishedPlanCard';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
@@ -213,6 +214,10 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, isLatestTurn
               </div>
             )}
           </div>
+        </div>
+      ) : message.finishedPlan ? (
+        <div className="w-full">
+          <FinishedPlanCard plan={message.finishedPlan} />
         </div>
       ) : message.isTaskNotification ? (
         /* Compact task notification on the left */
