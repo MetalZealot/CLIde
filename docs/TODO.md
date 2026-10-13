@@ -106,6 +106,7 @@ Queued work first. Below the rule is **someday**: real ideas, but nothing here i
 started, sliced, or blocking anything — skip it unless you are deliberately picking
 new work.
 
+- [ ] **Pick which product-bar gaps to build.** Eleven rows marked **Gap** in [the product bar](product-bar.md), against six comparable apps; each pick becomes a TODO line or a plan phase, the rest a Decline with a reason. Read 2026-10-12. **S**
 - [~] **Schedule mode.** Holding Send or the + menu's *Schedule message* opens a banner with the time controls and swaps Send for a timer that schedules directly; spent usage opens the same banner. Built; awaiting a phone check. **S**
 - [~] **Send while usage is spent opens the schedule sheet.** It names the limit and its reset, leads with *When usage resets*, and keeps *Send now anyway*; Claude and Codex only, slash commands pass. Tested; awaiting a live check while limited. **S**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**

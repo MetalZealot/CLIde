@@ -238,10 +238,9 @@ phase done.
     behind them, WebSocket, Git, MCP, scheduled sends), what you see when it
     fails, hangs or half-succeeds. Each silent case becomes an item in phases
     4–6, or a TODO line if it is outside the runtime.
-  - Product bar: what Claude Code's CLI and desktop app, T3 Code and Happy do
-    that CLIde lacks. Each gap is mapped to a phase here, to the `/next` mobile
-    plan, or declined with a reason. It runs before phase 5 so anything that
-    needs the protocol lands in it.
+  - Product bar: done 2026-10-12, widened to the whole product in
+    [the product bar](../product-bar.md). Two gaps need the protocol before
+    phase 5: `/goal` with a goal row, and stopping one background task.
   - You: read both lists and say which gaps matter.
 
 - [x] 4. **Session host, part 1: busy states, writers, lifecycle — est. 1–2.**

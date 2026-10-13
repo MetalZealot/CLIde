@@ -20,11 +20,13 @@ lot of code.
 | [Testing](testing.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |
 | [Design system](design-system.md) | The tokens screens draw from, the accessibility floor, and the patterns new work copies, each rule labelled standard, convention or taste | Renamed from UI standards 2026-10-07; typography is its only token section so far |
 | [Providers](providers.md) | What CLIde does with each provider, how exactly, and what it refuses | Stale Claude and Codex rows corrected 2026-10-06 |
+| [Product bar](product-bar.md) | What six comparable agent apps ship, how each is built, and CLIde's verdict per feature | Read from their docs 2026-10-12; gaps await Grayson's pick |
 
 ## What belongs here
 
 A reference doc holds what CLIde itself does, where a script or test cannot
-hold it. It never copies a provider's SDK, CLI or settings surface — read the
+hold it; the product bar is the one that also holds what comparable apps do,
+because each row's verdict needs both sides. It never copies a provider's SDK, CLI or settings surface — read the
 provider's own types and docs ([providers §7](providers.md#7-provider-native-sources)).
 A measurement lives with the script that took it, a decision in
 [`decisions/`](decisions/), remaining work in [`plans/`](plans/), and history in

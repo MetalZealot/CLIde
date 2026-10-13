@@ -81,8 +81,8 @@ with no check is a known gap.
   the desktop, fails on the phone. Held by 14, 15, 17. Check: a real device, by
   nature; target sizing is in [the design system doc](docs/design-system.md).
 - **Product bar.** CLIde does what comparable apps have taught users to expect.
-  *Breaks:* it feels old while working. Check: none; runtime phase 3b runs the
-  first comparison.
+  *Breaks:* it feels old while working. Check: none; the comparison is
+  [the product bar](docs/product-bar.md), re-checked per area before designing.
 
 ## Code map
 
