@@ -378,7 +378,7 @@ describe('chatSubcomponents', () => {
         root = createRoot(container);
         await React.act(async () => setCollapse(true));
         await render();
-        assert.equal(chevron(), null, 'under 10 lines stays whole');
+        assert.equal(chevron()?.style.display, 'none', 'under 10 lines stays whole');
         assert.equal(clip().hasAttribute('data-collapsed-message'), false);
       } finally {
         if (offsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight);
@@ -1253,7 +1253,7 @@ describe('chatSubcomponents', () => {
         for (const button of bubbles()[0].firstElementChild!.lastElementChild!.querySelectorAll('button')) {
           await React.act(async () => button.click());
         }
-        await React.act(async () => bubbles()[1].querySelectorAll('button')[1].click());
+        await React.act(async () => bubbles()[1].querySelector<HTMLButtonElement>('button[aria-label="Resume scheduled message"]')!.click());
         assert.deepEqual(calls, ['edit first', 'send first', 'cancel first', 'resume later']);
 
         const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
