@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
-import { Bot, Check, Folder, Pin, X } from 'lucide-react';
+import { Bot, Check, Folder, ListChecks, Pin, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import {
@@ -7,6 +7,7 @@ import {
   buttonVariants,
   anchorFromElement,
   RowActionsTrigger,
+  SegmentedProgress,
   Tooltip,
   type ContextMenuAnchor,
 } from '../../../../shared/view/ui';
@@ -175,11 +176,22 @@ export default function SidebarSessionItem({
   const runningWork = useRunningWork(isProcessing ? session.id : null);
   const planProgress = runningWork?.plan ?? null;
   const planLine = planProgress && (
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute bottom-0 left-0 h-0.5 bg-primary/70"
-      style={{ width: `${(planProgress.done / planProgress.total) * 100}%` }}
+    <SegmentedProgress
+      done={planProgress.done}
+      total={planProgress.total}
+      doneClassName="bg-primary/70"
+      className="absolute inset-x-0 bottom-0 h-0.5"
     />
+  );
+  // Bottom row, right end: under the status column, clear of the pin and time.
+  const planCount = planProgress && (
+    <span
+      className="ml-auto flex flex-shrink-0 items-center gap-0.5 text-xs tabular-nums text-muted-foreground"
+      title={t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}
+    >
+      <ListChecks className="!h-[1.1em] !w-[1.1em]" aria-hidden="true" />
+      {planProgress.done}/{planProgress.total}
+    </span>
   );
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
   const hasDesktopActions = Boolean(onOpenActionsMenu && !isSelectionMode && !isEditing);
@@ -199,11 +211,6 @@ export default function SidebarSessionItem({
           <Pin className="!h-[1em] !w-[1em] text-primary" />
           <span className="sr-only">{t('sessions.pinned', 'Pinned')}</span>
         </>
-      )}
-      {planProgress && (
-        <span className="tabular-nums" title={t('sessions.planProgress', { done: planProgress.done, total: planProgress.total, defaultValue: 'Plan: {{done}} of {{total}} steps done' })}>
-          {planProgress.done}/{planProgress.total}
-        </span>
       )}
       {runningWork && runningWork.agents > 0 && (
         <span className="flex items-center gap-0.5 tabular-nums" title={t('sessions.agentsRunning', { count: runningWork.agents, defaultValue: '{{count}} agents running' })}>
@@ -361,7 +368,6 @@ export default function SidebarSessionItem({
             {...longPress}
           >
             {accentStrip}
-          {planLine}
             {planLine}
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
@@ -398,6 +404,7 @@ export default function SidebarSessionItem({
                     </Badge>
                   )}
                   {checkoutBadge}
+                  {planCount}
                 </div>
               </div>
             </div>
@@ -443,6 +450,7 @@ export default function SidebarSessionItem({
           onContextMenu={isSelectionMode ? undefined : openSessionMenuAtCursor}
         >
           {accentStrip}
+          {planLine}
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
               {projectEyebrow && (
@@ -492,6 +500,7 @@ export default function SidebarSessionItem({
                   </Badge>
                 )}
                 {checkoutBadge}
+                {planCount}
                 {!projectEyebrow && desktopActionSlot}
               </div>
             </div>

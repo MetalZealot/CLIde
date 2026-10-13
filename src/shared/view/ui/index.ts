@@ -18,6 +18,7 @@ export { Input } from './Input';
 export { MENU_LIST_MAX_HEIGHT, READING_SURFACE_MAX_HEIGHT } from './menuSizing';
 export { default as RowActionsTrigger } from './RowActionsTrigger';
 export { ScrollArea } from './ScrollArea';
+export { default as SegmentedProgress } from './SegmentedProgress';
 export { Reasoning, ReasoningTrigger, ReasoningContent, useReasoning } from './Reasoning';
 export { Shimmer } from './Shimmer';
 export { default as Tooltip } from './Tooltip';

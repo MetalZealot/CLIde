@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useHeaderBannerSlot } from '../../../../contexts/HeaderMenuContext';
-import { PageScrollLock } from '../../../../shared/view/ui';
+import { PageScrollLock, SegmentedProgress } from '../../../../shared/view/ui';
 import type { SessionPlan, SessionPlanStep } from '../../../../stores/useSessionStore';
 
 type PlanBannerProps = {
@@ -64,7 +64,13 @@ export default function PlanBanner({ plan, isVisible }: PlanBannerProps) {
         <span className="shrink-0 tabular-nums text-muted-foreground">{done}/{steps.length}</span>
         <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{currentLabel}</span>
         <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-        <span className={`absolute -bottom-px left-0 h-0.5 transition-[width] ${isFinished ? 'bg-green-500/50' : 'bg-primary'}`} style={{ width: `${(done / steps.length) * 100}%` }} />
+        <SegmentedProgress
+          done={done}
+          total={steps.length}
+          active={steps.filter((step) => step.status === 'in_progress').length}
+          doneClassName={isFinished ? 'bg-green-500/50' : 'bg-primary'}
+          className="absolute inset-x-0 -bottom-px h-[3px]"
+        />
       </button>
       {isOpen && (
         <ol className="absolute inset-x-0 top-full max-h-[60dvh] overflow-y-auto overscroll-contain border-b border-border bg-popover px-4 py-1 shadow-lg sm:px-5">
