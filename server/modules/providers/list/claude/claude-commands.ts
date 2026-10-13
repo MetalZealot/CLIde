@@ -3,6 +3,7 @@ import os from 'node:os';
 import { query, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
+import { trackClaudeSpawn, waitForClaudeMemory } from '@/modules/providers/list/claude/claude-process-budget.js';
 import type { ProviderCommand } from '@/shared/types.js';
 
 /** The CLI answers from its `initialize` reply, ~4.5 s after spawn (measured 2026-10-05). */
@@ -71,6 +72,8 @@ let queue: Promise<unknown> = Promise.resolve();
  */
 export function listClaudeCliCommands(cwd?: string): Promise<ProviderCommand[]> {
   const run = async (): Promise<ProviderCommand[]> => {
+    await waitForClaudeMemory();
+    const releaseSpawn = trackClaudeSpawn();
     const controller = new AbortController();
     const idlePrompt = (async function* () {
       await new Promise<void>((resolve) => {
@@ -100,6 +103,7 @@ export function listClaudeCliCommands(cwd?: string): Promise<ProviderCommand[]> 
     } finally {
       clearTimeout(timer);
       controller.abort();
+      releaseSpawn();
     }
   };
   const result = queue.then(run, run);

@@ -460,6 +460,67 @@ describe('chat-session-addressing', () => {
     });
   });
 
+  test('chat.send to a session held only by background work starts its turn on the held process', async () => {
+    await withIsolatedDatabase(async () => {
+      const appSessionId = 'app-held-1';
+      sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+
+      const runs: string[] = [];
+      const delivered: string[] = [];
+      let endRun!: () => void;
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => true,
+          run: async (_provider, command, _options, writer) => {
+            runs.push(command);
+            writer.send({ kind: 'status', text: '', stage: { name: 'background', count: 1 }, provider: 'claude', sessionId: null } as never);
+            await new Promise<void>((resolve) => { endRun = resolve; });
+          },
+          deliver: async (_provider, sessionId, command) => {
+            assert.equal(sessionId, appSessionId);
+            delivered.push(command);
+            return true;
+          },
+          abort: async () => true,
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+
+      const owner = new FakeConnection();
+      const sender = new FakeConnection();
+      handleChatConnection(owner as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      handleChatConnection(sender as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      owner.emit('message', JSON.stringify({ type: 'chat.send', sessionId: appSessionId, requestId: 'send-request-h1', content: 'start a dev server' }));
+      await flush();
+      assert.equal(chatRunRegistry.isPinned(appSessionId), true);
+
+      // A page reloaded while pinned gets the run as live, marked pinned, with its frames replayed.
+      const reloaded = new FakeConnection();
+      handleChatConnection(reloaded as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      reloaded.emit('message', JSON.stringify({ type: 'chat.subscribe', sessions: [{ sessionId: appSessionId, lastSeq: 0 }] }));
+      await flush();
+      const ack = reloaded.frames.find((received) => received.kind === 'chat_subscribed');
+      assert.equal(ack?.isProcessing, true);
+      assert.equal(ack?.pinned, true);
+      assert.ok(reloaded.frames.some((received) => (received.stage as { name?: string } | undefined)?.name === 'background'));
+
+      sender.emit('message', JSON.stringify({ type: 'chat.send', sessionId: appSessionId, requestId: 'send-request-h2', content: 'now check it' }));
+      await flush();
+      assert.deepEqual(runs, ['start a dev server'], 'no second process');
+      assert.deepEqual(delivered, ['now check it']);
+      assert.equal(sender.frames.find((received) => received.kind === 'chat_input_accepted')?.requestId, 'send-request-h2');
+
+      sender.emit('message', JSON.stringify({ type: 'chat.send', sessionId: appSessionId, requestId: 'send-request-h3', content: 'edit', options: { rewindToMessageId: 'm1' } }));
+      await flush();
+      assert.equal(sender.frames.find((received) => received.kind === 'protocol_error')?.code, 'SESSION_PINNED');
+      assert.deepEqual(delivered, ['now check it']);
+
+      endRun();
+      await flush();
+    });
+  });
+
   test('chat.send names the request id when it refuses, so the same id can try again', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-receipt-2';

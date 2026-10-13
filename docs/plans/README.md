@@ -10,7 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
-| [Agent runtime rebuild](agent-runtime-rebuild.md) | 4/11 | Phase 3: typed wire in place |
+| [Agent runtime rebuild](agent-runtime-rebuild.md) | 5/11 | Phase 3: typed wire in place |
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Send a queued message into the running turn](send-queued-now.md) | 3/4 | Phase 3: Codex live once its limit resets; Claude accepted on the phone |

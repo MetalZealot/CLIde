@@ -192,6 +192,7 @@ function ChatInterface({
     patchLocalUserMessage,
     sessionActivity,
     isProcessing,
+    isPinned,
     canAbortSession,
     currentSessionId,
     setCurrentSessionId,
@@ -1080,7 +1081,7 @@ function ChatInterface({
         <BackgroundWork
           sessionId={stopAgentSessionId}
           messages={chatMessages}
-          isLive={isProcessing}
+          isLive={isProcessing || isPinned}
           liveTasks={sessionActivity?.backgroundTasks}
           isVisible={isVisible}
           onStop={providerCapabilities?.[provider]?.supportsAgentStop ? handleStopAgent : undefined}
@@ -1093,7 +1094,7 @@ function ChatInterface({
           pageScroll={pageScroll}
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
-          activity={sessionActivity}
+          activity={isProcessing ? sessionActivity : null}
           turnEnd={viewedTurnEnd}
           chatMessages={chatMessages}
           selectedSession={selectedSession}
@@ -1116,7 +1117,7 @@ function ChatInterface({
           selectedProject={selectedProject}
           onEditMessage={beginRewindEdit}
           onEditUnsent={handleEditUnsent}
-          canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
+          canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing && !isPinned}
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
           liveLimitStopMessage={liveLimitStop}
           autoContinueEnabled={autoContinue.enabled}
@@ -1153,7 +1154,7 @@ function ChatInterface({
           {!showConnectionLostBanner && isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
               <ScrollToBottomButton
-                activity={sessionActivity}
+                activity={isProcessing ? sessionActivity : null}
                 awaitingInput={hasPendingPermission}
                 turnEnd={viewedTurnEnd}
                 work={backgroundRunning}

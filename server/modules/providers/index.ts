@@ -4,6 +4,7 @@ export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';
 export { providerRuntimeService } from './services/provider-runtime.service.js';
 export { providerUpdateCoordinator } from './services/provider-update-coordinator.service.js';
+export { markProcessOwnership, sweepOrphanedProcesses } from './services/process-ownership.service.js';
 export {
   buildSelectedCodexShellCommand,
   codexNativeRuntimeService,

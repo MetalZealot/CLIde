@@ -53,7 +53,12 @@ export function useSendOutboxDriver({
       const entry = getSend(requestId);
       if (!entry?.frame || entry.stage === 'failed') return;
       // Marked before the receipt so a message typed meanwhile queues behind this one.
-      markSessionProcessing(entry.frame.sessionId, { statusText: null, canInterrupt: true });
+      // A send starts a turn, so a background wait it lands on is over.
+      markSessionProcessing(entry.frame.sessionId, {
+        statusText: null,
+        canInterrupt: true,
+        ...(entry.frame.type === 'chat.send' ? { stage: null } : {}),
+      });
       const handedOver = sendMessage(entry.frame);
       const now = Date.now();
       updateSend(requestId, handedOver

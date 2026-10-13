@@ -50,7 +50,8 @@ with no check is a known gap.
   devices disagree. Held by 1, 9, 11. Check: none; runtime phase 5.
 - **Lifecycle.** Start, idle, crash, restart, reconnect and a second device each have
   a defined outcome. *Breaks:* lost replies, stray processes, two writers. Held by
-  3, 7. Check: run-registry tests per turn; runtime phases 4–6.
+  3, 7, 22. Check: run-registry tests per turn and the fake-`Query` turn tests;
+  runtime phases 5–6.
 - **Live equals reload.** A chat looks the same after a reload. *Breaks:* rows change
   shape, counts arrive late. Held by 6, 8, 10. Check: none; runtime phase 7.
 - **Change over time.** A provider update says what changed and where it belongs.
@@ -62,7 +63,8 @@ with no check is a known gap.
   with chat still working. *Breaks:* a bad change locks its maintainer out of the
   fix. Held by 12. Check: branch-test servers; manual by nature.
 - **Memory.** A 4 GB host holds everything, and every agent process counts.
-  *Breaks:* a chat killed mid-reply. Check: none; runtime phase 4.
+  *Breaks:* a chat killed mid-reply. Check: the process-budget tests; every
+  `claude` spawn waits for a free-memory floor, closing idle processes first.
 - **Speed.** Measured budgets a change may not break. *Breaks:* slowness creeps in
   unnoticed. Held by 15. Check: `npm run bench:chat-history`; the runtime
   scorecard reports turn times but sets no limits yet.
@@ -73,8 +75,8 @@ with no check is a known gap.
   *Breaks:* fixes become guesses. Check: `[turn]` logs and the runtime scorecard; a
   chat-path recorder comes before runtime phase 2.
 - **Trust.** Every agent action passes the same approval rules; secrets never reach
-  an agent. *Breaks:* a path that skips approval. Check: none; the agent API skips
-  the run registry, and two permission systems remain.
+  an agent. *Breaks:* a path that skips approval. Check: none; two permission
+  systems remain.
 - **Phone first.** The installed phone app is the main surface. *Breaks:* works on
   the desktop, fails on the phone. Held by 14, 15, 17. Check: a real device, by
   nature; target sizing is in [the design system doc](docs/design-system.md).
@@ -158,7 +160,9 @@ it, and nobody notices until a Codex session days later.
 
 The Shell runs its own copy of the provider's CLI, which reads the conversation once
 and then works from memory. While a Shell has a CLI running on a session, Chat
-refuses to send to it; while Chat is replying, the Shell refuses to start on it.
+refuses to send to it; while Chat's process is live, replying or held open for
+background work, the Shell refuses to start on it, and one lingering past its turn
+is closed first.
 Disconnect ends the Shell's CLI; a closed tab or lost signal keeps it 30 minutes for
 reattaching.
 
@@ -368,6 +372,21 @@ delivery gives up after two minutes, an upload only after a minute without progr
 
 **Breaks:** a slow network turns repeated presses or a reconnect into duplicate
 sessions or turns, or a press shows nothing until the network answers.
+
+#### 22. A turn ends at its reply; background work holds the process, not the chat
+
+A Claude turn ends at its `result`, whether or not the process has exited or said
+it is idle, unless one of CLIde's messages is still queued in the CLI (each carries
+a uuid the CLI's `command_lifecycle` frames report): that `result` belongs to a turn
+ahead of it. If background work is still running, the process and its input stay
+open and the session is *pinned*: not processing, so a send, a queued message or a
+scheduled one starts a new turn on that input instead of being refused. Busy is
+three states (`isProcessing`, `isPinned`, `hasLiveRun` in the run registry), and
+each caller asks the one it means. The CLI-update lease is held per turn.
+
+**Breaks:** the chat shows busy for as long as a dev server runs or a process is
+slow to exit, sends and scheduled messages wait behind it, and an update waits on
+a process that has nothing left to do.
 
 ## Reviewing a change
 

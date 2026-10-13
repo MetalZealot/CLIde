@@ -372,7 +372,12 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
         >
           <MarkIcon className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
           {running.length > 0
-            ? <span>{running.length}</span>
+            ? (
+              <>
+                <span>{running.length}</span>
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" strokeWidth={2.5} aria-hidden="true" />
+              </>
+            )
             : <Check className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />}
         </button>,
         slot,

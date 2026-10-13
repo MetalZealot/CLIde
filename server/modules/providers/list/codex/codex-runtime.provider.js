@@ -20,6 +20,7 @@ import { Codex } from '@openai/codex-sdk';
 import {
   abortCodexAppServerSession,
   askCodexAppServerSideQuestion,
+  closeCodexAppServer,
   isCodexAppServerSessionActive,
   queryCodexAppServer,
   steerCodexAppServerSession,
@@ -520,6 +521,7 @@ export const codexRuntime = {
   abort: abortCodexSession,
   steer: steerCodexSession,
   askSideQuestion: askCodexSideQuestion,
+  closeAll: closeCodexAppServer,
   permissions: {
     resolve: (requestId, response) => interactiveRequestRegistry.resolve(requestId, response),
     // Provider-scoped for the same reason Claude's is: one shared map, so an

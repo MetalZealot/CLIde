@@ -21,6 +21,7 @@ import type {
 } from '@/shared/types.js';
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
+import { trackClaudeSpawn, waitForClaudeMemory } from '@/modules/providers/list/claude/claude-process-budget.js';
 import {
   readClaudeEffortSettings,
   resolveClaudeDefaultEffort,
@@ -161,6 +162,8 @@ const CLAUDE_CLI_MODELS_TIMEOUT_MS = 20_000;
  * `persistSession: false` keeps the probe out of the session list.
  */
 export const listClaudeCliModels = async (): Promise<ModelInfo[]> => {
+  await waitForClaudeMemory();
+  const releaseSpawn = trackClaudeSpawn();
   const controller = new AbortController();
   const idlePrompt = (async function* () {
     await new Promise<void>((resolve) => {
@@ -195,6 +198,7 @@ export const listClaudeCliModels = async (): Promise<ModelInfo[]> => {
   } finally {
     clearTimeout(timer);
     controller.abort();
+    releaseSpawn();
   }
 };
 

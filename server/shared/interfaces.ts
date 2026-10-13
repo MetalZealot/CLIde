@@ -58,6 +58,17 @@ export interface IProviderRuntime {
    * live turn; keys left out of `applied` take effect on the next send.
    */
   control?(sessionId: string, changes: ChatControlChanges): Promise<ChatControlResult | null>;
+  /**
+   * Starts a turn on a process background work holds open, with the send's
+   * options. False when no process is held for the session.
+   */
+  deliver?(sessionId: string, command: string, options: AnyRecord): Promise<boolean>;
+  /** Closes the session's process when its turn is over and nothing holds it. */
+  closeIdle?(sessionId: string): boolean;
+  /** Processes past their turn that nothing holds, oldest first by start. */
+  listIdle?(): Array<{ sessionId: string; startTime: number }>;
+  /** Closes every live process; the server is stopping. */
+  closeAll?(): void;
   /** Stops one running subagent or background command, by its task id; the turn goes on. */
   stopAgent?(sessionId: string, taskId: string): Promise<boolean>;
   /** The end of a background command's output while its run is live; null otherwise. */

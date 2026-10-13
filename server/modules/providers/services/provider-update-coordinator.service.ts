@@ -10,6 +10,12 @@ type ProviderActivity = {
 /** Serializes explicit CLI updates against Chat, jobs, and provider Shells. */
 export class ProviderUpdateCoordinator {
   private readonly activity = new Map<LLMProvider, ProviderActivity>();
+  /** Closes a provider's processes that are past their turn, so they reopen on the new CLI. */
+  private drain: ((provider: LLMProvider) => void) | null = null;
+
+  setDrain(drain: ((provider: LLMProvider) => void) | null): void {
+    this.drain = drain;
+  }
 
   private state(provider: LLMProvider): ProviderActivity {
     let state = this.activity.get(provider);
@@ -46,6 +52,11 @@ export class ProviderUpdateCoordinator {
     if (state.updating) throw new Error('A CLI update is already pending.');
     state.updating = true;
     try {
+      try {
+        this.drain?.(provider);
+      } catch (error) {
+        console.warn(`[providers] Draining idle ${provider} processes before an update failed:`, error);
+      }
       if (state.count > 0) await new Promise<void>((resolve, reject) => {
         const ready = () => { state.cancel = undefined; resolve(); };
         state.idle.add(ready);

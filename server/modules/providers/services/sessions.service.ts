@@ -243,9 +243,10 @@ export const sessionsService = {
     provider: LLMProvider;
     startedAt: number;
     lastSeq: number;
+    pinned: boolean;
   }> {
-    return chatRunRegistry.listRunningRuns().map(({ sessionId, provider, startedAt, lastSeq }) => ({
-      sessionId, provider, startedAt, lastSeq,
+    return chatRunRegistry.listRunningRuns().map(({ sessionId, provider, startedAt, lastSeq, pinned }) => ({
+      sessionId, provider, startedAt, lastSeq, pinned,
     }));
   },
 
@@ -255,6 +256,7 @@ export const sessionsService = {
     provider: LLMProvider;
     startedAt: number;
     lastSeq: number;
+    pinned: boolean;
     agents: number;
     plan: { done: number; total: number } | null;
   }>> {
@@ -632,7 +634,7 @@ export const sessionsService = {
       };
     }
 
-    if (chatRunRegistry.isProcessing(sessionId)) {
+    if (chatRunRegistry.hasLiveRun(sessionId)) {
       throw new AppError('Stop this session before deleting it.', {
         code: 'SESSION_RUNNING',
         statusCode: 409,

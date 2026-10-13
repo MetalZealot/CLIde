@@ -84,7 +84,8 @@ function announceAutoContinueCapped(sessionId: string): void {
   }));
 }
 
-type ChatRun = NonNullable<ReturnType<typeof chatRunRegistry.startRun>>;
+/** A scheduled turn's run; `held` when it starts on a process background work holds open. */
+type ScheduledRun = { run: NonNullable<ReturnType<typeof chatRunRegistry.startRun>>; held: boolean };
 
 let activeDispatcher: ReturnType<typeof createScheduledMessageDispatcher> | null = null;
 
@@ -100,15 +101,22 @@ let activeDispatcher: ReturnType<typeof createScheduledMessageDispatcher> | null
 export function initializeScheduledMessages(): void {
   if (activeDispatcher) return;
 
-  const send = createScheduledMessageSender<ChatRun>({
+  const send = createScheduledMessageSender<ScheduledRun>({
     connection: BROADCAST_CONNECTION,
-    startRun: (input) => chatRunRegistry.startRun({
-      ...input,
-      provider: input.provider as LLMProvider,
-      broadcast: true,
-    }),
+    startRun: (input) => {
+      if (chatRunRegistry.isPinned(input.appSessionId)) {
+        const held = chatRunRegistry.attachHeldTurn(input.appSessionId, null, input.turnOptions);
+        return held ? { run: held, held: true } : null;
+      }
+      const run = chatRunRegistry.startRun({
+        ...input,
+        provider: input.provider as LLMProvider,
+        broadcast: true,
+      });
+      return run ? { run, held: false } : null;
+    },
     isSessionOpenInShell,
-    runTurn: async ({ row, run, provider, options }) => {
+    runTurn: async ({ row, run: { run, held }, provider, options }) => {
       const session = sessionsDb.getSessionById(row.session_id);
       announceScheduledSend(row);
       // The row left 'pending' when the dispatcher claimed it.
@@ -124,6 +132,12 @@ export function initializeScheduledMessages(): void {
           clientOptions: options,
           abortController: run.abortController,
         });
+        if (held) {
+          if (!(await providerRuntimeService.deliver(provider as LLMProvider, row.session_id, row.content, runtimeOptions))) {
+            throw new Error('The session\'s background work ended before the message reached it.');
+          }
+          return;
+        }
         await providerRuntimeService.run(
           provider as LLMProvider,
           row.content,
@@ -133,8 +147,8 @@ export function initializeScheduledMessages(): void {
       } finally {
         // Same safety net as `chat.send`: a runtime that returned without its
         // terminal `complete` would leave the session stuck "processing" on
-        // every client that attaches later.
-        chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
+        // every client that attaches later. A held turn's run is still live.
+        if (!held) chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
       }
     },
   });

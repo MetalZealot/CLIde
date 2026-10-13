@@ -1103,6 +1103,12 @@ export class CodexAppServerChatTransport {
     return Boolean(active && !active.terminal);
   }
 
+  /** Ends the shared App Server process; the server is stopping. */
+  close(): void {
+    this.client?.close('CLIde is shutting down.');
+    this.client = null;
+  }
+
   closeForTests(): void {
     this.unsubscribeRuntimeChanges?.();
     this.client?.close('Codex App Server Chat transport closed for tests.');
@@ -1893,6 +1899,10 @@ export function appendCodexAppServerExchange(
   exchange: SideQuestionExchange,
 ): Promise<void> {
   return sharedTransport.appendExchange(threadId, exchange);
+}
+
+export function closeCodexAppServer(): void {
+  sharedTransport.close();
 }
 
 export function isCodexAppServerSessionActive(threadId: string): boolean {

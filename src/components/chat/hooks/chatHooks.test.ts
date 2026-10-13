@@ -10,7 +10,7 @@ import { historyBudgets } from '../../../../scripts/chat-history/budgets.js';
 import { useChatBrowser } from '../../browser-use/useChatBrowser';
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
-import { useSessionProtection } from '../../../hooks/useSessionProtection';
+import { isTurnRunning, useSessionProtection } from '../../../hooks/useSessionProtection';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import { streamingRowId, useSessionStore, type NormalizedMessage, type SessionStore } from '../../../stores/useSessionStore';
 import type { Project, ProjectSession } from '../../../types/app';
@@ -1522,6 +1522,36 @@ test('the turn clock starts when the runtime leaves its starting stage, once', a
   assert.equal(typeof first, 'number');
   await React.act(async () => protection.markSessionProcessing('s1', { stage: { name: 'thinking' } }));
   assert.equal(readyAt(), first, 'later stages keep the first ready time');
+
+  await React.act(async () => root.unmount());
+});
+
+test('a session held only by background work takes sends, and a send starts its next turn', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  let protection!: ReturnType<typeof useSessionProtection>;
+  function Harness() {
+    protection = useSessionProtection();
+    return null;
+  }
+  await React.act(async () => root.render(React.createElement(Harness)));
+  const activity = () => protection.processingSessions.get('held');
+
+  // A page that never saw the turn learns the wait from the running-sessions poll.
+  await React.act(async () => protection.syncProcessingSessions([{ sessionId: 'held', pinned: true }]));
+  assert.equal(activity()?.stage?.name, 'background');
+  assert.equal(isTurnRunning(activity()), false);
+  assert.equal(isTurnRunning(null), false);
+
+  await React.act(async () => protection.markSessionProcessing('held', { outputTokens: 129 }));
+  const waitStartedAt = activity()?.startedAt ?? 0;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await React.act(async () => protection.markSessionProcessing('held', { statusText: null, stage: null }));
+  assert.equal(isTurnRunning(activity()), true, 'the send started a turn');
+  assert.equal(activity()?.outputTokens, undefined, 'the new turn counts its own tokens');
+  assert.ok((activity()?.startedAt ?? 0) > waitStartedAt, 'and its own time');
+  await React.act(async () => protection.syncProcessingSessions([{ sessionId: 'held', pinned: true }]));
+  assert.equal(activity()?.stage, null, 'a stale poll does not put back a wait the live stream ended');
 
   await React.act(async () => root.unmount());
 });

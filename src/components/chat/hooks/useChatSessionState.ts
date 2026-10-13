@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { MutableRefObject } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
-import type { MarkSessionIdle, SessionActivityMap } from '../../../hooks/useSessionProtection';
+import { isTurnRunning, type MarkSessionIdle, type SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type { ReplayProgress } from '../../../contexts/WebSocketContext';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
@@ -322,7 +322,9 @@ export function useChatSessionState({
   // open. Session ids are concrete before any send, so no pending
   // placeholder entry exists anymore.
   const sessionActivity = (activeSessionId && processingSessions?.get(activeSessionId)) || null;
-  const isProcessing = sessionActivity !== null;
+  const isProcessing = isTurnRunning(sessionActivity);
+  // Background work holds the provider's process with no turn: sends start one.
+  const isPinned = sessionActivity !== null && !isProcessing;
   const canAbortSession = isProcessing && sessionActivity.canInterrupt;
 
   // Ref mirror so effects can read the latest map without re-running on
@@ -1254,6 +1256,7 @@ export function useChatSessionState({
     rewindMessages,
     sessionActivity,
     isProcessing,
+    isPinned,
     canAbortSession,
     currentSessionId,
     setCurrentSessionId,

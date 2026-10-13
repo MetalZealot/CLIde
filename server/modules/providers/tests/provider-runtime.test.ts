@@ -11,7 +11,9 @@ import { createProviderRuntimeService } from '@/modules/providers/services/provi
 import { ClaudePluginUpdatesService, PLUGIN_UPDATE_STALE_MS } from '@/modules/providers/services/claude-plugin-updates.service.js';
 import { ClaudeSdkReleaseService } from '@/modules/providers/services/claude-sdk-release.service.js';
 import { ProviderCliUpdatesService, runNativeCliUpdate } from '@/modules/providers/services/provider-cli-updates.service.js';
-import { ProviderUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
+import { ProviderUpdateCoordinator, providerUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
+import { sweepOrphanedProcesses } from '@/modules/providers/services/process-ownership.service.js';
+import { readMemAvailableMb, waitForClaudeMemory } from '@/modules/providers/list/claude/claude-process-budget.js';
 import { createSideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
 import type { IProvider, IProviderRuntime } from '@/shared/interfaces.js';
 import type { LLMProvider, ProviderNativeRuntimeDescriptor, SideQuestionRequest } from '@/shared/types.js';
@@ -132,6 +134,45 @@ describe('provider-runtime.service', () => {
     ]);
   });
 
+  test('a run holds the CLI-update lease per turn, so an update can pass a process lingering between turns', async () => {
+    const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+    let resumeRun!: () => void;
+    const betweenTurns = new Promise<void>((resolve) => { resumeRun = resolve; });
+    const steps: string[] = [];
+    const runtime = createRuntime({
+      async run(_command, _options, _writer, context) {
+        context.turnLease?.end();
+        await betweenTurns;
+        try {
+          context.turnLease?.begin();
+          steps.push('began');
+        } catch (error) {
+          steps.push((error as Error).message);
+        }
+        context.turnLease?.tryBegin();
+        steps.push('a turn Claude starts itself is never refused');
+      },
+    });
+    const service = createService([createProvider('claude', runtime)]);
+    const done = service.run('claude', 'hello', {}, { send() {} });
+    await tick();
+
+    let finishUpdate!: () => void;
+    let updating = false;
+    const update = providerUpdateCoordinator.update('claude', async () => {
+      updating = true;
+      await new Promise<void>((resolve) => { finishUpdate = resolve; });
+    });
+    await tick();
+    assert.equal(updating, true, 'the update did not wait for a process past its turn');
+    resumeRun();
+    await done;
+    assert.match(steps[0], /update is pending/);
+    assert.equal(steps[1], 'a turn Claude starts itself is never refused');
+    finishUpdate();
+    await update;
+  });
+
   test('reports steering as unsupported when a runtime omits it', async () => {
     const service = createService([createProvider('cursor', createRuntime())]);
     assert.equal(await service.steer('cursor', 'session-1', 'detail'), false);
@@ -201,6 +242,74 @@ describe('provider-runtime.service', () => {
       await service.resolveInteractiveRequest('stale-request', { allow: true }),
       { status: 'not_found' },
     );
+  });
+});
+
+describe('claude process budget', () => {
+  const idle = (...entries: Array<[string, number]>) => entries.map(([sessionId, idleSince]) => ({ sessionId, idleSince }));
+
+  test('MemAvailable is read in MB, and a host without it imposes no floor', async () => {
+    assert.equal(readMemAvailableMb('MemTotal:  3886000 kB\nMemAvailable:  1048576 kB\n'), 1024);
+    assert.equal(readMemAvailableMb('MemTotal:  3886000 kB\n'), null);
+    await waitForClaudeMemory({ readMem: () => null });
+  });
+
+  test('under the floor, idle processes close oldest first until a new one fits', async () => {
+    const readings = [200, 250, 400];
+    const closed: string[] = [];
+    const entries = idle(['newer', 50], ['older', 10]);
+    await waitForClaudeMemory({
+      source: {
+        listIdle: () => entries.filter((entry) => !closed.includes(entry.sessionId)),
+        closeIdle: (sessionId) => { closed.push(sessionId); return true; },
+        countPinned: () => 1,
+      },
+      readMem: () => readings.shift() ?? 400,
+      sleep: async () => {},
+      onWait: () => assert.fail('room was made without waiting'),
+    });
+    assert.deepEqual(closed, ['older', 'newer']);
+  });
+
+  test('when only pinned work holds memory, an open waits, says why once, then gives up with the reason', async () => {
+    let clock = 0;
+    const reasons: string[] = [];
+    await assert.rejects(waitForClaudeMemory({
+      source: { listIdle: () => [], closeIdle: () => false, countPinned: () => 2 },
+      readMem: () => 120,
+      now: () => clock,
+      sleep: async (ms) => { clock += ms; },
+      onWait: (reason) => reasons.push(reason),
+    }), /120 MB free, 300 MB needed; 2 chats are holding background work\. Stop some background work/);
+    assert.equal(reasons.length, 1);
+
+    process.env.CLIDE_MEMORY_FLOOR_MB = '100';
+    try {
+      await waitForClaudeMemory({ readMem: () => 120, onWait: () => assert.fail('120 MB clears a 100 MB floor') });
+    } finally {
+      delete process.env.CLIDE_MEMORY_FLOOR_MB;
+    }
+  });
+
+  test('the start-up sweep ends only processes this port marked whose server is gone', () => {
+    const environ = (port: number, owner: number) => `PATH=/usr/bin\0CLIDE_OWNER_PID=${owner}\0CLIDE_OWNER_PORT=${port}\0`;
+    const table: Record<number, string | null> = {
+      10: environ(3001, 99),
+      11: environ(3002, 99),
+      12: environ(3001, 98),
+      13: 'PATH=/usr/bin\0',
+      14: null,
+      [process.pid]: environ(3001, 99),
+    };
+    const killed: number[] = [];
+    const swept = sweepOrphanedProcesses(3001, {
+      listPids: () => Object.keys(table).map(Number),
+      readEnviron: (pid) => table[pid] ?? null,
+      isAlive: (pid) => pid === 98,
+      kill: (pid) => { killed.push(pid); },
+    });
+    assert.deepEqual(swept, [10]);
+    assert.deepEqual(killed, [10]);
   });
 });
 
@@ -879,7 +988,9 @@ describe('claude-runtime error results', () => {
       const { frame } = JSON.parse(line);
       if (frame) recordDroppedFrame(dropped, frame);
     }
-    assert.equal(formatDroppedFrames(dropped), 'command_lifecycle:9');
+    assert.equal(formatDroppedFrames(dropped), '', 'delivery frames are read now; nothing else in the session goes unhandled');
+    recordDroppedFrame(dropped, { type: 'system', subtype: 'memory_recall' });
+    assert.equal(formatDroppedFrames(dropped), 'system/memory_recall:1');
   });
 
   test('in a recorded session each text block is claimed by its own final row, holding what streamed', async () => {
@@ -1052,6 +1163,10 @@ describe('claude-runtime turns on a fake query', () => {
         async applyFlagSettings(...args: unknown[]) {
           calls.push({ method: 'applyFlagSettings', args });
         },
+        close() {
+          calls.push({ method: 'close', args: [] });
+          fake.end();
+        },
       },
     };
     return fake;
@@ -1080,6 +1195,8 @@ describe('claude-runtime turns on a fake query', () => {
     allowedTools?: string[];
     cwd?: string;
     normalizeMessage?: (raw: Frame) => Frame[];
+    /** The process outlives its closed input, as CLI 2.1.293 once did for ten minutes. */
+    lingers?: boolean;
   }) {
     const runtime = await loadRuntime();
     const fake = createFakeQuery();
@@ -1089,12 +1206,13 @@ describe('claude-runtime turns on a fake query', () => {
       // Like the CLI, the stream ends once the runtime closes its input.
       void (async () => {
         for await (const input of params.prompt) fake.inputs.push(input);
-        fake.end();
+        if (!options.lingers) fake.end();
       })();
       return fake.instance;
     });
     const mapped: string[] = [];
     const normalized: Frame[] = [];
+    const lease: string[] = [];
     const writer = {
       userId: null,
       send: (frame: Frame) => { sent.push(frame); },
@@ -1109,6 +1227,11 @@ describe('claude-runtime turns on a fake query', () => {
         return options.normalizeMessage?.(raw as Frame) ?? [];
       },
       isProviderInstalled: async () => true,
+      turnLease: {
+        begin: () => { lease.push('begin'); },
+        tryBegin: () => { lease.push('tryBegin'); },
+        end: () => { lease.push('end'); },
+      },
     };
     const done = runtime.queryClaudeSDK('hello', {
       sessionId: options.appId,
@@ -1118,11 +1241,130 @@ describe('claude-runtime turns on a fake query', () => {
       toolsSettings: { allowedTools: options.allowedTools ?? [], disallowedTools: [] },
     }, writer, context);
     while (!fake.options) await new Promise((resolve) => setImmediate(resolve));
-    return { runtime, fake, sent, mapped, normalized, done };
+    return { runtime, fake, sent, mapped, normalized, lease, done };
   }
 
   const settle = () => new Promise((resolve) => setImmediate(resolve));
   const completes = (sent: Frame[]) => sent.filter((frame) => frame.kind === 'complete');
+  const stages = (sent: Frame[]) => sent
+    .filter((frame) => frame.kind === 'status' && frame.stage)
+    .map((frame) => (frame.stage as { name: string }).name);
+  const backgroundTasks = (...ids: string[]) => ({
+    type: 'system',
+    subtype: 'background_tasks_changed',
+    tasks: ids.map((id) => ({ task_id: id, task_type: 'local_bash', description: 'dev server' })),
+  });
+  const result = { type: 'result', subtype: 'success', is_error: false, usage: {} };
+
+  test('a turn ends at its result while the process lingers, and the next send closes it first', async () => {
+    const { runtime, fake, sent, lease, done } = await startTurn({ appId: 'app-linger', providerId: 'prov-linger', lingers: true });
+    let exited = false;
+    void done.then(() => { exited = true; });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-linger' });
+      fake.push(result);
+      await settle();
+      await settle();
+      assert.equal(completes(sent).length, 1, 'the turn ended at its result, not at the process exit');
+      assert.equal(exited, false, 'the process is still alive: no idle, no exit');
+      assert.deepEqual(lease, ['end'], 'the update lease ends with the turn');
+      assert.deepEqual(runtime.listIdleClaudeSessions().map((entry: { sessionId: string }) => entry.sessionId), ['app-linger']);
+
+      // One writer per transcript: the next turn closes the lingering process before spawning.
+      const next = await startTurn({ appId: 'app-linger', providerId: 'prov-linger' });
+      await done;
+      assert.ok(fake.calls.some((call) => call.method === 'close'));
+      assert.equal(completes(sent).length, 1, 'the closed process sends no second complete');
+      assert.equal(runtime.listIdleClaudeSessions().length, 0);
+      next.fake.push(result);
+      await next.done;
+      assert.equal(completes(next.sent).length, 1);
+    } finally {
+      fake.end();
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
+
+  test('a send while background work holds the input starts a turn on it instead of a new process', async () => {
+    const { runtime, fake, sent, lease, done } = await startTurn({ appId: 'app-held', providerId: 'prov-held' });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-held' });
+      fake.push(backgroundTasks('t-dev'));
+      fake.push(result);
+      await settle();
+      assert.equal(stages(sent).at(-1), 'background');
+      assert.equal(completes(sent).length, 0, 'the run stays open for its background work');
+      assert.equal(await runtime.deliverToHeldClaudeSession('app-nobody', 'next', {}), false);
+
+      assert.equal(await runtime.deliverToHeldClaudeSession('app-held', 'next', { cwd: os.tmpdir() }), true);
+      await settle();
+      assert.equal(fake.inputs.length, 2, 'the message went into the held input');
+      assert.deepEqual((fake.inputs[1] as { message: { content: unknown } }).message.content, [{ type: 'text', text: 'next' }]);
+      assert.equal(stages(sent).at(-1), 'sending');
+      assert.deepEqual(lease, ['end', 'begin'], 'the new turn takes the update lease again');
+      assert.equal(await runtime.deliverToHeldClaudeSession('app-held', 'again', {}), false, 'a running turn is not held');
+
+      fake.push(backgroundTasks());
+      fake.push(result);
+      await done;
+      assert.equal(completes(sent).length, 1);
+    } finally {
+      fake.end();
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
+
+  test('a result ahead of our queued message, like a notice replayed on resume, neither ends the turn nor closes the input', async () => {
+    const { runtime, fake, sent, done } = await startTurn({ appId: 'app-ahead', providerId: 'prov-ahead' });
+    try {
+      await settle();
+      const ours = (fake.inputs[0] as { uuid?: string }).uuid;
+      assert.ok(ours, 'every input carries a uuid for the CLI\'s delivery frames');
+      fake.push({ type: 'command_lifecycle', command_uuid: ours, state: 'queued' });
+      fake.push({ type: 'system', subtype: 'task_notification', task_id: 'stale', status: 'killed' });
+      fake.push({ ...result, usage: { output_tokens: 0 } });
+      await settle();
+      assert.equal(completes(sent).length, 0, 'the notice\'s result is not our turn\'s end');
+      assert.deepEqual(runtime.listIdleClaudeSessions(), []);
+
+      fake.push({ type: 'command_lifecycle', command_uuid: ours, state: 'started' });
+      fake.push(backgroundTasks('t-dev'));
+      fake.push(result);
+      await settle();
+      assert.equal(stages(sent).at(-1), 'background', 'our turn ended with its job held, and the input still open');
+      assert.equal(await runtime.deliverToHeldClaudeSession('app-ahead', 'next', { cwd: os.tmpdir() }), true);
+      await settle();
+      const next = (fake.inputs[1] as { uuid?: string }).uuid;
+      fake.push({ type: 'command_lifecycle', command_uuid: ours, state: 'completed' });
+      fake.push({ type: 'command_lifecycle', command_uuid: next, state: 'started' });
+      fake.push(backgroundTasks());
+      fake.push(result);
+      await done;
+      assert.equal(completes(sent).length, 1);
+    } finally {
+      fake.end();
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
+
+  test('a turn Claude starts itself after background work settles takes the lease without refusing', async () => {
+    const { runtime, fake, sent, lease, done } = await startTurn({ appId: 'app-wake', providerId: 'prov-wake' });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-wake' });
+      fake.push(backgroundTasks('t-dev'));
+      fake.push(result);
+      await settle();
+      fake.push(backgroundTasks());
+      fake.push({ type: 'assistant', message: { id: 'm-wake', content: [{ type: 'text', text: 'done' }] } });
+      fake.push(result);
+      await done;
+      assert.deepEqual(lease, ['end', 'tryBegin', 'end']);
+      assert.equal(completes(sent).length, 1);
+    } finally {
+      fake.end();
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
 
   test('the context refresh reaches the live turn by app id while the provider id differs', async () => {
     const { runtime, fake, done } = await startTurn({ appId: 'app-ctx', providerId: 'prov-ctx' });

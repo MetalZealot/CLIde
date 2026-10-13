@@ -15,7 +15,9 @@ import {
     initializeSessionsWatcher,
     initializeProviderUsageResetMonitor,
     closeProviderUsageResetMonitor,
+    markProcessOwnership,
     providerRuntimeService,
+    sweepOrphanedProcesses,
 } from '@/modules/providers/index.js';
 import {
     closeScheduledMessages,
@@ -260,6 +262,12 @@ const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
 const VITE_PORT = process.env.VITE_PORT || 5173;
 
+// Before anything spawns: children carry this server's mark, and ones an
+// earlier server on this port left running are ended.
+const sweptOrphans = sweepOrphanedProcesses(SERVER_PORT);
+if (sweptOrphans.length > 0) console.log(`[startup] ended ${sweptOrphans.length} process(es) left by an earlier server: ${sweptOrphans.join(' ')}`);
+markProcessOwnership(SERVER_PORT);
+
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -317,6 +325,7 @@ async function startServer() {
         const shutdownRuntimeServices = async () => {
             closeProviderUsageResetMonitor();
             closeScheduledMessages();
+            providerRuntimeService.closeAll();
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {

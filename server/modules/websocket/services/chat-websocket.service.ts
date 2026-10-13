@@ -92,6 +92,8 @@ type ProviderRuntimeGateway = {
     changes: ChatControlChanges,
   ): Promise<ChatControlResult | null>;
   stopAgent?(provider: LLMProvider, appSessionId: string, taskId: string): Promise<boolean>;
+  /** Starts a turn on a process background work holds open; false when none is held. */
+  deliver?(provider: LLMProvider, appSessionId: string, command: string, options: AnyRecord): Promise<boolean>;
   resolveInteractiveRequest(
     requestId: string,
     response: InteractiveRequestResponse,
@@ -435,6 +437,46 @@ export async function buildChatRuntimeOptions(input: {
 }
 
 /**
+ * A send while background work holds the session's process open: the stream
+ * moves to this socket and the message starts a turn on the held input. False
+ * when the hold ended first; the caller then treats the session as it finds it.
+ */
+async function deliverToHeldTurn(
+  ws: WebSocket,
+  sessionId: string,
+  provider: LLMProvider,
+  session: { project_path: string | null; jsonl_path: string | null },
+  data: AnyRecord,
+  receiptKey: string | null,
+  requestId: string | null,
+  dependencies: ChatWebSocketDependencies,
+): Promise<boolean> {
+  const run = chatRunRegistry.attachHeldTurn(sessionId, ws, data.options);
+  if (!run || !dependencies.runtime.deliver) return false;
+  const runtimeOptions = await buildChatRuntimeOptions({
+    session,
+    sessionId,
+    provider,
+    clientOptions: (data.options ?? {}) as AnyRecord,
+    abortController: run.abortController,
+  });
+  const command = typeof data.content === 'string' ? data.content : '';
+  try {
+    if (!(await dependencies.runtime.deliver(provider, sessionId, command, runtimeOptions))) return false;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendProtocolError(ws, 'PROVIDER_BUSY', message, sessionId, requestId);
+    return true;
+  }
+  console.log(`[chat] send session=${sessionId} request=${requestId ?? 'none'} accepted held`);
+  if (receiptKey) {
+    acceptedChatSends.set(receiptKey, true);
+    sendChatSendAccepted(ws, sessionId, requestId!);
+  }
+  return true;
+}
+
+/**
  * Handles `chat.send`: resolves the session row (provider, project path, and
  * provider-native id all come from the database — never from the client),
  * registers the run, and dispatches to the provider runtime.
@@ -511,6 +553,22 @@ async function handleChatSend(
   // starts over. A scheduled continue sends through its own path and
   // deliberately does not clear it.
   sessionsDb.resetAutoContinueStreak(sessionId);
+
+  if (chatRunRegistry.isPinned(sessionId) && dependencies.runtime.deliver) {
+    if (requestedRewindId !== undefined) {
+      sendProtocolError(
+        ws,
+        'SESSION_PINNED',
+        'Background work is still running in this session. Stop it before editing an earlier message.',
+        sessionId,
+        requestId
+      );
+      return;
+    }
+    if (await deliverToHeldTurn(ws, sessionId, provider, session, data, receiptKey, requestId, dependencies)) {
+      return;
+    }
+  }
 
   const run = chatRunRegistry.startRun({
     appSessionId: sessionId,
@@ -673,7 +731,8 @@ function handleChatSubscribe(
       : null;
 
     const run = chatRunRegistry.getRun(sessionId);
-    const isProcessing = chatRunRegistry.isProcessing(sessionId);
+    // A pinned run is still live: its stream attaches and replays like a running one.
+    const isProcessing = chatRunRegistry.hasLiveRun(sessionId);
 
     // Future live events for this run should land on the socket that asked —
     // this is what makes mid-stream page refreshes work for all providers.
@@ -697,6 +756,7 @@ function handleChatSubscribe(
       kind: 'chat_subscribed',
       sessionId,
       isProcessing,
+      pinned: chatRunRegistry.isPinned(sessionId),
       runId: run?.runId ?? null,
       lastSeq: run?.lastSeq ?? 0,
       pendingPermissions,

@@ -7,7 +7,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject, prioritizeUserNpmGlobalBin } from '@/shared/utils.js';
-import { providerUpdateCoordinator } from '@/modules/providers/index.js';
+import { providerRuntimeService, providerUpdateCoordinator } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 
 type ShellIncomingMessage = {
@@ -361,14 +361,16 @@ export function handleShellConnection(
           return;
         }
 
-        if (!isPlainShell && sessionId && chatRunRegistry.isProcessing(sessionId)) {
-          ws.send(
-            JSON.stringify({
-              type: 'output',
-              data: '\x1b[33mChat is replying in this session. Open the Shell again once it finishes.\x1b[0m\r\n',
-            })
-          );
+        // One writer per transcript: a pinned run's process still writes it.
+        if (!isPlainShell && sessionId && chatRunRegistry.hasLiveRun(sessionId)) {
+          const message = chatRunRegistry.isPinned(sessionId)
+            ? 'Background work from Chat is still running in this session. Stop it from the background list, then open the CLI again.'
+            : 'Chat is replying in this session. Open the Shell again once it finishes.';
+          ws.send(JSON.stringify({ type: 'output', data: `\x1b[33m${message}\x1b[0m\r\n` }));
           return;
+        }
+        if (!isPlainShell && sessionId && provider) {
+          await providerRuntimeService.closeIdleProcess(provider, sessionId);
         }
 
         const shellCommand = await buildShellCommand(data, dependencies, assignedSessionId);

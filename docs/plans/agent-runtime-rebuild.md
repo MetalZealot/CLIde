@@ -1,7 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
-- Status: 4/11
-- Next: phase 4, ahead of phase 3 (it changes no wire)
+- Status: 5/11
+- Next: phase 3, the typed wire
 - Design: [agent runtime design](../designs/agent-runtime-rebuild.md). Read it whole
   before any phase: it binds every phase and changes only with Grayson.
 - Context: the design's list, plus `scripts/verify-claude-session-sdk.ts` and
@@ -22,7 +22,7 @@ his daily driver, so detail wins over size.
 | Search counts and diffs show only after a reload | 1 |
 | Thinking comes back empty | 1 |
 | Replies don't stream word by word | 2 |
-| A background job keeps the chat busy, blocking sends, Shell and scheduled messages | 4 |
+| A background job keeps the chat busy, blocking sends and scheduled messages (Shell stays refused: the process still writes) | 4 |
 | A chat stays busy after its reply when Claude never reports idle (10 min, 2026-10-11) | 4 |
 | Phone and laptop disagree about a live chat; a message queued on a closed phone never sends | 5 |
 | Background-task notices appear only after a reload (inferred: frames after `complete` are dropped) | 5–6 |
@@ -227,6 +227,8 @@ phase done.
   - The history bench patches exact source text in `MessageComponent.tsx` and
     `useChatMessages.ts` and fails with "Counter seam changed" if it moves; move
     those markers in the same commit.
+  - The send-delivery frames (`chat_input_accepted`, `chat_input_rejected`,
+    `chat.receipt`, ARCHITECTURE.md invariant 21) join the event union.
   - You: Claude and Codex tool rows look unchanged on phone and laptop, before
     and after a reload. Agent: full `npm test` (a protocol change).
 
@@ -242,23 +244,45 @@ phase done.
     needs the protocol lands in it.
   - You: read both lists and say which gaps matter.
 
-- [ ] 4. **Session host, part 1: busy states, writers, lifecycle — est. 1–2.**
-  - The three busy predicates, each caller moved to the right one. A send to a
-    pinned session (background tasks running, no turn) becomes a new turn on the
-    held input instead of RUN_IN_PROGRESS.
-  - `turnRunning` ends at `result` when no tasks are held, whether or not the
-    process has exited or reported idle; a lingering process is only `alive`.
-    A fake-`Query` test sends `result` and no idle, and the turn still ends.
-  - The one-writer rule for idle processes and for the agent API.
-  - The update lease per turn; updates drain idle processes.
-  - SIGTERM closes every handle; start-up sweeps orphans.
-  - The memory floor and idle timeout, counting every `claude` spawn. Measured
-    sizes to set them by: an idle `claude` ~122 MB private, ~150 MB shared-fair
-    (PSS), one mid-turn with tool children ~170 MB; three open took available
-    memory from 637 to 434 MB with the host's usual load.
-  - No wire change. You: start a dev server in a chat, then send another
-    message; it goes through. Agent, live: Claude and Codex send, stop, resume
-    and approve; a scheduled message fires; a CLI update with an idle session.
+- [x] 4. **Session host, part 1: busy states, writers, lifecycle — est. 1–2.**
+  Done 2026-10-12; ARCHITECTURE.md invariant 22.
+  - Built: busy is `isProcessing`, `isPinned` and `hasLiveRun` in the run
+    registry, read from the `background` stage it already carries. Shell and
+    delete ask `hasLiveRun`; fork, scheduled sends and the client's queue ask
+    whether a turn runs. A send, queued or scheduled message to a pinned session
+    goes into the held input as a new turn, with its attachments and composer
+    settings; editing an earlier message there is refused (`SESSION_PINNED`).
+  - Built: a turn with nothing held sends `complete` at its `result`; the
+    process lingers only as idle, and the next send, the Shell, an update or the
+    memory floor closes it. Fake-`Query` tests hold a `result` with no exit.
+  - Built: every input carries a uuid, so the CLI sends `command_lifecycle`
+    for it. A `result` while one of ours is still queued ends a turn ahead of
+    it, not ours: on resume the CLI first replays a killed job's notice with an
+    empty `result` (seen live 2026-10-12), which would otherwise end the turn and
+    close the input before the message ran.
+  - Built: the update lease is per turn (`turnLease` in the runtime context); a
+    turn Claude starts itself is never refused; an update closes idle processes.
+  - Built: SIGTERM closes every Claude process and the Codex App Server; every
+    child carries the server's pid and port, and start-up ends ones a dead
+    server on that port left (a no-op under systemd's cgroup kill).
+  - Built: `MemAvailable` floor (`CLIDE_MEMORY_FLOOR_MB`, 300) before every
+    `claude` spawn: idle processes close oldest first, then the open waits up to
+    a minute, saying why on the activity line. Idle processes close after
+    `CLIDE_CLAUDE_IDLE_TIMEOUT_MIN` (15). Both defaults are judgment from the
+    measured sizes: an idle `claude` ~122 MB private, ~170 MB mid-turn.
+  - The agent API's writer rule is gone with the API (`0dcd52a9`).
+  - Client: a pinned session's composer sends, Stop hides, the reply's summary
+    row carries the background mark, and the scroll button drops the turn dots.
+    The mark spins after its count while work runs (Grayson's call 2026-10-12).
+  - Agent, live (done 2026-10-12, slot A, Haiku): a held send, a scheduled
+    send-now and a wake turn each ran on the held process (`resume=held`); a
+    reload while held kept "1 running"; Open in CLI was refused; Stop on a held
+    turn ended it; SIGTERM left no process; children carry the port mark. Not
+    run: Codex (its 30-day limit is spent until Oct 25), a real CLI update, an
+    approval prompt (Bash was allowed by settings), the floor under real
+    pressure (unit-tested only).
+  - You (passed 2026-10-12 on slot A): start a background job in a chat, then
+    send another message; it goes through while the job runs.
 
 - [ ] 5. **Session host, part 2: protocol v2 — est. 2–3.** Needs
   [message-edit-model](message-edit-model.md) phase 3 first.
@@ -267,7 +291,8 @@ phase done.
     the current turn, and the per-turn after-`complete` drop.
   - Fan-out to every socket; subscribe replaces the set.
   - The server-side queue (`input_queued`, delivered at idle); the browser's
-    `localStorage` queue migrates to it.
+    `localStorage` queue migrates to it. It keys on invariant 21's request ids
+    rather than a second delivery scheme.
   - Server-held session state with requested and effective values, pushed as
     `session_state` on change and on subscribe. It extends the store's existing
     per-session model, effort and fast-mode fields rather than adding a parallel
@@ -383,7 +408,7 @@ phase done.
   - The from-scratch review: every inherited workaround is
     gone, or has a written reason a client built today would keep it.
   - Remove the phase-6 flag and Claude's per-message chat path. `run()` stays
-    for one-shot jobs (commit messages, the agent API).
+    for one-shot jobs (commit messages).
   - Update the provider capabilities doc, code anchors, the websocket and providers READMEs, and the `AGENTS.md` routing
     table. Narrow the TypeScript conversion plan to Codex, Cursor, OpenCode and
     notifications. Archive this plan and its design.

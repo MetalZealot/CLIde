@@ -12,6 +12,7 @@ import type {
   ProviderInteractiveResolution,
   ProviderRunFunction,
   ProviderRuntimeContext,
+  ProviderTurnLease,
   ProviderRuntimeWriter,
   SideQuestionAnswer,
   SideQuestionRequest,
@@ -37,6 +38,23 @@ const defaultDependencies: ProviderRuntimeServiceDependencies = {
     providerModelsService.resolveResumeModel(provider, sessionId, requestedModel),
   getProviderModels: (provider, options) => providerModelsService.getProviderModels(provider, options),
 };
+
+/** A run's CLI-update lease, released between the turns of a process that outlives them. */
+function createTurnLease(provider: LLMProvider): ProviderTurnLease {
+  let release: (() => void) | null = null;
+  return {
+    begin() {
+      if (!release) release = providerUpdateCoordinator.acquire(provider);
+    },
+    tryBegin() {
+      try { this.begin(); } catch { /* an update is pending; a provider-started turn runs anyway */ }
+    },
+    end() {
+      release?.();
+      release = null;
+    },
+  };
+}
 
 /**
  * Creates the application-facing provider runtime dispatcher.
@@ -69,15 +87,20 @@ export function createProviderRuntimeService(
     },
   });
 
-  const run = (
+  const run = async (
     providerName: LLMProvider,
     command: string,
     options: AnyRecord,
     writer: ProviderRuntimeWriter,
   ): Promise<unknown> => {
     const provider = dependencies.resolveProvider(providerName);
-    return providerUpdateCoordinator.run(providerName,
-      () => provider.runtime.run(command, options, writer, createRuntimeContext(provider)));
+    const turnLease = createTurnLease(providerName);
+    turnLease.begin();
+    try {
+      return await provider.runtime.run(command, options, writer, { ...createRuntimeContext(provider), turnLease });
+    } finally {
+      turnLease.end();
+    }
   };
 
   return {
@@ -102,6 +125,26 @@ export function createProviderRuntimeService(
     async steer(providerName: LLMProvider, sessionId: string, content: string): Promise<boolean> {
       const runtime = dependencies.resolveProvider(providerName).runtime;
       return runtime.steer ? Boolean(await runtime.steer(sessionId, content)) : false;
+    },
+
+    /** Starts a turn on a process background work holds open; false when none is held. */
+    async deliver(providerName: LLMProvider, sessionId: string, command: string, options: AnyRecord): Promise<boolean> {
+      const runtime = dependencies.resolveProvider(providerName).runtime;
+      return runtime.deliver ? runtime.deliver(sessionId, command, options) : false;
+    },
+
+    /** One writer per transcript: closes a process lingering past its turn. */
+    async closeIdleProcess(providerName: string, sessionId: string): Promise<boolean> {
+      try {
+        return Boolean(dependencies.resolveProvider(providerName).runtime.closeIdle?.(sessionId));
+      } catch {
+        return false;
+      }
+    },
+
+    /** Every provider's live processes close; the server is stopping. */
+    closeAll(): void {
+      for (const provider of dependencies.listProviders()) provider.runtime.closeAll?.();
     },
 
     async stopAgent(providerName: LLMProvider, sessionId: string, taskId: string): Promise<boolean> {
@@ -178,3 +221,8 @@ export function createProviderRuntimeService(
 }
 
 export const providerRuntimeService = createProviderRuntimeService();
+
+providerUpdateCoordinator.setDrain((providerName) => {
+  const runtime = providerRegistry.resolveProvider(providerName).runtime;
+  for (const { sessionId } of runtime.listIdle?.() ?? []) runtime.closeIdle?.(sessionId);
+});

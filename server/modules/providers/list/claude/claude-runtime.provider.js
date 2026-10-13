@@ -59,6 +59,13 @@ import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.j
 
 import { scopeClaudeChatBrowser } from '../../shared/mcp/chat-browser.js';
 
+import {
+  claudeIdleTimeoutMs,
+  setClaudeProcessSource,
+  trackClaudeSpawn,
+  waitForClaudeMemory,
+} from './claude-process-budget.js';
+
 // Swapped for a fake by the runtime tests; production always runs the SDK's.
 let runQuery = query;
 
@@ -122,7 +129,7 @@ const HANDLED_SDK_FRAMES = new Set([
   'assistant', 'user', 'result', 'rate_limit_event', 'stream_event',
   'system/init', 'system/compact_boundary', 'system/status', 'system/api_retry', 'system/thinking_tokens',
   'system/background_tasks_changed', 'system/task_started', 'system/task_updated', 'system/task_progress',
-  'system/task_notification',
+  'system/task_notification', 'command_lifecycle',
 ]);
 
 function recordDroppedFrame(dropped, message) {
@@ -441,7 +448,7 @@ function mapCliOptionsToSDK(options = {}) {
  * @param {Object} writer - WebSocket writer for reconnect support
  * @param {Object|null} input - The run's input stream, for steering
  */
-function addSession(sessionId, queryInstance, writer = null, input = null, turn = null) {
+function addSession(sessionId, queryInstance, writer = null, input = null, turn = null, run = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
@@ -449,7 +456,9 @@ function addSession(sessionId, queryInstance, writer = null, input = null, turn 
     writer,
     input,
     // The turn's live options and model catalog, for `controlClaudeSDKSession`.
-    turn
+    turn,
+    // The process's turn state and held-input delivery, from its run loop.
+    run
   });
 }
 
@@ -457,7 +466,9 @@ function addSession(sessionId, queryInstance, writer = null, input = null, turn 
  * Removes a session from the active sessions map
  * @param {string} sessionId - Session identifier
  */
-function removeSession(sessionId) {
+function removeSession(sessionId, queryInstance = null) {
+  // A process lingering past its turn must not remove the next run's entry.
+  if (queryInstance && activeSessions.get(sessionId)?.instance !== queryInstance) return;
   activeSessions.delete(sessionId);
 }
 
@@ -652,9 +663,11 @@ async function buildPromptContent(command, images, files, cwd) {
   return buildClaudeUserContent(promptWithFiles, images, cwd);
 }
 
-function createUserInput(content) {
+// The uuid is what the CLI's `command_lifecycle` frames report delivery against.
+function createUserInput(content, uuid = crypto.randomUUID()) {
   return {
     type: 'user',
+    uuid,
     session_id: '',
     message: { role: 'user', content },
     parent_tool_use_id: null,
@@ -669,8 +682,13 @@ function createUserInput(content) {
  * then runs as a follow-up turn inside the same run, so a push is never lost,
  * only refused once closed.
  */
-export function createClaudeInputChannel(firstContent) {
-  const pending = [createUserInput(firstContent)];
+export function createClaudeInputChannel(firstContent, onInput = () => {}) {
+  const queue = (content) => {
+    const input = createUserInput(content);
+    onInput(input.uuid);
+    return input;
+  };
+  const pending = [queue(firstContent)];
   let wake = null;
   let closed = false;
   const notify = () => {
@@ -687,8 +705,11 @@ export function createClaudeInputChannel(firstContent) {
       }
     })(),
     push(text) {
+      return this.pushContent([{ type: 'text', text }]);
+    },
+    pushContent(content) {
       if (closed) return false;
-      pending.push(createUserInput([{ type: 'text', text }]));
+      pending.push(queue(content));
       notify();
       return true;
     },
@@ -862,6 +883,11 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     const interruptClaimed = key ? abortedSessionIds.delete(key) : false;
     return interruptClaimed || Boolean(abortSignal?.aborted);
   };
+  // Leaves the record for the run's end; the abort path already sent this run's complete.
+  const isRunAbortPending = () => {
+    const key = sessionKey();
+    return Boolean(abortSignal?.aborted) || (key ? abortedSessionIds.has(key) : false);
+  };
 
   // Conversation rewind: resolve the resume shape before option mapping. A
   // fresh start behaves like a new session; the writer remaps the announced
@@ -908,7 +934,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     void check();
   };
 
-  const turnStartedAt = Date.now();
+  let turnStartedAt = Date.now();
   const sinceStart = () => Date.now() - turnStartedAt;
   let frames = 0;
   let retries = 0;
@@ -917,7 +943,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let sentLogged = false;
   // The live limit notice lacks the transcript's `quotaLimits`; this turn's rejected event supplies it.
   let rejectedRateLimit = null;
-  const turnTokens = createTurnTokenCounter();
+  let turnTokens = createTurnTokenCounter();
   let sentOutputTokens = 0;
   // The prompt stream `steer()` writes into; see createClaudeInputChannel.
   let inputChannel = null;
@@ -940,6 +966,63 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     }, BACKGROUND_HOLD_SILENCE_MS);
   };
   let textStream = null;
+  // Our inputs the CLI has not started yet. A `result` while one waits ends a
+  // turn ahead of it (a background notice replayed on resume), not ours.
+  const queuedInputs = new Set();
+  let lifecycleSeen = false;
+  // False between a `result` and the next turn on the same process.
+  let turnActive = true;
+  // The turn's `complete` went out at its `result`; the process only lingers.
+  let turnEnded = false;
+  let turnEndedAt = 0;
+  let liveQuery = null;
+  // What the session map exposes of this process: its state, and delivery into its held input.
+  let idleTimer = null;
+  let releaseSpawn = null;
+  const runHandle = {
+    state: () => (turnEnded ? 'idle' : !turnActive && holdingInput ? 'pinned' : 'turn'),
+    idleSince: () => turnEndedAt,
+    deliver: null,
+    close: () => {
+      inputChannel?.close();
+      liveQuery?.close?.();
+    },
+  };
+
+  // A held process's next turn, sent or started by Claude itself, counts its own time and tokens.
+  const startNextTurn = () => {
+    turnActive = true;
+    turnStartedAt = Date.now();
+    turnTokens = createTurnTokenCounter();
+    sentOutputTokens = 0;
+    sentLogged = false;
+    thinkingEstimate = 0;
+  };
+
+  const endTurn = () => {
+    turnEnded = true;
+    turnEndedAt = Date.now();
+    idleTimer = setTimeout(() => {
+      logTurn('idle-close', sessionKey(), { ms: Date.now() - turnEndedAt });
+      runHandle.close();
+    }, claudeIdleTimeoutMs());
+    idleTimer.unref?.();
+    textStream?.close();
+    logTurn('end', sessionKey(), {
+      ms: sinceStart(),
+      frames,
+      retries,
+      thinking_estimate: thinkingEstimate || undefined,
+      dropped: formatDroppedFrames(droppedFrames),
+    });
+    ws.send(createCompleteMessage({ provider: 'claude', sessionId: capturedSessionId || sessionId || null, exitCode: 0 }));
+    notifyRunStopped({
+      userId: ws?.userId || null,
+      provider: 'claude',
+      sessionId: sessionId || capturedSessionId || null,
+      sessionName: sessionSummary,
+    });
+  };
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -995,6 +1078,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       inputChannel?.close();
       inputChannel = createClaudeInputChannel(
         await buildPromptContent(command, options.images, options.files, options.cwd),
+        (uuid) => queuedInputs.add(uuid),
       );
       return inputChannel.stream;
     };
@@ -1103,6 +1187,20 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       return { behavior: 'deny', message: decision.message ?? 'User denied tool use' };
     };
 
+    // One writer per transcript: a process lingering past its turn closes first.
+    if (sessionKey()) closeIdleClaudeSession(sessionKey());
+    await waitForClaudeMemory({
+      signal: abortSignal,
+      onWait: (reason) => ws.send(createNormalizedMessage({
+        kind: 'status',
+        text: reason,
+        stage: { name: 'starting' },
+        sessionId: capturedSessionId || sessionId || null,
+        provider: 'claude',
+      })),
+    });
+    releaseSpawn = trackClaudeSpawn();
+
     let queryInstance;
     try {
       queryInstance = runQuery({
@@ -1120,9 +1218,10 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       });
     }
 
+    liveQuery = queryInstance;
     // Track the query instance for abort capability
     if (sessionKey()) {
-      addSession(sessionKey(), queryInstance, ws, inputChannel, liveTurn);
+      addSession(sessionKey(), queryInstance, ws, inputChannel, liveTurn, runHandle);
     }
 
     // Frames resolve their ceiling from memory only, which a restart empties
@@ -1154,6 +1253,23 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     if (capturedSessionId || sessionId) {
       sendStage({ name: 'starting' });
     }
+    // A send while background work holds the input open: the CLI starts a turn on it.
+    runHandle.deliver = (content) => {
+      if (turnEnded || turnActive || !holdingInput || !inputChannel?.isOpen) return false;
+      context.turnLease?.begin();
+      startNextTurn();
+      awaitingBackground = false;
+      clearBackgroundHold();
+      inputChannel.pushContent(content);
+      logTurn('start', sessionKey(), {
+        model: sdkOptions.model || 'default',
+        effort: sdkOptions.effort,
+        resume: 'held',
+        tasks: backgroundTasks,
+      });
+      sendStage({ name: 'sending' });
+      return true;
+    };
     textStream = createClaudeTextStream({
       onDelta: (delta) => ws.send(createNormalizedMessage({
         kind: 'text_delta',
@@ -1174,6 +1290,17 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     for await (const message of queryInstance) {
       frames += 1;
       clearBackgroundHold();
+      if (message?.type === 'command_lifecycle') {
+        lifecycleSeen = true;
+        if (message.state !== 'queued') queuedInputs.delete(message.command_uuid);
+      }
+      const resultAheadOfOurs = message?.type === 'result' && lifecycleSeen && queuedInputs.size > 0;
+      if (!turnActive && !turnEnded && !message?.parent_tool_use_id
+        && (message?.type === 'stream_event' || message?.type === 'assistant')) {
+        startNextTurn();
+        logTurn('start', sessionKey(), { model: sdkOptions.model || 'default', resume: 'woken', tasks: backgroundTasks });
+        context.turnLease?.tryBegin?.();
+      }
       recordDroppedFrame(droppedFrames, message);
       if (frames === 1) {
         logTurn('first-frame', sessionKey() || message.session_id, {
@@ -1186,7 +1313,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(sessionKey(), queryInstance, ws, inputChannel, liveTurn);
+        addSession(sessionKey(), queryInstance, ws, inputChannel, liveTurn, runHandle);
 
         // Set session ID on writer
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
@@ -1202,11 +1329,11 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         // A forked resume announces a new provider id; the writer remaps it.
         // Only a run without an app id is keyed by the provider id.
         if (!sessionId) {
-          removeSession(capturedSessionId);
+          removeSession(capturedSessionId, queryInstance);
         }
         capturedSessionId = message.session_id;
         if (!sessionId) {
-          addSession(capturedSessionId, queryInstance, ws, inputChannel, liveTurn);
+          addSession(capturedSessionId, queryInstance, ws, inputChannel, liveTurn, runHandle);
         }
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
           ws.setSessionId(capturedSessionId);
@@ -1301,10 +1428,12 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           sendStage(awaitingBackground ? { name: 'background', count: backgroundTasks } : null);
         }
       }
-      if (message?.type === 'result') {
+      if (message?.type === 'result' && !resultAheadOfOurs) {
         turnTokens.result(message.usage?.output_tokens);
         holdingInput = backgroundTasks > 0;
         awaitingBackground = holdingInput;
+        turnActive = false;
+        context.turnLease?.end();
         if (holdingInput) {
           logTurn('background-wait', sessionKey(), { ms: sinceStart(), tasks: backgroundTasks });
           sendStage({ name: 'background', count: backgroundTasks });
@@ -1419,6 +1548,12 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         }
       }
 
+      // The turn ends at its result; idle never gates it, and a process slow
+      // to exit stays only alive.
+      if (message?.type === 'result' && !resultAheadOfOurs && !holdingInput && !turnEnded && !isRunAbortPending()) {
+        endTurn();
+      }
+
       armBackgroundHold();
     }
 
@@ -1428,7 +1563,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     inputChannel?.close();
     claimMintedTranscript();
     if (sessionKey()) {
-      removeSession(sessionKey());
+      removeSession(sessionKey(), queryInstance);
+    }
+    clearTimeout(idleTimer);
+    releaseSpawn?.();
+    if (turnEnded) {
+      logTurn('exit', sessionKey(), { linger_ms: Date.now() - turnEndedAt, frames });
+      return;
     }
 
     // Send the terminal completion event — skipped for aborted runs, whose
@@ -1457,6 +1598,20 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
   } catch (error) {
     textStream?.close();
+    clearTimeout(idleTimer);
+    releaseSpawn?.();
+    if (turnEnded) {
+      clearBackgroundHold();
+      inputChannel?.close();
+      claimMintedTranscript();
+      if (sessionKey()) removeSession(sessionKey(), liveQuery);
+      logTurn('exit', sessionKey(), {
+        linger_ms: Date.now() - turnEndedAt,
+        frames,
+        detail: typeof error?.message === 'string' ? error.message : undefined,
+      });
+      return;
+    }
     // Asked once: the first call clears the abort record.
     const aborted = wasRunAborted();
     logTurn('failed', sessionKey(), {
@@ -1480,7 +1635,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     inputChannel?.close();
     claimMintedTranscript();
     if (sessionKey()) {
-      removeSession(sessionKey());
+      removeSession(sessionKey(), liveQuery);
     }
 
     if (aborted) {
@@ -1525,6 +1680,65 @@ function steerClaudeSDKSession(sessionId, content) {
     return false;
   }
   return session.input.push(text);
+}
+
+/**
+ * Starts a turn on a process background work holds open, with the send's
+ * attachments and composer settings. False when no process is held for it.
+ * @param {string} sessionId - App session id
+ * @param {string} command - The message
+ * @param {Object} options - The send's runtime options
+ * @returns {Promise<boolean>}
+ */
+async function deliverToHeldClaudeSession(sessionId, command, options = {}) {
+  const session = getSession(sessionId);
+  if (!session?.run?.deliver || session.run.state() !== 'pinned') return false;
+  const changes = {};
+  const { sdkOptions } = session.turn || {};
+  if (options.permissionMode && options.permissionMode !== sdkOptions?.permissionMode) changes.permissionMode = options.permissionMode;
+  if (options.model && options.model !== sdkOptions?.model) changes.model = options.model;
+  if (options.effort && options.effort !== sdkOptions?.effort) changes.effort = options.effort;
+  if (typeof options.fastMode === 'boolean' && options.fastMode !== (sdkOptions?.settings?.fastMode === true)) {
+    changes.fastMode = options.fastMode;
+  }
+  if (Object.keys(changes).length > 0) await controlClaudeSDKSession(sessionId, changes);
+  return session.run.deliver(await buildPromptContent(command, options.images, options.files, options.cwd));
+}
+
+/**
+ * Closes a session's process once its turn is over and nothing holds it.
+ * @param {string} sessionId - App session id
+ * @returns {boolean} Whether a process was closed
+ */
+function closeIdleClaudeSession(sessionId) {
+  const session = getSession(sessionId);
+  if (!session?.run || session.run.state() !== 'idle') return false;
+  session.run.close();
+  return true;
+}
+
+/** Processes past their turn with nothing holding them, for updates and memory. */
+function listIdleClaudeSessions() {
+  return [...activeSessions.entries()]
+    .filter(([, session]) => session.run?.state() === 'idle')
+    .map(([sessionId, session]) => ({ sessionId, startTime: session.startTime, idleSince: session.run.idleSince() }));
+}
+
+setClaudeProcessSource({
+  listIdle: listIdleClaudeSessions,
+  closeIdle: closeIdleClaudeSession,
+  countPinned: () => [...activeSessions.values()].filter((session) => session.run?.state() === 'pinned').length,
+});
+
+/** Closes every live process; the server is stopping. */
+function closeAllClaudeSessions() {
+  for (const session of activeSessions.values()) {
+    try {
+      session.run ? session.run.close() : session.input?.close();
+    } catch (error) {
+      console.warn('[Claude SDK] Close on shutdown failed:', error?.message || error);
+    }
+  }
 }
 
 /**
@@ -1721,7 +1935,7 @@ async function askClaudeSideQuestion(sessionId, request, context) {
   }
 
   const live = getSession(sessionId);
-  if (live?.instance) {
+  if (live?.instance && live.run?.state() !== 'idle') {
     return runSideQuestion(live.instance, question, request?.signal, request?.history);
   }
 
@@ -1730,6 +1944,8 @@ async function askClaudeSideQuestion(sessionId, request, context) {
     throw new Error('This session has nothing to ask about yet.');
   }
 
+  await waitForClaudeMemory({ signal: request?.signal });
+  const releaseSpawn = trackClaudeSpawn();
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   request?.signal?.addEventListener('abort', onAbort, { once: true });
@@ -1759,6 +1975,7 @@ async function askClaudeSideQuestion(sessionId, request, context) {
   } finally {
     request?.signal?.removeEventListener('abort', onAbort);
     controller.abort();
+    releaseSpawn();
   }
 }
 
@@ -1867,6 +2084,10 @@ export const claudeRuntime = {
   abort: abortClaudeSDKSession,
   steer: steerClaudeSDKSession,
   control: controlClaudeSDKSession,
+  deliver: deliverToHeldClaudeSession,
+  closeIdle: closeIdleClaudeSession,
+  listIdle: listIdleClaudeSessions,
+  closeAll: closeAllClaudeSessions,
   stopAgent: stopClaudeAgent,
   readTaskOutput: readClaudeTaskOutput,
   askSideQuestion: askClaudeSideQuestion,
@@ -1882,6 +2103,10 @@ export {
   abortClaudeSDKSession,
   steerClaudeSDKSession,
   controlClaudeSDKSession,
+  deliverToHeldClaudeSession,
+  closeIdleClaudeSession,
+  listIdleClaudeSessions,
+  closeAllClaudeSessions,
   askClaudeSideQuestion,
   runSideQuestion,
   isClaudeSDKSessionActive,

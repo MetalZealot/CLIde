@@ -132,6 +132,12 @@ type ChatRun = {
   turnOptions: unknown;
   /** Set by the first event the provider caused; the runtime's own `starting` stage precedes the provider and does not count. */
   providerResponded: boolean;
+  /**
+   * False while the provider holds the run open for background work with no
+   * turn of its own: the run is `pinned`, and a send starts a new turn on its
+   * held input instead of being refused.
+   */
+  turnRunning: boolean;
   work: RunWork;
 };
 
@@ -206,6 +212,18 @@ async function broadcastCanonicalSessionUpsert(appSessionId: string): Promise<vo
   });
 }
 
+/** A turn ended but background work holds the run open. */
+const isPinnedSignal = (message: NormalizedMessage): boolean =>
+  message.kind === 'status' && message.stage?.name === 'background';
+
+/** Evidence the provider is working on a turn: a stage of its own, or a top-level reply. */
+const isTurnSignal = (message: NormalizedMessage): boolean => {
+  if (message.kind === 'status') return Boolean(message.stage && message.stage.name !== 'background');
+  if (message.parentToolUseId) return false;
+  if (message.kind === 'text') return message.role === 'assistant';
+  return message.kind === 'thinking' || message.kind === 'tool_use';
+};
+
 function evictRunLater(appSessionId: string): void {
   const timer = setTimeout(() => {
     const run = runs.get(appSessionId);
@@ -244,11 +262,14 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
   // replay slot: a client that reconnects mid-block gets the row instead.
   if (message.kind === 'text_delta') {
     run.providerResponded = true;
+    run.turnRunning = true;
     return { ...message, sessionId: run.appSessionId, runId: run.runId };
   }
 
   run.lastSeq += 1;
   trackRunWork(run.work, message);
+  if (isPinnedSignal(message)) run.turnRunning = false;
+  else if (isTurnSignal(message)) run.turnRunning = true;
   if (!(message.kind === 'status' && message.stage?.name === 'starting')) {
     run.providerResponded = true;
   }
@@ -402,6 +423,7 @@ export const chatRunRegistry = {
       usageLimitStop: false,
       turnOptions: input.turnOptions,
       providerResponded: false,
+      turnRunning: true,
       work: createRunWork(),
       abortController: new AbortController(),
       broadcast: input.broadcast === true,
@@ -450,8 +472,39 @@ export const chatRunRegistry = {
     return run;
   },
 
+  /** A turn is running: sends queue behind it and Stop has something to end. */
   isProcessing(appSessionId: string): boolean {
+    const run = runs.get(appSessionId);
+    return run?.status === 'running' && run.turnRunning;
+  },
+
+  /** No turn runs, but background work holds the provider's process and input open. */
+  isPinned(appSessionId: string): boolean {
+    const run = runs.get(appSessionId);
+    return run?.status === 'running' && !run.turnRunning;
+  },
+
+  /** Running or pinned: something still writes this session's transcript. */
+  hasLiveRun(appSessionId: string): boolean {
     return runs.get(appSessionId)?.status === 'running';
+  },
+
+  /**
+   * Prepares a pinned run for the send that starts its next turn: its stream
+   * moves to the sender's socket (none for a scheduled send), and the send's
+   * options become the ones a usage-limit continue repeats. The turn itself
+   * starts when the provider reports a stage.
+   */
+  attachHeldTurn(
+    appSessionId: string,
+    connection: RealtimeClientConnection | null,
+    turnOptions: unknown,
+  ): ChatRun | null {
+    const run = runs.get(appSessionId);
+    if (!run || run.status !== 'running' || run.turnRunning) return null;
+    run.turnOptions = turnOptions;
+    if (connection && !run.broadcast) run.writer.updateWebSocket(connection);
+    return run;
   },
 
   listRunningRuns(): Array<{
@@ -459,6 +512,7 @@ export const chatRunRegistry = {
     provider: LLMProvider;
     startedAt: number;
     lastSeq: number;
+    pinned: boolean;
     agents: number;
     planRevision: number;
     pushedPlan: SessionPlan | null;
@@ -470,6 +524,7 @@ export const chatRunRegistry = {
         provider: run.provider,
         startedAt: run.startedAt,
         lastSeq: run.lastSeq,
+        pinned: !run.turnRunning,
         agents: run.work.agents.size,
         planRevision: run.work.planRevision,
         pushedPlan: run.work.pushedPlan,

@@ -23,12 +23,18 @@ export interface SessionActivity {
 
 export type SessionActivityMap = ReadonlyMap<string, SessionActivity>;
 
+/** False for a session held open only by background work: it takes sends, and Stop has no turn to end. */
+export const isTurnRunning = (activity: SessionActivity | null | undefined): activity is SessionActivity =>
+  Boolean(activity) && activity?.stage?.name !== 'background';
+
 export type SessionActivitySnapshot = {
   sessionId: string;
   statusText?: string | null;
   stage?: TurnStage | null;
   canInterrupt?: boolean;
   startedAt?: number;
+  /** The server holds the run open for background work with no turn of its own. */
+  pinned?: boolean;
 };
 
 export type MarkSessionProcessing = (
@@ -111,16 +117,21 @@ export function useSessionProtection() {
     setProcessingSessions((prev) => {
       const existing = prev.get(sessionId);
       const stage = activity?.stage !== undefined ? activity.stage : existing?.stage ?? null;
+      // Leaving a background wait starts a new turn on the held process: its clock and tokens start over.
+      const nextTurn = existing?.stage?.name === 'background' && activity?.stage !== undefined && stage?.name !== 'background';
+      const carried = nextTurn ? undefined : existing;
       const next: SessionActivity = {
         statusText:
           activity?.statusText !== undefined ? activity.statusText : existing?.statusText ?? null,
         stage,
-        outputTokens: activity?.outputTokens ?? existing?.outputTokens,
+        outputTokens: activity?.outputTokens ?? carried?.outputTokens,
         backgroundTasks: activity?.backgroundTasks ?? existing?.backgroundTasks,
         canInterrupt: activity?.canInterrupt ?? existing?.canInterrupt ?? true,
-        startedAt: existing?.startedAt ?? Date.now(),
-        readyAt: existing?.readyAt
-          ?? (existing?.stage?.name === 'starting' && stage?.name !== 'starting' ? Date.now() : undefined),
+        startedAt: carried?.startedAt ?? Date.now(),
+        readyAt: nextTurn
+          ? Date.now()
+          : existing?.readyAt
+            ?? (existing?.stage?.name === 'starting' && stage?.name !== 'starting' ? Date.now() : undefined),
       };
 
       if (
@@ -195,7 +206,10 @@ export function useSessionProtection() {
         updated.set(sessionId, {
           statusText:
             snapshot.statusText !== undefined ? snapshot.statusText : existing?.statusText ?? null,
-          stage: snapshot.stage !== undefined ? snapshot.stage : existing?.stage ?? null,
+          // The poll seeds a background wait only for a session this page has no live state for.
+          stage: snapshot.stage !== undefined
+            ? snapshot.stage
+            : existing ? existing.stage ?? null : snapshot.pinned ? { name: 'background' } : null,
           outputTokens: existing?.outputTokens,
           backgroundTasks: existing?.backgroundTasks,
           canInterrupt: snapshot.canInterrupt ?? existing?.canInterrupt ?? true,

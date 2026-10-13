@@ -454,6 +454,43 @@ test('listRunningRuns returns only currently running app sessions', async () => 
   });
 });
 
+test('a background wait pins a run: not processing, still live, and its next turn moves to the sender', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-pin', 'claude', '/workspace/demo');
+    const owner = new FakeConnection();
+    const sender = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-pin',
+      provider: 'claude',
+      providerSessionId: null,
+      connection: owner,
+      userId: null,
+    });
+    assert.ok(run);
+    const send = (message: Record<string, unknown>) => run.writer.send({ provider: 'claude', sessionId: 'x', ...message } as never);
+
+    assert.equal(chatRunRegistry.attachHeldTurn('app-pin', sender, {}), null, 'a running turn is not held');
+    send({ kind: 'status', text: '', stage: { name: 'background', count: 1 } });
+    assert.equal(chatRunRegistry.isProcessing('app-pin'), false);
+    assert.equal(chatRunRegistry.isPinned('app-pin'), true);
+    assert.equal(chatRunRegistry.hasLiveRun('app-pin'), true);
+    assert.equal(chatRunRegistry.listRunningRuns()[0]?.pinned, true);
+    send({ kind: 'status', text: 'background_tasks', backgroundTasks: [] });
+    assert.equal(chatRunRegistry.isPinned('app-pin'), true, 'a task-list update is not a turn');
+
+    assert.equal(chatRunRegistry.attachHeldTurn('app-pin', sender, { model: 'opus' }), run);
+    send({ kind: 'status', text: '', stage: { name: 'sending' } });
+    assert.equal(chatRunRegistry.isProcessing('app-pin'), true);
+    assert.equal(chatRunRegistry.listRunningRuns()[0]?.pinned, false);
+    assert.equal(sender.frames.at(-1)?.kind, 'status', 'the held turn streams to the socket that sent it');
+
+    // A turn Claude starts itself shows up as content, with no send.
+    send({ kind: 'status', text: '', stage: { name: 'background', count: 1 } });
+    send({ kind: 'text', role: 'assistant', content: 'the server is up' });
+    assert.equal(chatRunRegistry.isProcessing('app-pin'), true);
+  });
+});
+
 test('replayEvents returns only events after the requested seq for the matching run', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-4', 'claude', '/workspace/demo');

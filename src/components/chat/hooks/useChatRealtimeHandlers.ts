@@ -200,7 +200,8 @@ export function useChatRealtimeHandlers({
           if (!sid) return;
 
           if (msg.isProcessing) {
-            onSessionProcessing?.(sid);
+            // A pinned run holds background work with no turn; the replay that follows fills its task list.
+            onSessionProcessing?.(sid, msg.pinned === true ? { stage: { name: 'background' } } : undefined);
           } else {
             // Idle ack: ignore it if a newer request started after the
             // subscribe was sent — the ack describes the older state.

@@ -1762,7 +1762,9 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
           { taskId: 't-1', kind: 'agent', description: 'Find callers' },
           { taskId: 'sub-sh', kind: 'command', description: 'until done; do sleep 2; done', parentTaskId: 't-1' },
         ]));
-        assert.equal(container.querySelector('button[aria-label="Background work, 2 running"]')?.textContent, '2');
+        const pill = container.querySelector('button[aria-label="Background work, 2 running"]');
+        assert.equal(pill?.textContent, '2');
+        assert.ok(pill?.querySelector('.animate-spin'), 'running work spins in the pill');
         const extra = [...document.querySelectorAll<HTMLElement>('[role="dialog"] li')].at(-1);
         assert.match(extra?.textContent ?? '', /Command.*until done; do sleep 2; done.*from Find callers/);
         await React.act(async () => (extra?.querySelector('button + button') as HTMLButtonElement).click());

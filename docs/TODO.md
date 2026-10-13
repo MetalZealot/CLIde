@@ -11,11 +11,9 @@ main checkout only).
 
 ## Operations
 
-- [~] **Repo cleanup: CLIde presents and builds as itself.** New README, one CI workflow; upstream's desktop, Docker and release tooling, CloudCLI's plugin system and non-English locales removed on `chore/repo-cleanup`. Awaiting Grayson's check on the branch-test slot, then merge. Refusals in [the verdicts file](upstream-verdicts.tsv). **M**
-
 ## Provider maintenance
 
-- [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority, exempt from the plan size cap. Phases 0–2 done; phase 4 next, then 3. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
+- [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority. Phases 0–2 and 4 done; phase 3 next. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
 - [ ] **Signing in to a provider opens a terminal.** The sign-in window runs `claude auth login`, `codex login --device-auth` or `cursor-agent login` in a plain shell. Replace it with a link and a code box, CLIde driving the same command behind it; check each CLI's flow first. Grayson's call 2026-10-06. **M**
 - [ ] **The last six backend JavaScript files become TypeScript.** Four provider runtimes, the notification orchestrator and Codex token usage; `checkJs` is off, so `typecheck` reads none of them. Codex first, Claude last. [Plan](plans/server-typescript-conversion.md). **L**
 - [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows the finished Tools plan (tag `docs-archive-2026-10-07`). **L — design first**
@@ -51,7 +49,6 @@ main checkout only).
 - [ ] **Cursor `ApplyPatch` edits show 0/0 line counts.** It is renamed `Edit` but only `patch` is filled. Source only; no Cursor session to test. **S**
 - [ ] **OpenCode live tool rows may be empty.** Live parsing reads top-level `tool`/`input`/`output`; history nests them under `state`. Tool names also arrive lowercase, so case-sensitive `getToolCategory` files every one as default. Unverified — needs one real OpenCode run. **S/?**
 - [~] **Claude's live stream drops `tool_use_result`.** Mapped from snake_case since `b1692402`; not yet checked live that search counts and diffs appear before reload. **S**
-- [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — capabilities advertise Default, Accept Edits, Bypass and Plan; the runtime only adds `-f` for `skipPermissions`. Map `--mode=plan`/`--force`, or stop advertising. **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**

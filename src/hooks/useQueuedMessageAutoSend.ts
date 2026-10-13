@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { clearQueuedMessage, readQueuedMessage } from '../components/chat/utils/chatStorage';
 import { deliverNow, mintRequestId } from '../stores/sendOutbox';
 
-import type { MarkSessionProcessing, SessionActivityMap } from './useSessionProtection';
+import { isTurnRunning, type MarkSessionProcessing, type SessionActivityMap } from './useSessionProtection';
 
 interface UseQueuedMessageAutoSendArgs {
   processingSessions: SessionActivityMap;
@@ -37,7 +37,8 @@ export function useQueuedMessageAutoSend({
 
   useEffect(() => {
     const prev = prevProcessingRef.current;
-    const current = new Set(processingSessions.keys());
+    // A session held only by background work takes sends; its queue goes now.
+    const current = new Set([...processingSessions].filter(([, activity]) => isTurnRunning(activity)).map(([id]) => id));
     prevProcessingRef.current = current;
 
     for (const sessionId of prev) {
@@ -64,7 +65,7 @@ export function useQueuedMessageAutoSend({
         content: queued.content,
         options: { ...(queued.options ?? {}), attachments: queued.attachments ?? queued.images ?? [] },
       }, null);
-      markSessionProcessing(sessionId, { statusText: null, canInterrupt: true });
+      markSessionProcessing(sessionId, { statusText: null, stage: null, canInterrupt: true });
     }
   }, [processingSessions, activeSessionId, ws, markSessionProcessing]);
 }

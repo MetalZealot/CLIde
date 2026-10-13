@@ -787,6 +787,19 @@ export type ProviderRuntimeContext = {
   getProviderModels(): Promise<ProviderModelsDefinition>;
   normalizeMessage(raw: unknown, sessionId: string | null): NormalizedMessage[];
   isProviderInstalled(): Promise<boolean>;
+  /**
+   * The CLI-update lease, held per turn rather than per process: a runtime
+   * whose process outlives its turn ends it at the turn's end and begins it
+   * again for the next. `begin` throws while an update is pending; `tryBegin`
+   * is for turns the provider starts itself, which cannot be refused.
+   */
+  turnLease?: ProviderTurnLease;
+};
+
+export type ProviderTurnLease = {
+  begin(): void;
+  tryBegin(): void;
+  end(): void;
 };
 
 /** One-shot question answered beside a session, never written to its transcript. */
