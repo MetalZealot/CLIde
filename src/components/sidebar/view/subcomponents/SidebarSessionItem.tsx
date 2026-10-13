@@ -96,6 +96,11 @@ const formatCompactSessionAge = (dateString: string, currentTime: Date): string 
   return `${diffInDays}d`;
 };
 
+/** Space after the last pinned row, so the pinned tier reads as its own group. */
+export function PinnedTierGap() {
+  return <div aria-hidden="true" className="h-4 md:h-3" />;
+}
+
 export default function SidebarSessionItem({
   project,
   session,

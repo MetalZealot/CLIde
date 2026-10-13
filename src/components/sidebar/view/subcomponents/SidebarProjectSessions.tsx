@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { TFunction } from 'i18next';
 
 import { Button, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -7,8 +8,9 @@ import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../.
 import { SESSION_PAGE_SIZE } from '../../hooks/useSidebarController';
 import { projectAccentColorValue, type ProjectAccentColor } from '../../utils/accentColors';
 import { cn } from '../../../../lib/utils';
+import { endsPinnedTier } from '../../utils/utils';
 
-import SidebarSessionItem from './SidebarSessionItem';
+import SidebarSessionItem, { PinnedTierGap } from './SidebarSessionItem';
 
 type SidebarProjectSessionsProps = {
   entry: RepositoryEntry;
@@ -143,32 +145,34 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {visibleSessions.map(({ session, checkout, checkoutLabel }) => (
-            <SidebarSessionItem
-              key={session.id}
-              project={checkout}
-              session={session}
-              checkoutLabel={checkoutLabel}
-              selectedSession={selectedSession}
-              isProcessing={activeSessions.has(session.id)}
-              needsAttention={attentionSessionIds.has(session.id)}
-              hasScheduledMessage={scheduledSessionIds.has(session.id)}
-              isUnread={unreadSessionIds.has(session.id)}
-              currentTime={currentTime}
-              editingSession={editingSession}
-              editingSessionName={editingSessionName}
-              onEditingSessionNameChange={onEditingSessionNameChange}
-              onCancelEditingSession={onCancelEditingSession}
-              onSaveEditingSession={onSaveEditingSession}
-              onProjectSelect={onProjectSelect}
-              onSessionSelect={onSessionSelect}
-              onOpenActionsMenu={onOpenSessionActionsMenu}
-              activeContextMenuKey={activeContextMenuKey}
-              isSelectionMode={batchSelectedIds !== null}
-              isBatchSelected={batchSelectedIds?.has(session.id) ?? false}
-              onToggleBatchSelected={onToggleBatchSelected}
-              t={t}
-            />
+          {visibleSessions.map(({ session, checkout, checkoutLabel }, index) => (
+            <Fragment key={session.id}>
+              <SidebarSessionItem
+                project={checkout}
+                session={session}
+                checkoutLabel={checkoutLabel}
+                selectedSession={selectedSession}
+                isProcessing={activeSessions.has(session.id)}
+                needsAttention={attentionSessionIds.has(session.id)}
+                hasScheduledMessage={scheduledSessionIds.has(session.id)}
+                isUnread={unreadSessionIds.has(session.id)}
+                currentTime={currentTime}
+                editingSession={editingSession}
+                editingSessionName={editingSessionName}
+                onEditingSessionNameChange={onEditingSessionNameChange}
+                onCancelEditingSession={onCancelEditingSession}
+                onSaveEditingSession={onSaveEditingSession}
+                onProjectSelect={onProjectSelect}
+                onSessionSelect={onSessionSelect}
+                onOpenActionsMenu={onOpenSessionActionsMenu}
+                activeContextMenuKey={activeContextMenuKey}
+                isSelectionMode={batchSelectedIds !== null}
+                isBatchSelected={batchSelectedIds?.has(session.id) ?? false}
+                onToggleBatchSelected={onToggleBatchSelected}
+                t={t}
+              />
+              {endsPinnedTier(visibleSessions, index) && <PinnedTierGap />}
+            </Fragment>
           ))}
 
           {/*

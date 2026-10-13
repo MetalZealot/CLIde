@@ -113,6 +113,12 @@ export const compareSessionsStarredFirst = (
   return getSessionDate(b).getTime() - getSessionDate(a).getTime();
 };
 
+/** True for the last pinned row when an unpinned row follows it. */
+export const endsPinnedTier = (rows: { session: SessionWithProvider }[], index: number): boolean =>
+  Boolean(rows[index]?.session.isStarred)
+  && index + 1 < rows.length
+  && !rows[index + 1].session.isStarred;
+
 export const getSessionName = (session: SessionWithProvider, t: TFunction): string => {
   return session.summary || session.name || t('projects.newSession');
 };

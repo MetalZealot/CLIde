@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import { FolderPlus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -15,10 +15,11 @@ import type {
 } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 import { readProjectAccentColor } from '../../utils/accentColors';
+import { endsPinnedTier } from '../../utils/utils';
 
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
-import SidebarSessionItem from './SidebarSessionItem';
+import SidebarSessionItem, { PinnedTierGap } from './SidebarSessionItem';
 
 export type SidebarProjectListProps = {
   projects: Project[];
@@ -207,40 +208,43 @@ export default function SidebarProjectList({
   /** A flat Sessions-view row labelled with the repository it belongs to. */
   const renderFlatSession = (
     { session, checkout, checkoutLabel, repositoryName, repositoryAccentColor }: BrowseSession,
+    index: number,
   ) => {
     const sessionsSelection = { kind: 'sessions' } as const;
     const isSessionsSelectionMode = sessionSelection?.scope.kind === 'sessions';
 
     return (
-      <SidebarSessionItem
-        key={session.id}
-        project={checkout}
-        session={session}
-        projectLabel={repositoryName}
-        accentColor={readProjectAccentColor(repositoryAccentColor)}
-        checkoutLabel={checkoutLabel}
-        isSectionItem
-        selectedSession={selectedSession}
-        isProcessing={activeSessions.has(session.id)}
-        needsAttention={attentionSessionIds.has(session.id)}
-              hasScheduledMessage={scheduledSessionIds.has(session.id)}
-        isUnread={unreadSessionIds.has(session.id)}
-        currentTime={currentTime}
-        editingSession={editingSession}
-        editingSessionName={editingSessionName}
-        onEditingSessionNameChange={onEditingSessionNameChange}
-        onCancelEditingSession={onCancelEditingSession}
-        onSaveEditingSession={onSaveEditingSession}
-        onProjectSelect={onProjectSelect}
-        onSessionSelect={onSessionSelect}
-        onOpenActionsMenu={onOpenSessionActionsMenu && ((item, anchor) =>
-          onOpenSessionActionsMenu(item, anchor, sessionsSelection))}
-        activeContextMenuKey={activeContextMenuKey}
-        isSelectionMode={isSessionsSelectionMode}
-        isBatchSelected={isSessionsSelectionMode && sessionSelection.ids.has(session.id)}
-        onToggleBatchSelected={onToggleBatchSelected}
-        t={t}
-      />
+      <Fragment key={session.id}>
+        <SidebarSessionItem
+          project={checkout}
+          session={session}
+          projectLabel={repositoryName}
+          accentColor={readProjectAccentColor(repositoryAccentColor)}
+          checkoutLabel={checkoutLabel}
+          isSectionItem
+          selectedSession={selectedSession}
+          isProcessing={activeSessions.has(session.id)}
+          needsAttention={attentionSessionIds.has(session.id)}
+                hasScheduledMessage={scheduledSessionIds.has(session.id)}
+          isUnread={unreadSessionIds.has(session.id)}
+          currentTime={currentTime}
+          editingSession={editingSession}
+          editingSessionName={editingSessionName}
+          onEditingSessionNameChange={onEditingSessionNameChange}
+          onCancelEditingSession={onCancelEditingSession}
+          onSaveEditingSession={onSaveEditingSession}
+          onProjectSelect={onProjectSelect}
+          onSessionSelect={onSessionSelect}
+          onOpenActionsMenu={onOpenSessionActionsMenu && ((item, anchor) =>
+            onOpenSessionActionsMenu(item, anchor, sessionsSelection))}
+          activeContextMenuKey={activeContextMenuKey}
+          isSelectionMode={isSessionsSelectionMode}
+          isBatchSelected={isSessionsSelectionMode && sessionSelection.ids.has(session.id)}
+          onToggleBatchSelected={onToggleBatchSelected}
+          t={t}
+        />
+        {endsPinnedTier(browseSessions, index) && <PinnedTierGap />}
+      </Fragment>
     );
   };
 

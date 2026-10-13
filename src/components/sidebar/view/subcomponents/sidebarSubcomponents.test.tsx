@@ -20,6 +20,7 @@ import type {
 import {
   DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
   DEFAULT_PROJECT_VIEW_OPTIONS,
+  endsPinnedTier,
 } from '../../utils/utils';
 import { clampSidebarWidth, SIDEBAR_MIN_WIDTH } from '../../../../hooks/useSidebarWidth';
 
@@ -206,6 +207,16 @@ describe('SidebarHeader', () => {
   });
 });
 
+
+test('only the last pinned row before an unpinned one ends the pinned tier', () => {
+  const row = (id: string, isStarred: boolean) =>
+    ({ session: { id, isStarred, __provider: 'claude' } as SessionWithProvider });
+  const mixed = [row('a', true), row('b', true), row('c', false)];
+  assert.deepEqual(mixed.map((_, index) => endsPinnedTier(mixed, index)), [false, true, false]);
+
+  const allPinned = [row('a', true), row('b', true)];
+  assert.deepEqual(allPinned.map((_, index) => endsPinnedTier(allPinned, index)), [false, false]);
+});
 
 describe('SidebarProjectList', () => {
   let root: Root | null = null;
