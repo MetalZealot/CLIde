@@ -177,7 +177,10 @@ const usageWindowOrder = (window: ProviderUsageWindow): number => {
 // Filling against the window instead left the wheel looking calm at the exact
 // moment a compact fired. Green/amber/red is the signal; the count is detail.
 const RING_RADIUS = 7;
+const RING_STROKE = 2.5;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+// Dash gap between the used arc and the grey track; round caps eat one stroke width of it.
+const RING_GAP = RING_STROKE + 1.5;
 
 const toneFor = (fraction: number) => {
   if (fraction >= 0.9) return 'text-red-500';
@@ -201,30 +204,40 @@ function UsageWheel({
   showCreditMarker: boolean;
 }) {
   const clamped = Math.min(Math.max(fraction, 0), 1);
-  const dashOffset = RING_CIRCUMFERENCE * (1 - clamped);
+  const used = RING_CIRCUMFERENCE * clamped;
+  const dashOffset = RING_CIRCUMFERENCE - used;
+  const trackStart = used > 0 ? used + RING_GAP : 0;
+  const trackLength = RING_CIRCUMFERENCE - trackStart - (used > 0 ? RING_GAP : 0);
 
   return (
     <span className="relative grid h-5 w-5 place-items-center">
       <svg viewBox="0 0 20 20" className={cn('h-5 w-5 -rotate-90', tone)} aria-hidden>
-        <circle
-          cx="10"
-          cy="10"
-          r={RING_RADIUS}
-          fill="none"
-          strokeWidth="2.5"
-          className="stroke-current opacity-20"
-        />
-        <circle
-          cx="10"
-          cy="10"
-          r={RING_RADIUS}
-          fill="none"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          className="stroke-current transition-[stroke-dashoffset] duration-500"
-          strokeDasharray={RING_CIRCUMFERENCE}
-          strokeDashoffset={dashOffset}
-        />
+        {trackLength > 0 && (
+          <circle
+            cx="10"
+            cy="10"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth={RING_STROKE}
+            strokeLinecap={used > 0 ? 'round' : 'butt'}
+            className="stroke-muted-foreground opacity-40 transition-[stroke-dasharray,stroke-dashoffset] duration-500"
+            strokeDasharray={`${trackLength} ${RING_CIRCUMFERENCE}`}
+            strokeDashoffset={-trackStart}
+          />
+        )}
+        {used > 0 && (
+          <circle
+            cx="10"
+            cy="10"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth={RING_STROKE}
+            strokeLinecap="round"
+            className="stroke-current transition-[stroke-dashoffset] duration-500"
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={dashOffset}
+          />
+        )}
       </svg>
       {showCreditMarker && (
         <span
