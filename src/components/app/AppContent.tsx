@@ -58,15 +58,16 @@ const parseStartedAt = (value: unknown): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-// Yellow beats green, as in the sidebar; the open session is the bottom bar's to show.
+// Same precedence as the sidebar: yellow beats running beats green, so mid-run output is not unread.
+// The open session is the bottom bar's to show.
 const resolveOtherSessionsStatus = (
   attention: ReadonlySet<string>,
   unread: ReadonlySet<string>,
+  processing: ReadonlyMap<string, unknown>,
   openSessionId: string | null,
 ): OtherSessionsStatus => {
-  const hasOther = (ids: ReadonlySet<string>) => [...ids].some((id) => id !== openSessionId);
-  if (hasOther(attention)) return 'blocked';
-  return hasOther(unread) ? 'unread' : null;
+  if ([...attention].some((id) => id !== openSessionId)) return 'blocked';
+  return [...unread].some((id) => id !== openSessionId && !processing.has(id)) ? 'unread' : null;
 };
 
 export default function AppContent() {
@@ -126,6 +127,7 @@ function AppContentInner() {
   const otherSessionsStatus = resolveOtherSessionsStatus(
     sidebarSharedProps.attentionSessionIds,
     unreadSessionIds,
+    processingSessions,
     selectedSession?.id ?? sessionId ?? null,
   );
 
