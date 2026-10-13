@@ -1,24 +1,15 @@
 import type { ReactNode } from 'react';
 
-import MessageComponent from '../../components/chat/view/subcomponents/MessageComponent';
+import ChatRows from '../../components/chat/view/subcomponents/ChatRows';
+import { useChatRows } from '../../components/chat/hooks/useChatRows';
 import type { ChatMessage } from '../../components/chat/types/types';
 
 const createDiff = () => [];
 
-/** Fake conversation turns, rendered by the real message component. */
-export function ProbeMessages({ messages }: { messages: ChatMessage[] }) {
-  return (
-    <>
-      {messages.map((message, index) => (
-        <MessageComponent
-          key={message.id ?? index}
-          message={message}
-          prevMessage={messages[index - 1] ?? null}
-          createDiff={createDiff}
-        />
-      ))}
-    </>
-  );
+/** Fake conversation turns, grouped and drawn by the chat's own row code. */
+export function ProbeMessages({ messages, isProcessing = false }: { messages: ChatMessage[]; isProcessing?: boolean }) {
+  const rows = useChatRows(messages, { chatMessages: messages, isProcessing });
+  return <ChatRows rows={rows} createDiff={createDiff} />;
 }
 
 /** The chat column with ChatMessagesPane's padding and row gap; keep the classes in step with it. */

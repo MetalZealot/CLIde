@@ -2,9 +2,9 @@
 
 ## Overview
 
-Config-driven architecture for rendering tool executions in chat. All tool display behavior is defined in `toolConfigs.ts` — no scattered conditionals. Two base display patterns: **OneLineDisplay** for compact tools, **CollapsibleDisplay** for tools with expandable content.
+**This is not how ordinary tool calls look in chat.** `groupToolActivities` folds them into activity rows drawn by `ToolActivity` → `OperationDetail` / `DetailPanel` (in `view/subcomponents/`), which use nothing in this folder. Subagents draw through `SubagentActivity`, browser runs through `ChatBrowserActivity`.
 
-Non-error tool results route through `ToolRenderer` with `mode="result"` (single source of truth). Error results are handled inline in `MessageComponent` with a red error box.
+A call waiting on a permission prompt and a background command are one-call activities, so they draw through `ToolActivity` too. `ToolRenderer` draws only the standalone tools that reach `MessageComponent` as their own row: questions (`QuestionAnswerContent`) and plans (`PlanDisplay`), neither striped. Its two older patterns, both with a coloured `border-l-2` stripe, are **OneLineDisplay** for compact tools and **CollapsibleDisplay** for expandable ones, configured in `toolConfigs.ts`; no ordinary chat row reaches them. Error results are handled inline in `MessageComponent` with a red error box.
 
 ---
 

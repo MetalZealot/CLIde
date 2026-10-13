@@ -4,11 +4,13 @@ import ActivityIndicator from '../../components/chat/view/subcomponents/Activity
 import { cn } from '../../lib/utils';
 
 import { ProbeChat, ProbeMessages } from './ProbeChat';
-import { assistantMessage, userMessage } from './fixtures';
+import { assistantMessage, toolCall, userMessage } from './fixtures';
 import { defineProbe } from './types';
 
 const MESSAGES = [
   userMessage('Run the test suite in the background and keep going on the docs.', 'u1'),
+  toolCall('Read', { file_path: '/repo/docs/testing.md' }, 't1'),
+  toolCall('Bash', { command: 'npm test', run_in_background: true }, 't2'),
   assistantMessage('Started the tests in the background. I’ll update the guide while they run.', 'a1'),
 ];
 

@@ -1,24 +1,19 @@
 import { useTranslation } from 'react-i18next';
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef } from 'react';
+import type { MutableRefObject, RefObject } from 'react';
 
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 import type { ChatMessage, PendingPermissionRequest, TurnEnd } from '../../types/types';
 import type { Project, ProjectSession } from '../../../../types/app';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { FileOpenOptions } from '../../../code-editor/types/types';
-import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
-import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
-import { computeTurnSummaries } from '../../utils/turnDuration';
 import { useHasPendingSend } from '../../../../stores/sendOutbox';
-import ChatBrowserActivity from '../../../browser-use/view/ChatBrowserActivity';
+import { useChatRows } from '../../hooks/useChatRows';
 
 import ActivityIndicator from './ActivityIndicator';
 import { ActivityLineSlot } from './ActivityLineSlot';
-import MessageComponent from './MessageComponent';
-import SubagentActivity from './SubagentActivity';
+import ChatRows from './ChatRows';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
-import ToolActivity from './ToolActivity';
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: MutableRefObject<HTMLElement | null>;
@@ -118,83 +113,15 @@ function ChatMessagesPane({
   const { t } = useTranslation('chat');
   // Until the server confirms the send, the bubble's label tells the story; the run has not started.
   const sendPending = useHasPendingSend(selectedSession?.id || currentSessionId || null);
-  const pendingToolIds = useMemo(
-    () => new Set((pendingPermissionRequests ?? []).flatMap((request) => (request.toolId ? [request.toolId] : []))),
-    [pendingPermissionRequests],
-  );
-  const groupedVisibleMessages = useMemo(
-    () => groupToolActivities(visibleMessages, {
-      showThinking: Boolean(showThinking),
-      pendingToolIds,
-      holdTrailingThinking: isProcessing,
-    }),
-    [visibleMessages, showThinking, pendingToolIds, isProcessing],
-  );
-  const liveActivity = useMemo(() => {
-    if (!isProcessing) return null;
-    for (let index = groupedVisibleMessages.length - 1; index >= 0; index -= 1) {
-      const item = groupedVisibleMessages[index];
-      if (isToolActivityItem(item)) return item;
-    }
-    return null;
-  }, [groupedVisibleMessages, isProcessing]);
-  // All loaded messages, so a turn whose prompt sits above the visible window still resolves.
-  const turnSummaries = useMemo(
-    () => computeTurnSummaries(chatMessages, isProcessing, turnStartedAt, turnOutputTokens),
-    [chatMessages, isProcessing, turnStartedAt, turnOutputTokens],
-  );
-  const latestTurnReply = useMemo(() => {
-    for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
-      if (turnSummaries.has(chatMessages[index])) return chatMessages[index];
-    }
-    return null;
-  }, [chatMessages, turnSummaries]);
-
-  // Stable, deterministic keys for the messages rendered this pass.
-  //
-  // `normalizedToChatMessages` rebuilds fresh ChatMessage objects on every store
-  // update, so caching keys by object identity (or via a cross-render allocation
-  // Set) minted a brand-new key for the *same* logical message on each prepend —
-  // remounting the whole list, which disconnects the scroll-restore anchor and
-  // reflows heights, jumping the viewport to the bottom. Deriving keys purely
-  // from this render's ordered messages (intrinsic key, disambiguated by
-  // occurrence index on collision) yields the same key for the same message
-  // order, so React preserves existing DOM nodes and component state on prepend.
-  const messageKeyMap = useMemo(() => {
-    const keys = new WeakMap<ChatMessage, string>();
-    const occurrences = new Map<string, number>();
-    const assign = (message: ChatMessage) => {
-      const intrinsicKey = getIntrinsicMessageKey(message) ?? 'message-generated';
-      const seen = occurrences.get(intrinsicKey) ?? 0;
-      occurrences.set(intrinsicKey, seen + 1);
-      keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
-    };
-    for (const item of groupedVisibleMessages) {
-      if (isToolActivityItem(item)) {
-        item.messages.forEach(assign);
-      } else {
-        assign(item);
-      }
-    }
-    return keys;
-  }, [groupedVisibleMessages]);
-
-  // Stable identity, so memoized rows skip re-rendering when only other rows changed.
-  const messageKeyMapRef = useRef(messageKeyMap);
-  messageKeyMapRef.current = messageKeyMap;
-  const getMessageKey = useCallback(
-    (message: ChatMessage) => messageKeyMapRef.current.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
-    [],
-  );
-
-  const committedActivityKeysRef = useRef<ReadonlyMap<string, string>>(new Map());
-  const activityKeys = useMemo(
-    () => assignActivityKeys(groupedVisibleMessages, getMessageKey, committedActivityKeysRef.current),
-    [groupedVisibleMessages, getMessageKey],
-  );
-  useLayoutEffect(() => {
-    committedActivityKeysRef.current = activityKeys.byMessage;
-  }, [activityKeys]);
+  const rows = useChatRows(visibleMessages, {
+    chatMessages,
+    isProcessing,
+    showThinking,
+    pendingPermissionRequests,
+    turnStartedAt,
+    turnOutputTokens,
+  });
+  const { items: groupedVisibleMessages, latestTurnReply } = rows;
 
   // Two frames: the first lays new rows out, then they may skip rendering. Until the
   // browser next decides what is on screen, an opted-in row lays out at its
@@ -291,82 +218,24 @@ function ChatMessagesPane({
             </div>
           )}
 
-          {(() => {
-            let prevMessage: ChatMessage | null = null;
-
-            return groupedVisibleMessages.map((item) => {
-              if (isToolActivityItem(item)) {
-                const activityPrevMessage = prevMessage;
-                prevMessage = item.messages[item.messages.length - 1] || prevMessage;
-
-                if (item.browser) {
-                  return (
-                    <ChatBrowserActivity
-                      key={activityKeys.keys.get(item)}
-                      activity={item}
-                      isLive={item === liveActivity}
-                      getMessageKey={getMessageKey}
-                      onFileOpen={onFileOpen}
-                    />
-                  );
-                }
-
-                return (
-                  <ToolActivity
-                    key={activityKeys.keys.get(item)}
-                    activity={item}
-                    previous={activityPrevMessage}
-                    isLive={item === liveActivity}
-                    isWaiting={item.messages.length === 1 && Boolean(item.messages[0].toolId && pendingToolIds.has(item.messages[0].toolId))}
-                    getMessageKey={getMessageKey}
-                    onFileOpen={onFileOpen}
-                  />
-                );
-              }
-
-              const messagePrevMessage = prevMessage;
-              prevMessage = item;
-
-              if (item.isSubagentContainer) {
-                return (
-                  <SubagentActivity
-                    key={getMessageKey(item)}
-                    message={item}
-                    isLive={Boolean(isProcessing)}
-                    onFileOpen={onFileOpen}
-                  />
-                );
-              }
-
-              return (
-                <MessageComponent
-                  key={getMessageKey(item)}
-                  message={item}
-                  prevMessage={messagePrevMessage}
-                  turnSummary={turnSummaries.get(item)}
-                  isLatestTurn={item === latestTurnReply}
-                  createDiff={createDiff}
-                  onFileOpen={onFileOpen}
-                  onShowSettings={onShowSettings}
-                  onGrantToolPermission={onGrantToolPermission}
-                  showRawParameters={showRawParameters}
-                  showThinking={showThinking}
-                  selectedProject={selectedProject as Project}
-                  onEditMessage={onEditMessage}
-                  onEditUnsent={onEditUnsent}
-                  canEditMessage={canEditMessage}
-                  isRewindEditTarget={
-                    rewindEditTargetUuid !== null &&
-                    item.type === 'user' &&
-                    getTranscriptMessageUuid(item.id) === rewindEditTargetUuid
-                  }
-                  {...(item === liveLimitStopMessage && onSetAutoContinue
-                    ? { autoContinueEnabled, hasResetMessage, onSetAutoContinue }
-                    : {})}
-                />
-              );
-            });
-          })()}
+          <ChatRows
+            rows={rows}
+            createDiff={createDiff}
+            onFileOpen={onFileOpen}
+            onShowSettings={onShowSettings}
+            onGrantToolPermission={onGrantToolPermission}
+            showRawParameters={showRawParameters}
+            showThinking={showThinking}
+            selectedProject={selectedProject}
+            onEditMessage={onEditMessage}
+            onEditUnsent={onEditUnsent}
+            canEditMessage={canEditMessage}
+            rewindEditTargetUuid={rewindEditTargetUuid}
+            liveLimitStopMessage={liveLimitStopMessage}
+            autoContinueEnabled={autoContinueEnabled}
+            hasResetMessage={hasResetMessage}
+            onSetAutoContinue={onSetAutoContinue}
+          />
         </>
       )}
       {!isLoadingSessionMessages && (
