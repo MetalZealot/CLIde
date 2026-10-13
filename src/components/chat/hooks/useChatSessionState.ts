@@ -470,6 +470,9 @@ export function useChatSessionState({
       }
       return;
     }
+    // Following before the scroll lands, so rows that lay out on arrival keep it pinned.
+    isUserScrolledUpRef.current = false;
+    setIsUserScrolledUp(false);
     scrollToBottom();
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
@@ -721,15 +724,17 @@ export function useChatSessionState({
     }
 
     // If the newest page is shorter than the viewport, reaching the top emits
-    // no scroll event at all. Proactively fill through older/collapsed pages so
-    // an undersized first page cannot become another dead roof.
+    // no scroll event at all. Proactively fill through hidden, older and collapsed
+    // rows so an undersized first page cannot become another dead roof. A hidden pane measures nothing.
     if (
-      hasMoreMessages
+      (hasMoreMessages || windowStartRef.current > 0)
+      && container.clientHeight > 0
       && !isUserScrolledUpRef.current
       && container.scrollTop < topLoadDistance(container)
       && topLoadArmedRef.current
     ) {
       topLoadArmedRef.current = false;
+      if (revealOlderRows(container)) return;
       void loadOlderMessages(container).then((didLoad) => {
         if (!didLoad) topLoadArmedRef.current = true;
       });
@@ -739,6 +744,7 @@ export function useChatSessionState({
     hasMoreMessages,
     isLoadingSessionMessages,
     loadOlderMessages,
+    revealOlderRows,
     selectedProject?.projectId,
     selectedSession?.id,
     viewRange,
