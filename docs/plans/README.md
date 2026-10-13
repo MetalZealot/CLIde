@@ -14,8 +14,8 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Send a queued message into the running turn](send-queued-now.md) | 3/4 | Phase 3: Codex live once its limit resets; Claude accepted on the phone |
-| [Source Control: review, commit, merge, PR](source-control-truthfulness.md) | 1/7 | Grayson agrees the design; then Phase 0 item 1, live-checking commit errors first |
 | — | | |
+| [Diffs and Previews](source-control-truthfulness.md) | 0/8 | After the runtime rebuild: Phase 0 item 1 |
 | [Claude permission default](claude-permission-default.md) | not started | Phase 1: read `permissions.defaultMode` into Claude's capability default |
 | [Single-row mobile composer](composer-single-row.md) | 0/4 | Phase 1: probe at `dist/composer-row-probe.html` awaiting S20 verdict |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
