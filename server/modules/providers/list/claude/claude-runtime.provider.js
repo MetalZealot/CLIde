@@ -98,7 +98,7 @@ const CLAUDE_CONTEXT_USAGE_REFRESH_MS =
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
 // Auto-allowed while the mode is plan, on top of the user's own allow list.
-const PLAN_MODE_TOOLS = ['Read', 'Task', 'exit_plan_mode', 'TodoRead', 'TodoWrite', 'WebFetch', 'WebSearch'];
+const PLAN_MODE_TOOLS = ['Read', 'Agent', 'TodoWrite', 'WebFetch', 'WebSearch'];
 
 /** Model the CLI stamps on rows it fabricated rather than the model producing. */
 const SYNTHETIC_MODEL = '<synthetic>';
