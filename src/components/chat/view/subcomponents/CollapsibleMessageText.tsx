@@ -73,7 +73,7 @@ export default function CollapsibleMessageText({ children }: CollapsibleMessageT
           aria-expanded={expanded}
           aria-label={expanded ? t('collapsedMessage.collapse') : t('collapsedMessage.expand')}
           title={expanded ? t('collapsedMessage.collapse') : t('collapsedMessage.expand')}
-          className="-mb-1 flex w-full justify-center py-1 text-white/80 transition-colors hover:text-white"
+          className="-mb-1 flex w-full justify-center py-1 opacity-80 transition-opacity hover:opacity-100"
         >
           {expanded
             ? <ChevronUp className="h-4 w-4" aria-hidden="true" />

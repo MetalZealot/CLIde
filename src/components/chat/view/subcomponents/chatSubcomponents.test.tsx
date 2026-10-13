@@ -1255,6 +1255,33 @@ describe('chatSubcomponents', () => {
         }
         await React.act(async () => bubbles()[1].querySelectorAll('button')[1].click());
         assert.deepEqual(calls, ['edit first', 'send first', 'cancel first', 'resume later']);
+
+        const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+        const computedStyle = globalThis.getComputedStyle;
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 300 });
+        globalThis.getComputedStyle = (() => ({ lineHeight: '20px' })) as unknown as typeof getComputedStyle;
+        try {
+          await React.act(async () => root.unmount());
+          const tallRoot = createRoot(container);
+          await React.act(async () => tallRoot.render(
+            <I18nextProvider i18n={scheduleI18n} defaultNS="chat">
+              <ScheduledMessageBubbles
+                messages={[{ ...base, id: 'tall', content: 'Long', trigger: 'time', state: 'pending', createdAt: '2026-09-16T10:00:00Z' }]}
+                canSendNow
+                onSendNow={() => {}}
+                onEdit={() => {}}
+                onCancel={() => {}}
+                onResume={() => {}}
+              />
+            </I18nextProvider>,
+          ));
+          assert.ok(container.querySelector('[data-collapsed-message]'), 'a long scheduled message collapses like a sent one');
+          assert.ok(container.querySelector('button[aria-expanded="false"]'));
+          await React.act(async () => tallRoot.unmount());
+        } finally {
+          if (offsetHeight) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight);
+          globalThis.getComputedStyle = computedStyle;
+        }
       } finally {
         await React.act(async () => root.unmount());
         container.remove();

@@ -7,6 +7,7 @@ import { isImageAttachment } from '../../hooks/useChatComposerState';
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 
 import ChatMessageFiles from './ChatMessageFiles';
+import CollapsibleMessageText from './CollapsibleMessageText';
 import ChatMessageImages from './ChatMessageImages';
 
 interface ScheduledMessageBubblesProps {
@@ -64,9 +65,11 @@ export default function ScheduledMessageBubbles({
               {images.length > 0 && <ChatMessageImages images={images} />}
               {files.length > 0 && <ChatMessageFiles files={files} />}
               <div className="max-w-full rounded-2xl border border-dashed border-blue-600/50 bg-blue-600/[0.08] px-3 py-2 text-foreground dark:border-blue-400/50 dark:bg-blue-400/10 sm:px-4">
-                <p dir="auto" className="chat-reading whitespace-pre-wrap break-words">
-                  {message.content}
-                </p>
+                <CollapsibleMessageText>
+                  <p dir="auto" className="chat-reading whitespace-pre-wrap break-words">
+                    {message.content}
+                  </p>
+                </CollapsibleMessageText>
               </div>
               <div className="-mt-0.5 flex select-none flex-col items-end px-1 text-chat-meta text-muted-foreground">
                 <div className="flex items-center gap-x-0.5">
