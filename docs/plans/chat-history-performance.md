@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
 - Status: 9/14
-- Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 11 is coordinated with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 3
+- Next: Phase 7 — first find what broke the walk's `rerenderBounded` target, then cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 11 is coordinated with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 3
 - Context: budgets in `scripts/chat-history/budgets.ts`,
   [test suite](../testing.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -20,6 +20,9 @@ page-scroll mode** ([how](../testing.md#which-checks-to-run)):
 the session opens at the bottom, and a walk up that pauses between swipes
 moves nothing the reader did not scroll. Speed-only checks shipped a fault
 that opened sessions 629 px up and jumped the view 1,338 px (`61440326`).
+Row content is in scope too: a long message that collapsed one render late
+(`f2b356d0`) failed the walk 48 times per run for two days, because its change
+touched no scroll code and nobody walked it.
 
 ## Effort sizes
 
@@ -54,6 +57,9 @@ older pages reveal within a 30 ms estimated mount budget per frame (worst
 frame 282 → 116 ms, production build); rows opt in to skipping with their
 measured height, so restores stop drifting (`61440326`). Left: 4 of 38 steps still exceed
 100 ms, on a ~50 ms fixed frame cost that is ~40% forced layout; the phone check.
+The walk's `rerenderBounded` target fails on `main` in both modes (2026-10-13):
+it passed at `1ace705a` and already failed at `c9cf0b64`. Bisect that range
+first ([how](../testing.md#which-checks-to-run)); it is the count this phase works against.
 
 Count before cutting: timings on the Pi vary run to run and can hide a small
 win. Record React commits and rows re-rendered per scroll-up step in the
@@ -73,7 +79,8 @@ CLIde Browser, and cost no longer grows with rows already mounted.
 - [x] **9. Tests match real sessions, sustained use and position — M.**
   `historyBench.walk` on a tool-burst fixture, both scroll modes; it found
   arrivals trimming rows above a scrolled-up reader and a stale settle anchor
-  (`3a83002a`). Red with `61440326` undone. `1ace705a`
+  (`3a83002a`). Red with `61440326` undone. `1ace705a`. It runs only when
+  someone runs it; headless on the Pi is too slow to gate on.
 
 - [ ] **10. Load ahead instead of on demand — L.**
 
@@ -94,7 +101,14 @@ The tail count, the jump range and the selection hold become one range over
 loaded records. The prompt list and jumps work with Find closed. One owner
 sets scroll position, in two modes: follow the bottom, or hold a row still.
 About 15 sites set it today (grep, 2026-09-27); loads, reveals, resizes and
-jumps all go through the owner. Re-measure
+jumps all go through the owner. Following is a mode only the reader's own
+scroll leaves: today the scroll handler decides "scrolled up" from geometry a
+frame late, so a row growing between the bottom pin and that read can drop a
+following reader out of follow (read from the code, not reproduced; the jump
+button now re-enters follow before it scrolls). Off-screen rows keep their last
+measured height, so a width or reading-size change while they are off screen
+may jump the view when they return; add a resize step to the walk before
+trusting either. Re-measure
 long sessions: only if freezes remain, render near-viewport rows with reserved
 space, keeping selection, focus, editing, Find highlights, expansion and phone
 page scrolling intact. Otherwise record the evidence and close.
@@ -126,7 +140,10 @@ leaving them is recorded.
 
 Cold open, scroll to the top and back, Find, jumps, streaming a long reply and
 streaming while reading old text, reconnect, rewind, selection and session switching on the installed
-phone app. Update ARCHITECTURE.md as rules change.
+phone app. Also two fixes made from the code, never reproduced: the jump button
+reaches the bottom in one press, and reopening a tool-heavy chat whose last page
+is shorter than the screen fills it instead of stopping at the Load bar.
+Update ARCHITECTURE.md as rules change.
 
 **Exit:** device acceptance recorded, with unverified cases named.
 

@@ -52,8 +52,7 @@ main checkout only).
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — capabilities advertise Default, Accept Edits, Bypass and Plan; the runtime only adds `-f` for `skipPermissions`. Map `--mode=plan`/`--force`, or stop advertising. **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
-- [ ] The history walk's `rerenderBounded` target fails on `main`: more rows re-render per scroll-up step than budgeted. It broke between `1ace705a` and `c9cf0b64`; bisect it with `npm run bench:chat-history:browser`. **S**
-- [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–6, 8 and 9 complete. Position faults fixed (`61440326`, `3a83002a`); a walk now checks position and per-step work in both scroll modes. Next: cut the ~50 ms fixed frame cost of scroll restoration, then load history ahead. [Plan](plans/chat-history-performance.md). **L**
+- [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–6, 8, 9 and 13 complete. Collapse-late jumps fixed 2026-10-13. Next: bisect the walk's failing `rerenderBounded` target, cut the ~50 ms restore frame cost, then load history ahead (ends the roof on a hard flick). [Plan](plans/chat-history-performance.md). **L**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Open in CLI view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
 - [~] **Send delivery: bubble at the press, stage label, one run per send.** Duplicate sessions and turns on a spotty connection; request ids, receipts and a two-minute give-up, invariant 21 in `ARCHITECTURE.md`. Tested; awaiting an airplane-mode check on the phone. **M**
@@ -61,6 +60,7 @@ main checkout only).
 
 ## Mobile UX polish
 
+- [ ] **Browser tab: the composer sits halfway up the screen as the page loads** (Firefox, maybe Chrome; never the installed app). Suspect `--keyboard-height` in AppContent: `innerHeight − visualViewport.height`, set only on viewport resize. Probe first: one page logging both heights and resize events on load, opened in each browser. **S**
 - [~] **Jump-to-bottom button carries the activity dots while scrolled up**, chevron below the circle; a turn's ending holds until you're back at the bottom (probe variant G). Awaiting a look on phone. **S**
 - [~] **Bottom sheets drag down to close, from anywhere once the list is at the top**, with a handle and Android back closing them; one shared sheet, `/btw` first. Built: shared `BottomSheet` (mid-swipe handoff, ⅓ release), `/btw` moved onto it; awaiting a phone look. **M**
 - [~] **The 90% usage warning hangs under the header ring** (probe variant A, `~/Projects/mockups/usage-warning`); stays until × or reset, the composer notice remains only where there is no header. Built; awaiting a phone look once a window passes 90%. **S**

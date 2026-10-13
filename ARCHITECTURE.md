@@ -299,12 +299,16 @@ under a bar, jump to the top, or get pulled into the composer.
 Older messages load above, replies stream below, and rows open while reading; the app
 restores the reading position by hand after each. A session opens at the bottom.
 While scrolled up, new messages never remove rows above, and the row held still is
-the one at the top of the screen. Every change to loading or scrolling is walked in
-phone and desktop layouts, pausing between swipes, before it ships
+the one at the top of the screen. A row reaches its final height in the commit that
+mounts it: restoration reads layout before a follow-up render lands, so content that
+measures itself and then resizes (a collapse, a clamp) writes the result to the DOM
+in the measuring pass. Every change to loading, scrolling or what a row renders is
+walked in phone and desktop layouts, pausing between swipes, before it ships
 ([how](docs/testing.md#which-checks-to-run)).
 
 **Breaks:** the view jumps by a message's height, or a chat opens partway up; speed
-checks alone let that ship once.
+checks alone let that ship once, and a row that collapsed a render late let it ship
+again.
 
 #### 16. Nothing has a published place around the composer
 

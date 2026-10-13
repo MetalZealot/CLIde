@@ -47,9 +47,24 @@ One file: `npm run test:client:one <path>` / `test:server:one <path>`. A bare
 `--test` fails on the `@/` alias, and a directory argument fails even with the
 right tsconfig.
 
-Chat loading or scrolling: `npm run bench:chat-history:browser`, open the printed
+**The history walk** guards chat position ([invariant 15](../ARCHITECTURE.md)). Run it
+for chat loading or scrolling, **and for anything rendered inside a chat row** —
+a message, activity, card or control that can change height after it mounts.
+Most position faults come from row content, not scroll code: a long message
+that collapsed one render late jumped every older page, and its change touched
+no scroll code at all. `npm run bench:chat-history:browser`, open the printed
 URL in CLIde's Browser, then `await historyBench.walk(2, 'page')` at 412 px wide
-and `historyBench.walk(2, 'pane')` at 1280 px, reloading between runs.
+and `historyBench.walk(2, 'pane')` at 1280 px, reloading between runs. A failure
+throws with the failed target names; `jumps` in the posted result names the row
+and frame. Nothing runs it for you: headless Chromium on the Pi did not finish
+one walk in 11 minutes (2026-10-13), against about a minute in CLIde's Browser.
+
+To find the commit that broke the walk, extract each candidate with `git archive`
+into its own `/tmp` directory, `git init` it (the harness reads git state), point
+symlink its `node_modules` to the main checkout's (fine here: it is not a worktree
+and runs no `tsc`), and serve it with
+`npx tsx --tsconfig server/tsconfig.json scripts/chat-history/browser-server.ts`.
+Delete the directories afterwards.
 
 ## Measured cost
 
