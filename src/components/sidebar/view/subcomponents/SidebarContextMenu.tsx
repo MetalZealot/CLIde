@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
 
 import { cn } from '../../../../lib/utils';
 import { ContextMenuOverlay, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -13,6 +13,8 @@ type SidebarContextMenuItemBase = {
   detail?: string;
   /** Separates a group above from this item (same convention as ActionMenu). */
   showDividerBefore?: boolean;
+  /** Trailing chevron: selecting steps into a further list rather than acting. */
+  hasSubmenu?: boolean;
 };
 
 export type SidebarContextMenuItem = SidebarContextMenuItemBase & {
@@ -69,6 +71,7 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
             ) : (
               <span className="truncate">{item.label}</span>
             )}
+            {item.hasSubmenu && <ChevronRight className="ml-auto h-4 w-4 flex-shrink-0 text-muted-foreground" />}
           </>
         );
 
@@ -78,6 +81,7 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
             <button
               type="button"
               role="menuitem"
+              aria-haspopup={item.hasSubmenu ? 'menu' : undefined}
               onClick={() => {
                 item.onSelect();
                 if (!item.keepOpen) {

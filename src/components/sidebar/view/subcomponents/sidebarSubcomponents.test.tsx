@@ -691,6 +691,22 @@ describe('SidebarContextMenu', () => {
     assert.match(item.textContent ?? '', /CLIde/);
     assert.ok(item.querySelector('.font-mono')?.textContent === '3f2a91c0');
   });
+
+  test('only an item that opens a submenu shows a trailing chevron', async () => {
+    await renderMenu(
+      [
+        { key: 'copy-id', label: 'Copy session ID', icon: Archive, hasSubmenu: true, onSelect: () => {} },
+        { key: 'rename', label: 'Rename', icon: Archive, onSelect: () => {} },
+      ],
+      () => {},
+    );
+
+    const [submenu, plain] = document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]');
+    assert.equal(submenu.querySelectorAll('svg').length, 2);
+    assert.equal(submenu.getAttribute('aria-haspopup'), 'menu');
+    assert.equal(plain.querySelectorAll('svg').length, 1);
+    assert.equal(plain.getAttribute('aria-haspopup'), null);
+  });
 });
 
 

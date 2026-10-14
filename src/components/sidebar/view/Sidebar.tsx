@@ -426,6 +426,7 @@ function Sidebar({
               key: 'copy-id',
               label: t('actions.copySessionId', 'Copy session ID'),
               icon: Copy,
+              hasSubmenu: true,
               keepOpen: true,
               onSelect: () => setContextMenu({ ...contextMenu, showIds: true }),
             },
