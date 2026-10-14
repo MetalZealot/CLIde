@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useEffect, useMemo, useState } from 'react';
 
 import type { NormalizedMessage, SessionPlan, SessionPlanStep } from '../../../stores/useSessionStore';
 import { authenticatedFetch } from '../../../utils/api';
@@ -60,8 +60,8 @@ function createdTaskId(result: ResultLike): string | null {
 }
 
 /**
- * Each plan the transcript shows finishing, keyed by the record that finished it. A plan rebuilt from
- * single-task calls counts only when every step's name is known, so a page boundary cannot invent one.
+ * Each plan the transcript shows finishing, keyed by the record that finished it. A step created on an
+ * unloaded page has an empty subject; `namedFinishedPlan` fills it or drops the card.
  */
 export function findFinishedPlans(records: NormalizedMessage[]): Map<NormalizedMessage, SessionPlan> {
   const finished = new Map<NormalizedMessage, SessionPlan>();
@@ -115,15 +115,30 @@ export function findFinishedPlans(records: NormalizedMessage[]): Map<NormalizedM
     }
     if (!changed) continue;
     const done = isDone();
-    if (done && !wasDone && [...steps.values()].every((step) => step.subject)) {
+    if (done && !wasDone) {
       finished.set(record, {
-        steps: [...steps].map(([id, step]) => ({ id, subject: step.subject as string, status: step.status, ...(step.activeForm ? { activeForm: step.activeForm } : {}) })),
+        steps: [...steps].map(([id, step]) => ({ id, subject: step.subject ?? '', status: step.status, ...(step.activeForm ? { activeForm: step.activeForm } : {}) })),
       });
     }
     wasDone = done;
   }
   return finished;
 }
+
+/**
+ * A finished plan with every step named: its own steps, else the session's stored plan when that is the same
+ * plan finished. Only the newest card may borrow, since the provider stores just the latest plan.
+ */
+export function namedFinishedPlan(card: SessionPlan, stored: SessionPlan | null | undefined): SessionPlan | null {
+  if (card.steps.every((step) => step.subject)) return card;
+  if (!stored?.steps.length || !stored.steps.every((step) => step.status === 'completed')) return null;
+  const storedSubjects = new Map(stored.steps.map((step) => [step.id, step.subject]));
+  const matches = card.steps.every((step) => storedSubjects.has(step.id) && (!step.subject || step.subject === storedSubjects.get(step.id)));
+  return matches ? stored : null;
+}
+
+/** The newest finished card's id and its named plan, so that card can show steps its page lacks. */
+export const NewestFinishedPlanContext = createContext<{ id: string; plan: SessionPlan } | null>(null);
 
 /** Same steps in the same order, so a finished plan in the chat can stand in for the banner. */
 export function isSamePlan(a: SessionPlan | null | undefined, b: SessionPlan | null | undefined): boolean {

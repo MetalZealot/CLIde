@@ -1800,8 +1800,10 @@ test('the background-work records are the agent and background calls, their resu
     row({ id: 'bash-result', kind: 'tool_result', toolId: 'b1', content: '', toolUseResult: { backgroundTaskId: 'bk1' } }),
     row({ id: 'status', kind: 'agent_status', agentStatus: { taskId: 'k', state: 'completed', report: 'Done.' } }),
     row({ id: 'notice', kind: 'text', role: 'user', content: '<task-notification>\n<tool-use-id>b1</tool-use-id>\n</task-notification>' }),
+    row({ id: 'stop', kind: 'tool_use', toolName: 'TaskStop', toolId: 's1' }),
+    row({ id: 'stop-result', kind: 'tool_result', toolId: 's1', content: '', toolUseResult: { task_id: 'bk1', task_type: 'local_bash' } }),
   ]);
-  assert.deepEqual(kept.map((message) => message.id), ['agent', 'bash', 'bash-result', 'status', 'notice']);
+  assert.deepEqual(kept.map((message) => message.id), ['agent', 'bash', 'bash-result', 'status', 'notice', 'stop', 'stop-result']);
 });
 
 test('a session plan is read from each provider\'s own store', async () => {

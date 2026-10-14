@@ -1,16 +1,21 @@
 import { Check, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { SegmentedProgress } from '../../../../shared/view/ui';
 import type { SessionPlan } from '../../../../stores/useSessionStore';
+import { NewestFinishedPlanContext } from '../../hooks/useSessionPlan';
 
 import { PlanStepList } from './PlanBanner';
 
 /** A finished plan, kept in the chat at the end of the turn it finished in; the banner's finished state, closed. */
-export default function FinishedPlanCard({ plan }: { plan: SessionPlan }) {
+export default function FinishedPlanCard({ id, plan: ownPlan }: { id?: string; plan: SessionPlan }) {
   const { t } = useTranslation('chat');
+  const newest = useContext(NewestFinishedPlanContext);
   const [isOpen, setIsOpen] = useState(false);
+  // Steps created on an unloaded page have no names; only the newest card can take them from the stored plan.
+  const plan = ownPlan.steps.every((step) => step.subject) ? ownPlan : newest && newest.id === id ? newest.plan : null;
+  if (!plan) return null;
   const total = plan.steps.length;
 
   return (

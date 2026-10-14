@@ -6,7 +6,7 @@ import test, { describe } from 'node:test';
 import { type Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
-import { findFinishedPlans, isSamePlan, readPlanSignals } from '../hooks/useSessionPlan';
+import { findFinishedPlans, isSamePlan, namedFinishedPlan, readPlanSignals } from '../hooks/useSessionPlan';
 import { applyLiveTasks, listBackgroundWork, mergeBackgroundWork } from './backgroundWork';
 import type { ChatMessage } from '../types/types';
 
@@ -895,7 +895,15 @@ test('a finished plan becomes a card at the end of its turn, rebuilt from any pr
     update('3', 'completed'),
   ];
   assert.deepEqual(subjects(tasks), ['Read,Write', 'Ship'], 'a task created after a finished plan starts the next one');
-  assert.deepEqual(subjects([update('7', 'completed')]), [], 'a step whose creation is on an unloaded page is never guessed');
+  // A step created on an unloaded page stays nameless; only a matching finished stored plan names it.
+  const [unnamed] = findFinishedPlans([update('2', 'in_progress'), update('2', 'completed')]).values();
+  const stored = (status: 'completed' | 'pending', second = 'Write') => ({ steps: [{ id: '1', subject: 'Read', status: 'completed' as const }, { id: '2', subject: second, status }] });
+  assert.equal(unnamed.steps[0].subject, '');
+  assert.equal(namedFinishedPlan(unnamed, stored('completed'))?.steps.map((step) => step.subject).join(','), 'Read,Write');
+  assert.equal(namedFinishedPlan(unnamed, stored('pending')), null, 'a stored plan still running is a different plan');
+  assert.equal(namedFinishedPlan(unnamed, { steps: [{ id: '1', subject: 'Read', status: 'completed' }] }), null, 'every step must be in the stored plan');
+  assert.equal(namedFinishedPlan({ steps: [{ id: '2', subject: 'Ship', status: 'completed' }, { id: '3', subject: '', status: 'completed' }] }, stored('completed')), null);
+  assert.equal(namedFinishedPlan(unnamed, null), null);
   assert.deepEqual(subjects([update('9', 'deleted'), create('Only', ok({ task: { id: '1' } })), update('1', 'completed')]), ['Only']);
 
   // Codex: history keeps update_plan calls, live sessions push plan_updated.
@@ -983,6 +991,18 @@ test('a background command reads running until its notice, which then adds nothi
   assert.equal(finished.length, 2, 'the notice renders nothing');
   assert.equal(finished[0].backgroundState, 'completed');
   assert.equal(describeOperation(finished[0]).status, 'completed');
+});
+
+test('a background command its own agent stopped reads stopped, with no notice to say so', () => {
+  const row = (extra: Record<string, unknown>) => ({ sessionId: 's', timestamp: '2026-10-10T00:00:00Z', provider: 'claude', ...extra }) as any;
+  const launch = row({ id: 'u1', kind: 'tool_use', toolName: 'Bash', toolId: 'toolu_bg', toolInput: { command: 'grep -ao x big.bin' } });
+  const launched = row({ id: 'r1', kind: 'tool_result', toolId: 'toolu_bg', content: 'moved to the background', toolUseResult: { stdout: '', backgroundTaskId: 'b1' } });
+  const stop = row({ id: 'u2', kind: 'tool_use', toolName: 'TaskStop', toolId: 'toolu_stop', toolInput: { task_id: 'b1' } });
+  const stopped = row({ id: 'r2', kind: 'tool_result', toolId: 'toolu_stop', content: 'Successfully stopped task: b1', toolUseResult: { message: 'Successfully stopped task: b1', task_id: 'b1', task_type: 'local_bash' } });
+  const refused = { ...stopped, isError: true };
+
+  assert.equal(normalizedToChatMessages([launch, launched, stop, stopped])[0].backgroundState, 'stopped');
+  assert.equal(normalizedToChatMessages([launch, launched, stop, refused])[0].backgroundState, 'running', 'a failed stop changes nothing');
 });
 
 test('a background agent takes its report from its completion notice, not its launch receipt', () => {

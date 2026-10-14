@@ -37,6 +37,9 @@ export function selectBackgroundRecords(messages: NormalizedMessage[]): Normaliz
   )?.backgroundTaskId;
   const callIds = new Set<string>();
   for (const message of messages) {
+    // A confirmed stop is the only record of a task its own agent ended.
+    const stop = (message.kind === 'tool_result' ? message.toolUseResult : message.toolResult?.toolUseResult) as { task_id?: unknown; task_type?: unknown } | undefined;
+    if (message.toolId && typeof stop?.task_id === 'string' && typeof stop.task_type === 'string') callIds.add(message.toolId);
     if (message.parentToolUseId || !message.toolId) continue;
     if ((message.kind === 'tool_use' && BACKGROUND_AGENT_TOOLS.has(String(message.toolName)))
       || ((message.kind === 'tool_use' || message.kind === 'tool_result') && typeof backgroundTaskOf(message) === 'string')) {

@@ -229,7 +229,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, isLatestTurn
         </div>
       ) : message.finishedPlan ? (
         <div className="w-full">
-          <FinishedPlanCard plan={message.finishedPlan} />
+          <FinishedPlanCard id={message.id} plan={message.finishedPlan} />
         </div>
       ) : message.isTaskNotification ? (
         /* Compact task notification on the left */

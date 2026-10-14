@@ -101,6 +101,14 @@ type AgentFacts = {
 
 const NOTIFIED_STATES: Record<string, AgentStatusInfo['state']> = { failed: 'failed', stopped: 'stopped', killed: 'stopped' };
 
+/** The task a confirmed stop call ended; Claude sends no completion notice for a task its own agent stopped. */
+function stoppedTaskOf(msg: NormalizedMessage): string | undefined {
+  const result = msg.kind === 'tool_result' ? msg : msg.kind === 'tool_use' ? msg.toolResult : undefined;
+  if (!result || result.isError) return undefined;
+  const stop = result.toolUseResult as { task_id?: unknown; task_type?: unknown } | undefined;
+  return typeof stop?.task_id === 'string' && typeof stop.task_type === 'string' ? stop.task_id : undefined;
+}
+
 /** What live rows and task notifications say about each agent call, in arrival order. */
 function collectAgentFacts(messages: NormalizedMessage[]): AgentFacts {
   const children = new Map<string, NormalizedMessage[]>();
@@ -112,8 +120,9 @@ function collectAgentFacts(messages: NormalizedMessage[]): AgentFacts {
   // A hand-back names only its task, and can arrive before the notice that pairs it with its call.
   for (const msg of messages) {
     const result = msg.kind === 'tool_result' ? msg : msg.kind === 'tool_use' ? msg.toolResult : undefined;
-    const agentId = (result?.toolUseResult as { agentId?: unknown } | undefined)?.agentId;
-    if (msg.toolId && typeof agentId === 'string') toolByTask.set(agentId, msg.toolId);
+    const launch = result?.toolUseResult as { agentId?: unknown; backgroundTaskId?: unknown } | undefined;
+    if (msg.toolId && typeof launch?.agentId === 'string') toolByTask.set(launch.agentId, msg.toolId);
+    if (msg.toolId && !msg.parentToolUseId && typeof launch?.backgroundTaskId === 'string') toolByTask.set(launch.backgroundTaskId, msg.toolId);
     if (msg.kind === 'agent_status' && msg.agentStatus?.toolId) toolByTask.set(msg.agentStatus.taskId, msg.agentStatus.toolId);
     if (msg.kind === 'text' && msg.role === 'user' && msg.content) {
       const notification = parseTaskNotification(msg.content);
@@ -121,6 +130,11 @@ function collectAgentFacts(messages: NormalizedMessage[]): AgentFacts {
     }
   }
   for (const msg of messages) {
+    const stoppedTask = stoppedTaskOf(msg);
+    const stoppedTool = stoppedTask ? toolByTask.get(stoppedTask) : undefined;
+    if (stoppedTask && stoppedTool && (statuses.get(stoppedTool)?.state ?? 'running') === 'running') {
+      statuses.set(stoppedTool, { ...statuses.get(stoppedTool), taskId: stoppedTask, toolId: stoppedTool, state: 'stopped' });
+    }
     if (msg.parentToolUseId) {
       if (msg.kind !== 'tool_use' || !msg.toolId) continue;
       const list = children.get(msg.parentToolUseId);

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 
 import { ChatBrowserContext, type ChatBrowserState } from '../../browser-use';
-import { useSessionPlan } from '../hooks/useSessionPlan';
+import { NewestFinishedPlanContext, namedFinishedPlan, useSessionPlan } from '../hooks/useSessionPlan';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, ChatMessage, PermissionMode, TurnEnd } from '../types/types';
@@ -1054,12 +1054,15 @@ function ChatInterface({
   });
 
   const sessionPlan = useSessionPlan(selectedSession?.id || currentSessionId || null, loadedRecords);
-  const lastFinishedPlan = useMemo(() => {
+  const newestFinishedPlan = useMemo(() => {
     for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
-      if (chatMessages[index].finishedPlan) return chatMessages[index].finishedPlan ?? null;
+      const { id, finishedPlan } = chatMessages[index];
+      if (!finishedPlan) continue;
+      const plan = namedFinishedPlan(finishedPlan, sessionPlan);
+      return plan && id ? { id, plan } : null;
     }
     return null;
-  }, [chatMessages]);
+  }, [chatMessages, sessionPlan]);
   const stopAgentSessionId = selectedSession?.id || currentSessionId || null;
   const [backgroundRunning, setBackgroundRunning] = useState<BackgroundRunning | null>(null);
   const handleStopAgent = useCallback((taskId: string) => {
@@ -1075,9 +1078,10 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
     <ChatBrowserContext.Provider value={browserState}>
+    <NewestFinishedPlanContext.Provider value={newestFinishedPlan}>
       <ActivityLineSlotProvider>
       <div className={pageScroll ? 'flex flex-1 flex-col' : 'flex h-full min-h-0 flex-col'}>
-        <PlanBanner plan={sessionPlan} finishedInChat={lastFinishedPlan} isChatLoading={isLoadingSessionMessages} isVisible={isVisible} />
+        <PlanBanner plan={sessionPlan} finishedInChat={newestFinishedPlan?.plan ?? null} isChatLoading={isLoadingSessionMessages} isVisible={isVisible} />
         <BackgroundWork
           sessionId={stopAgentSessionId}
           messages={chatMessages}
@@ -1325,6 +1329,7 @@ function ChatInterface({
 
       {headerMenuDialogs}
       </ActivityLineSlotProvider>
+    </NewestFinishedPlanContext.Provider>
     </ChatBrowserContext.Provider>
     </PermissionContext.Provider>
   );

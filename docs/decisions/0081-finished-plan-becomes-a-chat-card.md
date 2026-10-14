@@ -7,8 +7,9 @@
 
 When a plan finishes, the banner leaves and a collapsed card holding the plan
 sits after the work it finished in, above the turn's reply; each finished plan keeps its own
-card, rebuilt from the transcript's plan calls. A plan the transcript cannot
-rebuild whole keeps 0078's muted banner.
+card, rebuilt from the transcript's plan calls. The newest plan takes step names
+missing from the loaded page from the provider's stored copy; an older plan the
+loaded page cannot name has no card, and one never named keeps 0078's muted banner.
 
 ## Rejected
 
