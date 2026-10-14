@@ -52,7 +52,7 @@ main checkout only).
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — capabilities advertise Default, Accept Edits, Bypass and Plan; the runtime only adds `-f` for `skipPermissions`. Map `--mode=plan`/`--force`, or stop advertising. **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
-- [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–6, 8, 9 and 13 complete. Collapse-late jumps fixed 2026-10-13. Next: bisect the walk's failing `rerenderBounded` target, cut the ~50 ms restore frame cost, then load history ahead (ends the roof on a hard flick). [Plan](plans/chat-history-performance.md). **L**
+- [~] **Chat history loading, scrolling and Find: rebuild around one scroll owner.** Design agreed 2026-10-14; branch `chat-scroll-owner`. Next: phase 15, a baseline and tests that fail on today's code. [Plan](plans/chat-history-performance.md), [design](designs/chat-history-performance.md). **XL**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Open in CLI view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
 - [~] **Send delivery: bubble at the press, stage label, one run per send.** Duplicate sessions and turns on a spotty connection; request ids, receipts and a two-minute give-up, invariant 21 in `ARCHITECTURE.md`. Tested; awaiting an airplane-mode check on the phone. **M**

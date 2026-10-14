@@ -11,7 +11,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | Plan | Status | Next |
 |---|---|---|
 | [Agent runtime rebuild](agent-runtime-rebuild.md) | 5/11 | Phase 3: typed wire in place |
-| [Chat history performance](chat-history-performance.md) | 9/14 | Phase 7: bisect the failing `rerenderBounded` walk target, then cut the ~50 ms restore frame cost; phone check |
+| [Chat history performance](chat-history-performance.md) | 9/17 | Phase 15: record today's walk, then rule tests and browser scenarios that fail on `4b832d8c` (branch `chat-scroll-owner`) |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Send a queued message into the running turn](send-queued-now.md) | 3/4 | Phase 3: Codex live once its limit resets; Claude accepted on the phone |
 | — | | |

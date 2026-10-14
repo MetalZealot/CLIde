@@ -1,28 +1,26 @@
 # Fast, stable chat history and navigation
 
-- Status: 9/14
-- Next: Phase 7 — first find what broke the walk's `rerenderBounded` target, then cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 11 is coordinated with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 3
+- Status: 9/17
+- Next: Phase 15 — record today's walk in both layouts, then write the rule tests and browser scenarios, each failing on `4b832d8c`
 - Context: budgets in `scripts/chat-history/budgets.ts`,
   [test suite](../testing.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
   [tool activity rows](../design-system.md#tool-activity-rows)
+- Design: [Chat scroll: one owner, three modes](../designs/chat-history-performance.md) — binds every open phase
 
 Long conversations open promptly, scroll back without a Load button or a
 freeze that grows with length, keep their place and open state, and let any
-prompt be reached directly.
+prompt be reached directly. The design's ten rules are what "keep their place"
+means; a rule is met when its test passes in both layouts, not before.
 
 The **reference session** is the largest local Claude transcript (17 MB, 115
 rendered rows): real tool bursts, images and subagents. Synthetic fixtures
-are prose-heavy and missed the per-page growth phase 7 targets.
+are prose-heavy and missed both the per-page growth phase 7 targets and the
+phone-layout open fault of 2026-10-13.
 
-**Every change is checked for position, not just speed, in pane and phone
-page-scroll mode** ([how](../testing.md#which-checks-to-run)):
-the session opens at the bottom, and a walk up that pauses between swipes
-moves nothing the reader did not scroll. Speed-only checks shipped a fault
-that opened sessions 629 px up and jumped the view 1,338 px (`61440326`).
-Row content is in scope too: a long message that collapsed one render late
-(`f2b356d0`) failed the walk 48 times per run for two days, because its change
-touched no scroll code and nobody walked it.
+Work happens on branch `chat-scroll-owner` in its own worktree, verified on a
+branch-test slot, and merges to `main` after phase 14. Order of the open
+phases: **15, 11, 16, 10, 17, 7, 12, 14**.
 
 ## Effort sizes
 
@@ -44,78 +42,78 @@ interaction behaviour. Sizes include tests and verification, not model cost.
   image bodies; 256 KiB page cap. `1047d1e4`
 - [x] **6. Find without rendered history — XL.** Text index over a text-only
   copy; jumps load a window around the match. `20db29e2`
-
-- [~] **7. Cut the per-page cost of scrolling up — M–L.**
-
-Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
-14 rows, 855 ms at 112, with requests near 20 ms.
-Done: pickers scan only when open, restoration reads before writing, the
-list uses `gap`, restores keep the reader's scroll, laid-out rows skip
-rendering off-screen, chained pages double (walk 6.7 → 1.2 s blocked), the
-composer skips history commits (components rendered per walk 5,108 → 3,123).
-older pages reveal within a 30 ms estimated mount budget per frame (worst
-frame 282 → 116 ms, production build); rows opt in to skipping with their
-measured height, so restores stop drifting (`61440326`). Left: 4 of 38 steps still exceed
-100 ms, on a ~50 ms fixed frame cost that is ~40% forced layout; the phone check.
-The walk's `rerenderBounded` target fails on `main` in both modes (2026-10-13):
-it passed at `1ace705a` and already failed at `c9cf0b64`. Bisect that range
-first ([how](../testing.md#which-checks-to-run)); it is the count this phase works against.
-
-Count before cutting: timings on the Pi vary run to run and can hide a small
-win. Record React commits and rows re-rendered per scroll-up step in the
-reference session. Those counts repeat exactly. Confirm once that lowering them
-lowers blocked time, then work against the counts; the phase-9 walk fails
-when they grow. To count on the reference session, a stub
-`__REACT_DEVTOOLS_GLOBAL_HOOK__` in a same-origin iframe counts commits and
-components rendered; Long Animation Frame entries give frame and forced-layout
-time; aliasing `react-dom` to `react-dom/profiling` adds time per component.
-
-**Exit:** in the reference session no scroll-up step blocks over 100 ms in
-CLIde Browser, and cost no longer grows with rows already mounted.
-
 - [x] **8. Activity identity survives older pages — M.** An activity keeps
   the key any of its calls had; it stays open and in place. `445ef15d`
-
 - [x] **9. Tests match real sessions, sustained use and position — M.**
-  `historyBench.walk` on a tool-burst fixture, both scroll modes; it found
-  arrivals trimming rows above a scrolled-up reader and a stale settle anchor
-  (`3a83002a`). Red with `61440326` undone. `1ace705a`. It runs only when
-  someone runs it; headless on the Pi is too slow to gate on.
+  `historyBench.walk` on a tool-burst fixture, both scroll modes. `1ace705a`
+- [x] **13. Streaming replies stay cheap as they grow — M.** Streaming
+  replies render block by block (`splitMarkdownBlocks`); an update costs the
+  open block only.
+
+- [ ] **15. A baseline and failing tests before any fix — L.**
+
+Run today's walk once in each layout and record the result here. Write the
+owner's rule tests (one per design rule and transition) and the browser
+scenario suite: headless Chromium, the real chat view, the reference session,
+phone page mode at 412×880 and the desktop pane, asserting position within
+2 px and a layout-shift sum of zero. Measure the suite's run time on the Pi;
+each scenario must finish in under a minute or the harness changes before
+phase 11 starts.
+
+**Exit:** every scenario that covers a known fault fails on `4b832d8c`,
+starting with the phone-layout open landing short; the suite runs from one
+`npm` script.
+
+- [ ] **11. One scroll owner — L.**
+
+Build the owner as the design describes and route every writer through it:
+the eight in `useChatSessionState`, Find, `toggleInPlace`, the composer's send
+and the jump flash. Remove the five timers and the settle window. Add the
+eslint ban and the switchable scroll log.
+
+**Exit:** the rule tests and scenarios pass in both layouts; lint fails on a
+direct scroll write in chat code; the log shows one write per frame at most.
+
+- [ ] **16. One rendered range — M–L.**
+
+The tail count, jump range, held start, selection start and rewind's hidden
+count become one range over loaded records. The prompt list and jumps work
+with Find closed. Coordinated with [the runtime rebuild](agent-runtime-rebuild.md)'s
+phase 3, which owns the message contract the range indexes.
+
+**Exit:** any user prompt is reachable directly without rendering what lies
+between; scrolling from a jump pages both ways and rejoins the tail.
 
 - [ ] **10. Load ahead instead of on demand — L.**
 
 After open, fetch the viewed session's remaining slim history in the
 background in bounded pages; scrolling reveals rows from memory. Evict other
 sessions' histories from browser memory past a bound. Remove the Load all
-bar: show progress only while a needed fetch runs, with retry on failure.
-Export reads complete records without widening the rendered window. Replaces
-tool-activity phase 6 (loading by activities).
+bar: a failed page shows a retry row. Export reads complete records without
+widening the rendered range. Replaces tool-activity phase 6.
 
 **Exit:** scrolling to the top of the reference session shows no Load button
 and waits on no request on a normal connection; export leaves the view as it
 was.
 
-- [ ] **11. One rendered-window model — L; XL if bounding is needed.**
+- [ ] **17. Sync keeps the reader's place — M.**
 
-The tail count, the jump range and the selection hold become one range over
-loaded records. The prompt list and jumps work with Find closed. One owner
-sets scroll position, in two modes: follow the bottom, or hold a row still.
-About 15 sites set it today (grep, 2026-09-27); loads, reveals, resizes and
-jumps all go through the owner. Following is a mode only the reader's own
-scroll leaves: today the scroll handler decides "scrolled up" from geometry a
-frame late, so a row growing between the bottom pin and that read can drop a
-following reader out of follow (read from the code, not reproduced; the jump
-button now re-enters follow before it scrolls). Off-screen rows keep their last
-measured height, so a width or reading-size change while they are off screen
-may jump the view when they return; add a resize step to the walk before
-trusting either. Re-measure
-long sessions: only if freezes remain, render near-viewport rows with reserved
-space, keeping selection, focus, editing, Find highlights, expansion and phone
-page scrolling intact. Otherwise record the evidence and close.
+Reconnect replay, watcher refresh, live rows and rewind change data only and
+reach the owner as row changes. Scenarios: reconnect mid-stream while
+following and while reading, a watcher refresh while reading, rewind.
 
-**Exit:** any user prompt is reachable directly without rendering what lies
-between; scrolling from a jump pages both ways and rejoins the tail; only
-the owner writes scroll position.
+**Exit:** those scenarios pass in both layouts and no data path writes scroll
+position.
+
+- [ ] **7. Per-page scroll-up cost, re-measured — M.**
+
+The owner removes restoration's forced layout. Re-measure the reference
+session's scroll-up steps (blocked time and React commits per step); bisect
+the walk's failing `rerenderBounded` target (passed at `1ace705a`, failed at
+`c9cf0b64`) if it still fails. Unmount far rows only if freezes remain.
+
+**Exit:** no scroll-up step blocks over 100 ms in CLIde Browser, and cost no
+longer grows with rows already mounted.
 
 - [ ] **12. Close cold-load and Find-preparation gaps — M–XL.**
 
@@ -123,44 +121,36 @@ First open of a changed transcript reparses it (1.9 s for the reference
 session); Find preparation is 3.2 s on the 1,000-record fixture. Profile, then
 add incremental parsing or indexing only for measured need. Any persistent
 index must be rebuildable from provider history. Find indexes in the browser
-because only the browser turns records into displayed text; a server search
-would match text the chat never shows. Building in 12 ms slices keeps typing
-responsive, so no worker.
+because only the browser turns records into displayed text.
 
 **Exit:** first open and Find meet the budgets in `scripts/chat-history/budgets.ts`, or the evidence for
 leaving them is recorded.
 
-- [x] **13. Streaming replies stay cheap as they grow — M.** It grew: on the
-  Pi (Node server render, not the phone) an update cost 150 ms at 1,000
-  characters and 4.7 s at 29,000, nearly all syntax highlighting. Streaming
-  replies now render block by block (`splitMarkdownBlocks`), so an update
-  costs the open block only: 105–400 ms across the same lengths.
-
 - [ ] **14. Accept on the phone — M.**
 
-Cold open, scroll to the top and back, Find, jumps, streaming a long reply and
-streaming while reading old text, reconnect, rewind, selection and session switching on the installed
-phone app. Also two fixes made from the code, never reproduced: the jump button
-reaches the bottom in one press, and reopening a tool-heavy chat whose last page
-is shorter than the screen fills it instead of stopping at the Load bar.
-Update ARCHITECTURE.md as rules change.
+On the installed test app: cold open, scroll to the top and back, Find, jumps,
+streaming while following and while reading old text, a fling during
+streaming, the keyboard and a growing composer, reconnect, rewind, selection,
+session switching and tab returns. Update ARCHITECTURE.md invariant 15 and
+the testing doc as rules change.
 
-**Exit:** device acceptance recorded, with unverified cases named.
+**Exit:** device acceptance recorded, with unverified cases named; the branch
+merges to `main`.
 
 ## Done when
 
+- Every design rule passes as an automated scenario in both layouts on the
+  reference session, from one `npm` script.
+- Only the scroll owner writes chat scroll position, and lint enforces it.
 - The reference session scrolls bottom to top with no Load button and no step
-  blocking over 100 ms in CLIde Browser, and without visible stalls on the phone.
-- A session opens at the bottom and nothing moves that the reader did not
-  scroll, in pane and phone mode; a maintained check fails otherwise.
-- An expanded activity stays expanded while older history loads.
+  blocking over 100 ms in CLIde Browser.
 - Any user prompt can be reached directly; old text is findable.
-- Maintained tests fail when per-page cost grows with mounted rows.
-- A long streaming reply costs no more per chunk at its end than at its start,
-  or the measurement for leaving it is recorded.
+- A long streaming reply costs no more per chunk at its end than at its start.
+- Grayson has accepted it on the S20.
 
 ## Not doing
 
 - Replacing provider transcripts as authority or importing upstream's restructure.
 - Designing the prompt navigator; it has its own item in `docs/TODO.md`.
-- Rendering only near-viewport rows unless phase 11's measurement needs it.
+- The design's own exclusions: native anchoring, `column-reverse`, unmounting
+  rows without measured need, the prompt-to-top layout.

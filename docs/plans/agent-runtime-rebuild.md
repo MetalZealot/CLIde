@@ -104,8 +104,8 @@ phase done.
     private; three open took available memory down 203 MB.
   - Overlapping plans' Next lines edited: TypeScript conversion phase 5 is
     superseded by phase 6; subagent visibility phase 5 and rewind Phase B wait on
-    phase 7; chat history performance phase 13 lands with phase 2 and its phase 11
-    is coordinated with phase 3; Claude permission default and Claude settings
+    phase 7; chat history performance phase 13 lands with phase 2 and its phase 16
+    (one rendered range) is coordinated with phase 3; Claude permission default and Claude settings
     phase 6 read session state from phase 5; the flight recorder's chat-path core
     is phase 1b.
 
