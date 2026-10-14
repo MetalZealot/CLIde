@@ -337,7 +337,7 @@ export default function MainContentHeaderMenu({ children, fullTitle }: MainConte
         aria-expanded={isOpen || hasPanel}
         onClick={(event) => (sheet.inSheet && (isOpen || hasPanel) ? sheet.close() : toggle(event))}
         className={cn(
-          'touch-menu-trigger -ml-1.5 flex h-11 min-w-0 flex-1 touch-manipulation items-center rounded-lg px-1.5 text-left transition-colors hover:bg-accent/60',
+          'touch-menu-trigger -ml-1.5 flex h-11 min-w-0 max-w-full touch-manipulation items-center rounded-lg px-1.5 text-left transition-colors hover:bg-accent/60',
           (isOpen || hasPanel) && 'bg-accent/60',
         )}
       >
