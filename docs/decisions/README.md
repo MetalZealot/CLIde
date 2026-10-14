@@ -107,9 +107,10 @@ In force — read these. A partly superseded ADR stays here with its note.
 - [0077 — A plain Terminal tab takes Shell's place; Shell opens from the chat kebab](0077-terminal-tab-replaces-shell-open-in-cli.md)
 - [0078 — Agents and background commands sit behind one header button](0078-background-work-sits-behind-a-header-button.md) *(header button and list superseded by 0080; finished plan by 0081)*
 - [0079 — On phones, header menus are one sheet from behind the header](0079-header-menus-are-a-sheet-from-behind-the-header.md)
-- [0080 — Background work rides the activity line and opens a bottom sheet](0080-background-work-rides-the-activity-line.md)
+- [0080 — Background work rides the activity line and opens a bottom sheet](0080-background-work-rides-the-activity-line.md) *(full-screen item superseded on phones by 0083)*
 - [0081 — A finished plan becomes a card in the chat](0081-finished-plan-becomes-a-chat-card.md)
 - [0082 — CLIde runs `!` commands itself, for every provider](0082-cloudcli-runs-bang-commands-itself.md)
+- [0083 — Long bottom sheets rest at half or full height; transcripts open in them](0083-long-sheets-rest-at-half-or-full.md)
 
 ### Superseded
 

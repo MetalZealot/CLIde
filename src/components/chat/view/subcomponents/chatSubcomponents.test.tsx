@@ -321,11 +321,15 @@ describe('chatSubcomponents', () => {
         new URL('../../../../i18n/locales/en/chat.json', import.meta.url),
         'utf8',
       )) as Record<string, unknown>;
+      const commonTranslations = JSON.parse(readFileSync(
+        new URL('../../../../i18n/locales/en/common.json', import.meta.url),
+        'utf8',
+      )) as Record<string, unknown>;
       await i18next.use(initReactI18next).init({
         lng: 'en',
         fallbackLng: false,
         defaultNS: 'chat',
-        resources: { en: { chat: chatTranslations } },
+        resources: { en: { chat: chatTranslations, common: commonTranslations } },
       });
     });
 
@@ -561,7 +565,7 @@ describe('chatSubcomponents', () => {
       assert.equal(container.querySelector('button'), null);
     });
 
-    test('a subagent is one row that opens full screen to what it was asked, its calls, and its report', async () => {
+    test('a subagent is one row that opens to what it was asked, its calls, and its report: full screen, or a sheet on a phone', async () => {
       const hooks = registerHooks({
         resolve(specifier, context, nextResolve) {
           return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -603,6 +607,19 @@ describe('chatSubcomponents', () => {
       assert.match(screen.textContent ?? '', /Report\s*Found 3 callers/, 'the report reads in full');
       await React.act(async () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })));
       assert.equal(document.body.querySelector('[role="dialog"]'), null, 'Escape closes it');
+
+      // A phone opens it in a sheet at full height, its handle offering half.
+      Object.defineProperty(window, 'innerWidth', { value: 384, configurable: true });
+      await React.act(async () => window.dispatchEvent(new Event('resize')));
+      await React.act(async () => row.click());
+      const sheet = document.body.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement;
+      assert.ok(sheet.querySelector('[role="group"][aria-label="Explore · Find call sites"]'), 'the agent inside the sheet');
+      assert.ok(sheet.querySelector('button[aria-label="Shrink to half screen"]'), 'its handle offers half height');
+      await React.act(async () => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })));
+      await React.act(() => new Promise((resolve) => setTimeout(resolve, 260)));
+      assert.equal(document.body.querySelector('[role="dialog"]'), null);
+      Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+      await React.act(async () => window.dispatchEvent(new Event('resize')));
 
       // A background agent's status, not its launch result, decides the row.
       const withStatus = (agentStatus: NonNullable<ChatMessage['subagentState']>['agentStatus']) => (
@@ -1776,12 +1793,12 @@ function Registrant({ section }: { section: HeaderMenuSection | null }) {
         assert.equal(button?.textContent, '1');
         assert.ok(button?.querySelector('svg.lucide-layers'), 'a command in the list shows the layers icon');
 
-        // A phone gets a sheet, and an item full screen over it.
+        // A phone gets a sheet, and an item opens inside it.
         await resizeTo(384);
         await React.act(async () => button?.click());
         assert.ok(document.querySelector('[role="dialog"][aria-modal="true"]'), 'a modal sheet');
         await React.act(async () => (document.querySelectorAll<HTMLButtonElement>('[role="dialog"] li button')[2]).click());
-        assert.ok(document.querySelector('[role="dialog"][aria-modal="true"][aria-label="npm run build"]'), 'the command full screen');
+        assert.ok(document.querySelector('[role="dialog"][aria-modal="true"] [role="group"][aria-label="npm run build"]'), 'the command inside the sheet');
         await escape();
         assert.ok(document.querySelector('[role="dialog"] li'), 'Escape returns to the sheet');
         await escape();

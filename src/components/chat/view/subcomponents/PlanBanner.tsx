@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useHeaderBannerSlot } from '../../../../contexts/HeaderMenuContext';
 import { PageScrollLock, SegmentedProgress, useCloseOnBack } from '../../../../shared/view/ui';
-import { useSheetDrag } from '../../../../shared/view/ui/useSheetDrag';
+import { useScrimDismiss, useSheetDrag } from '../../../../shared/view/ui/useSheetDrag';
 import type { SessionPlan, SessionPlanStep } from '../../../../stores/useSessionStore';
 import { isSamePlan } from '../../hooks/useSessionPlan';
 
@@ -62,6 +62,7 @@ export default function PlanBanner({ plan, finishedInChat = null, isChatLoading 
 
   useCloseOnBack(isOpen, close);
   useSheetDrag(sheetRef, scrimRef, isOpen, close, 'top');
+  const scrimHandlers = useScrimDismiss(close);
 
   if (!slot || !isShown) return null;
 
@@ -76,7 +77,7 @@ export default function PlanBanner({ plan, finishedInChat = null, isChatLoading 
         <>
           <PageScrollLock />
           {/* Dims everything but the bar; a tap anywhere closes it. */}
-          <div ref={scrimRef} className="fixed inset-0 z-[-1] animate-dialog-overlay-show touch-none bg-black/25" onClick={close} aria-hidden="true" />
+          <div ref={scrimRef} className="fixed inset-0 z-[-1] animate-dialog-overlay-show touch-none bg-black/25" {...scrimHandlers} aria-hidden="true" />
         </>
       )}
       <button

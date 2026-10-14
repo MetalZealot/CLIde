@@ -175,13 +175,12 @@ function WorkRow({ item, now, onOpen, onStop }: {
 }
 
 /** A background command: its command line and the end of its output, live while it runs. */
-function CommandViewer({ item, sessionId, now, onBack, onStop, embedded }: {
+function CommandViewer({ item, sessionId, now, onBack, onStop }: {
   item: BackgroundWorkItem;
   sessionId: string | null;
   now: number;
   onBack: () => void;
   onStop?: (taskId: string) => void;
-  embedded: boolean;
 }) {
   const { t } = useTranslation('chat');
   const [output, setOutput] = useState<BackgroundOutput | null | undefined>(undefined);
@@ -220,7 +219,7 @@ function CommandViewer({ item, sessionId, now, onBack, onStop, embedded }: {
       subtitle={(item.launchedBy ? t('backgroundWork.launchedBy', { name: item.launchedBy }) : item.description) || undefined}
       backLabel={t('backgroundWork.back')}
       onBack={onBack}
-      embedded={embedded}
+      embedded
       action={isRunning && onStop && item.taskId ? (
         <button type="button" onClick={() => onStop(item.taskId as string)} className="h-8 shrink-0 rounded-md border border-border px-3 text-sm">
           {t('activity.agent.stop')}
@@ -301,12 +300,12 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
   const MarkIcon = agentsOnly ? Bot : Layers;
 
   const closeViewer = () => setOpenKey(null);
-  const viewer = (embedded: boolean) => {
+  const viewer = () => {
     if (opened?.kind === 'agent' && !opened.liveOnly) {
-      return <AgentViewer message={opened.message} isLive={isLive} onFileOpen={onFileOpen} onClose={closeViewer} embedded={embedded} />;
+      return <AgentViewer message={opened.message} isLive={isLive} onFileOpen={onFileOpen} onClose={closeViewer} embedded />;
     }
     if (opened?.kind === 'command') {
-      return <CommandViewer item={opened} sessionId={sessionId} now={now} onBack={closeViewer} onStop={onStop} embedded={embedded} />;
+      return <CommandViewer item={opened} sessionId={sessionId} now={now} onBack={closeViewer} onStop={onStop} />;
     }
     return null;
   };
@@ -362,15 +361,17 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
         slot,
       )}
 
-      {/* Phone: hidden, not closed, under an opened item, so back returns to the list. Wider: the item opens inside it. */}
+      {/* An opened item replaces the list inside it; on a phone the sheet grows to full height for it. */}
       <BottomSheet
-        open={isOpen && (asPopover || !opened)}
+        open={isOpen}
         onClose={closeAll}
         title={title}
         anchor={() => markRef.current}
         popoverClassName={opened && asPopover ? 'h-[70vh] w-[44rem]' : 'w-[26rem]'}
+        expandable={Boolean(opened)}
+        expanded
       >
-        {asPopover && opened ? viewer(true) : (
+        {opened ? viewer() : (
           <>
             <h2 className="shrink-0 px-4 pb-1 pt-2 text-base font-semibold">{title}</h2>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{listBody}</div>
@@ -378,7 +379,6 @@ export default function BackgroundWork({ sessionId, messages, isLive, liveTasks,
         )}
       </BottomSheet>
 
-      {!asPopover && viewer(false)}
     </>
   );
 }

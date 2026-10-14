@@ -1,7 +1,7 @@
 # 0080 — Background work rides the activity line and opens a bottom sheet
 
 - Date: 2026-10-11
-- Status: Accepted; supersedes 0078's header button and 0079 for the background-work list
+- Status: Accepted; supersedes 0078's header button and 0079 for the background-work list; full-screen item superseded on phones by 0083
 
 ## Decision
 

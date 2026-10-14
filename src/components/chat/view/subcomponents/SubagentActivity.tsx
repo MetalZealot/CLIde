@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { PageScrollLock, Shimmer, useCloseOnBack } from '../../../../shared/view/ui';
+import { BottomSheet, PageScrollLock, Shimmer, useCloseOnBack, useSheetAsPopover } from '../../../../shared/view/ui';
 
 import type { ChatMessage, SubagentChildTool } from '../../types/types';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
@@ -123,15 +123,15 @@ type ViewerFrameProps = {
 /** A detail view with a back arrow: full screen, or filling the popover it sits in. Escape goes back. */
 export function ViewerFrame({ label, title, subtitle, isMono = false, backLabel, onBack, action, embedded = false, children }: ViewerFrameProps) {
   useEffect(() => {
-    // Capture and stopped, so an enclosing popover stays open on the step back.
+    // Window capture runs before a dialog's document listener; stopped, so an enclosing sheet or popover stays open.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
       onBack();
     };
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [onBack]);
 
   const content = (
@@ -239,12 +239,13 @@ export function AgentViewer({ message, isLive, onFileOpen, onClose, embedded = f
   );
 }
 
-/** One row per agent at its launch point; it opens the agent full screen. */
+/** One row per agent at its launch point; it opens the agent in a full-height sheet on a phone, full screen wider. */
 const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFileOpen }: SubagentActivityProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback(() => setIsOpen(false), []);
-  useCloseOnBack(isOpen, close);
+  const asPopover = useSheetAsPopover();
+  useCloseOnBack(isOpen && asPopover, close);
   const { label, isRunning, failure, details } = useAgentSummary(message, isLive);
 
   return (
@@ -261,7 +262,13 @@ const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFil
           </>
         )}
       />
-      {isOpen && <AgentViewer message={message} isLive={isLive} onFileOpen={onFileOpen} onClose={close} />}
+      {asPopover ? (
+        isOpen && <AgentViewer message={message} isLive={isLive} onFileOpen={onFileOpen} onClose={close} />
+      ) : (
+        <BottomSheet open={isOpen} onClose={close} title={label} expandable expanded>
+          {isOpen && <AgentViewer message={message} isLive={isLive} onFileOpen={onFileOpen} onClose={close} embedded />}
+        </BottomSheet>
+      )}
     </div>
   );
 });

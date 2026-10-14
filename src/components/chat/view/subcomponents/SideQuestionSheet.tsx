@@ -100,6 +100,7 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose, onCle
       title="Side question"
       anchor={findComposer}
       matchAnchorWidth
+      expandable
     >
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 pb-3 pt-2">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-foreground">

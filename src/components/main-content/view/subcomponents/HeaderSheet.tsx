@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 
 import { useHeaderSheetHost } from '../../../../contexts/HeaderSheetContext';
 import { PageScrollLock, useCloseOnBack } from '../../../../shared/view/ui';
-import { SHEET_CLOSE_MS, SHEET_EASE, useSheetDrag } from '../../../../shared/view/ui/useSheetDrag';
+import { SHEET_CLOSE_MS, SHEET_EASE, useScrimDismiss, useSheetDrag } from '../../../../shared/view/ui/useSheetDrag';
 
 /**
  * The header controls' sheet on phones: it slides out from behind the header,
@@ -83,6 +83,7 @@ export default function HeaderSheet({ anchorRef, enabled }: { anchorRef: RefObje
 
   useCloseOnBack(open, close);
   useSheetDrag(sheetRef, overlayRef, open, close, 'top');
+  const scrimHandlers = useScrimDismiss(close);
 
   if (!open || !host) return null;
 
@@ -93,7 +94,7 @@ export default function HeaderSheet({ anchorRef, enabled }: { anchorRef: RefObje
       <div
         ref={overlayRef}
         className="absolute inset-0 animate-dialog-overlay-show touch-none bg-black/25"
-        onClick={close}
+        {...scrimHandlers}
         aria-hidden="true"
       />
       <div

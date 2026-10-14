@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { cn } from '../../../lib/utils';
 
 import PageScrollLock from './PageScrollLock';
+import { useScrimDismiss } from './useSheetDrag';
 
 interface DialogContextValue {
   open: boolean;
@@ -105,6 +106,10 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     const { open, onOpenChange, triggerRef } = useDialog();
     const contentRef = React.useRef<HTMLDivElement | null>(null);
     const previousFocusRef = React.useRef<HTMLElement | null>(null);
+    const scrimHandlers = useScrimDismiss(() => {
+      onPointerDownOutside?.();
+      onOpenChange(false);
+    });
 
     // Save the element that had focus before opening, restore on close
     React.useEffect(() => {
@@ -167,7 +172,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
       if (open && contentRef.current) {
         // Small delay to let the portal render
         requestAnimationFrame(() => {
-          const first = contentRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+          const first = contentRef.current?.querySelector<HTMLElement>(`:is(${FOCUSABLE_SELECTOR}):not([tabindex="-1"])`);
           first?.focus();
         });
       }
@@ -181,11 +186,8 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
         {/* Overlay */}
         <div
           ref={overlayRef}
-          className="fixed inset-0 animate-dialog-overlay-show bg-black/50"
-          onClick={() => {
-            onPointerDownOutside?.();
-            onOpenChange(false);
-          }}
+          className="fixed inset-0 animate-dialog-overlay-show touch-none bg-black/50"
+          {...scrimHandlers}
           aria-hidden
         />
         {/* Content */}

@@ -1,4 +1,8 @@
 {
+  "sheet": {
+    "expand": "Expand to full screen",
+    "shrink": "Shrink to half screen"
+  },
   "usageDashboard": {
     "title": "Usage",
     "description": "Account-level limits and balances for connected model providers.",

@@ -124,13 +124,16 @@ Overrulable; say so when citing one.
 - **Desktop rows answer right-click.**
 - **Every bottom sheet is `BottomSheet`.** Handle, drag down anywhere once the
   content under the finger is at its top, a swipe that scrolls back to the top
-  carries on into the sheet, release past ⅓ or a flick closes, back closes.
+  carries on into the sheet, release past ⅓ or a flick closes, back closes,
+  and a touch that starts on the scrim closes on lift.
   Material and iOS both drag-to-dismiss; the mid-swipe handoff and ⅓ were
   picked on the phone.
 - **On phones, a header control opens the header sheet, not a popover.** One
   full-width sheet slides out from behind the header (ADR 0079), with
   `BottomSheet`'s drag rules mirrored upward; tapping another header control
   swaps its contents. House convention, not a platform standard.
+- **Long bottom sheets rest at half or full height** (ADR 0083); option sheets
+  keep their content's height. Android's and iOS's sheets both do this.
 - **Reduced motion is honoured** (`prefers-reduced-motion`). WCAG 2.3.3 is AAA,
   so this is a house floor rather than a required one.
 - **Target comfort is contextual.** Review size together with separation,

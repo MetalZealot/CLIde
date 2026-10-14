@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
 
@@ -22,6 +23,10 @@ type BottomSheetProps = {
   matchAnchorWidth?: boolean;
   /** `auto` for an anchor near the top of the screen. */
   popoverPlacement?: 'auto' | 'above';
+  /** For long content: rests at half or full height, and the handle switches between them. */
+  expandable?: boolean;
+  /** An expandable sheet's height; it moves when this changes. */
+  expanded?: boolean;
   children: React.ReactNode;
 };
 
@@ -40,8 +45,11 @@ export default function BottomSheet({
   popoverClassName,
   matchAnchorWidth = false,
   popoverPlacement = 'above',
+  expandable = false,
+  expanded = false,
   children,
 }: BottomSheetProps) {
+  const { t } = useTranslation('common');
   const asPopover = useSheetAsPopover();
   // Read during render: the anchor belongs to another component and is already mounted.
   const anchorElement = open && asPopover ? anchor?.() ?? null : null;
@@ -76,7 +84,19 @@ export default function BottomSheet({
   }, []);
 
   useCloseOnBack(open && !anchorElement, requestClose);
-  useSheetDrag(sheetRef, overlayRef, open && !anchorElement, requestClose);
+  const isSheet = open && !anchorElement;
+  const { setDetent, toggleDetent, detent: restingAt } = useSheetDrag(sheetRef, overlayRef, isSheet, requestClose);
+  const detent = expandable ? (expanded ? 'full' : 'half') : null;
+  const sizedRef = React.useRef(false);
+  // Before paint, so it opens straight at its height; later changes animate.
+  React.useLayoutEffect(() => {
+    if (!isSheet) {
+      sizedRef.current = false;
+      return;
+    }
+    setDetent(detent, sizedRef.current);
+    sizedRef.current = true;
+  }, [isSheet, detent, setDetent]);
 
   // Focus moves in so Escape reaches the popover (a terminal would swallow it), and back on close.
   React.useEffect(() => {
@@ -116,15 +136,29 @@ export default function BottomSheet({
         ref={sheetRef}
         overlayRef={overlayRef}
         className={cn(
-          'bottom-0 left-0 right-0 top-auto mx-auto flex max-h-[80dvh] w-full max-w-2xl translate-x-0 translate-y-0 flex-col overflow-hidden',
+          'bottom-0 left-0 right-0 top-auto mx-auto flex w-full max-w-2xl translate-x-0 translate-y-0 flex-col overflow-hidden',
+          expandable ? 'max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)]' : 'max-h-[80dvh]',
           'animate-sheet-up rounded-b-none rounded-t-3xl border-border/80 bg-popover p-0 pb-[env(safe-area-inset-bottom)] shadow-2xl',
           className,
         )}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-        <div className="flex shrink-0 justify-center pt-2" aria-hidden>
-          <span className="h-1 w-8 rounded-full bg-muted-foreground/40" />
-        </div>
+        {expandable ? (
+          // The handle's own 24px strip is the tap target; dragging anywhere still moves the sheet. Out of the tab order, so opening focuses the content.
+          <button
+            type="button"
+            onClick={toggleDetent}
+            tabIndex={-1}
+            aria-label={restingAt === 'full' ? t('sheet.shrink') : t('sheet.expand')}
+            className="flex h-6 w-full shrink-0 items-start justify-center pt-2"
+          >
+            <span className="h-1 w-8 rounded-full bg-muted-foreground/40" />
+          </button>
+        ) : (
+          <div className="flex shrink-0 justify-center pt-2" aria-hidden>
+            <span className="h-1 w-8 rounded-full bg-muted-foreground/40" />
+          </div>
+        )}
         {children}
       </DialogContent>
     </Dialog>
