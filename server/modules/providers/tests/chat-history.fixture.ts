@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -102,6 +102,20 @@ export async function createHistoryFixture() {
         profile: 'plain',
       });
       return { appId, parentFile, parentNativeId, parentCount };
+    },
+    /** A copy of a real local Claude transcript, with its subagent files; the source is never written. */
+    async addTranscript(source: string) {
+      const nativeId = path.basename(source, '.jsonl');
+      const appId = `app-reference-${nativeId}`;
+      const file = path.join(directory, `${nativeId}.jsonl`);
+      await cp(source, file);
+      const sidecar = source.replace(/\.jsonl$/, '');
+      if (fs.existsSync(sidecar)) await cp(sidecar, file.replace(/\.jsonl$/, ''), { recursive: true });
+      sessionsDb.createAppSession(appId, 'claude', directory);
+      sessionsDb.assignProviderSessionId(appId, nativeId);
+      sessionsDb.createSession(nativeId, 'claude', directory, 'Reference session', undefined, undefined, file);
+      records.set(appId, { file, provider: 'claude', nativeId, count: 0, profile: 'plain' });
+      return appId;
     },
     async append(id: string) {
       const r = records.get(id)!;

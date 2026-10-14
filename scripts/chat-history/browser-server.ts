@@ -11,6 +11,8 @@ import { HISTORY_FIXTURE_VERSION } from './fixtures.js';
 const buildDir = await mkdtemp(path.join(os.tmpdir(), 'clide-history-browser-'));
 let fixture: Awaited<ReturnType<typeof createHistoryFixture>> | undefined;
 const output = process.argv.find((arg) => arg.startsWith('--output='))?.slice('--output='.length);
+/** A local Claude transcript to serve as the `reference` fixture; copied, never committed or written. */
+const reference = process.argv.find((arg) => arg.startsWith('--reference='))?.slice('--reference='.length);
 const source = historySourceState();
 try {
   await build({ configFile: false, envFile: false, root: process.cwd(), publicDir: false,
@@ -31,6 +33,7 @@ try {
   const fixtures: Array<{ id: string; count: number; profile: string }> = [];
   for (const count of [200, 1000]) fixtures.push({ id: await fixture.add('claude', count, 'mixed'), count, profile: 'mixed' });
   fixtures.push({ id: await fixture.add('claude', 1000, 'bursts'), count: 1000, profile: 'bursts' });
+  if (reference) fixtures.push({ id: await fixture.addTranscript(reference), count: 0, profile: 'reference' });
   const allowed = new Set(fixtures.map((f) => f.id));
   const app = express();
   const reports: unknown[] = [];
