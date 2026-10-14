@@ -441,6 +441,19 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         });
         break;
 
+      case 'shell_command':
+        if (msg.shell?.command) {
+          converted.push({
+            type: 'user',
+            content: msg.shell.command,
+            timestamp: msg.timestamp,
+            shell: msg.shell,
+            shellSessionId: msg.sessionId,
+            ...sharedMetadata,
+          });
+        }
+        break;
+
       case 'task_notification':
         converted.push({
           type: 'assistant',

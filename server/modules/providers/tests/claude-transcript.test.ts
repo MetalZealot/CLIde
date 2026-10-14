@@ -8,6 +8,7 @@ import {
   ClaudeSessionsProvider,
   collectCompactReferencesByRowId,
   dropDuplicateLocalCommandEchoes,
+  mergeBashModeRows,
   readClaudeCompactBoundary,
 } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import type { NormalizedMessage } from '@/shared/types.js';
@@ -204,6 +205,38 @@ describe('claude-harness-rows', () => {
     assert.equal(messages[0].role, 'assistant');
     assert.equal(messages[0].isCompactSummary, true);
     assert.equal(messages[0].content, 'This session is being continued from a previous conversation...');
+  });
+
+  test('claude history: a `!` command is one shell card in both transcript shapes', () => {
+    const provider = new ClaudeSessionsProvider();
+    const row = (uuid: string, content: unknown) => provider.normalizeMessage(
+      { uuid, timestamp: '2026-10-13T10:00:00.000Z', message: { role: 'user', content } },
+      SESSION_ID,
+    );
+
+    // Claude Code: the command, then its output, as two string rows.
+    const cli = mergeBashModeRows([
+      ...row('b1', '<bash-input>git status</bash-input>'),
+      ...row('b2', '<bash-stdout>\u001b[32mclean\u001b[0m</bash-stdout><bash-stderr></bash-stderr>'),
+    ]);
+    assert.equal(cli.length, 1);
+    assert.equal(cli[0].kind, 'shell_command');
+    assert.deepEqual(cli[0].shell, { command: 'git status', output: 'clean', state: 'done', exitCode: 0 });
+
+    // CLIde: one SDK prompt holding both, with a failure and a spilled log.
+    const cliDe = row('b3', [{
+      type: 'text',
+      text: '<bash-input>npm test</bash-input>\n<bash-stdout>1 failing\n… output truncated at 30,000 characters; the full output is in /tmp/x.log</bash-stdout><bash-stderr>Exit code 1</bash-stderr>',
+    }]);
+    assert.equal(cliDe.length, 1);
+    assert.deepEqual(cliDe[0].shell, {
+      command: 'npm test',
+      output: '1 failing',
+      state: 'failed',
+      exitCode: 1,
+      truncated: true,
+      fullOutputPath: '/tmp/x.log',
+    });
   });
 
   test('claude live stream: synthetic compact summary still surfaces', () => {

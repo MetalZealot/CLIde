@@ -33,12 +33,13 @@ import type {
   SessionEstablishedContext,
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
-import { escapeRegExp } from '../utils/chatFormatting';
+import { escapeRegExp, readShellCommand } from '../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../utils/messageKeys';
-import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
+import type { NormalizedMessage, SessionStore, ShellCommandInfo } from '../../../stores/useSessionStore';
 import {
   deliverNow,
   dispatchSend,
+  draftSendFrame,
   failSend,
   getSend,
   localSendMessageId,
@@ -541,6 +542,11 @@ const getNotificationSessionSummary = (
 
   return normalizedFallback.length > 80 ? `${normalizedFallback.slice(0, 77)}...` : normalizedFallback;
 };
+
+/** The card a `!` send shows from the press until the server's own rows replace it. */
+function startingShell(command: string, requestId: string): ShellCommandInfo {
+  return { command, output: '', state: 'running', exitCode: null, requestId };
+}
 
 export function useChatComposerState({
   selectedProject,
@@ -1362,27 +1368,29 @@ export function useChatComposerState({
             clearQueuedMessage(queuedSessionKey);
             const queuedRequestId = mintRequestId();
             const records = (durableDraft.uploadedAttachments ?? []) as ChatAttachment[];
+            const queuedFrame = draftSendFrame({
+              sessionId: queuedSessionKey,
+              requestId: queuedRequestId,
+              content: durableDraft.content,
+              options: durableDraft.options ?? {},
+              attachments: records,
+            });
             sessionStore.appendRealtime(queuedSessionKey, {
               id: localSendMessageId(queuedRequestId),
               sessionId: queuedSessionKey,
               timestamp: new Date().toISOString(),
               provider,
-              kind: 'text',
-              role: 'user',
-              content: durableDraft.content,
-              images: records.filter(isImageAttachment),
-              files: records.filter((attachment) => !isImageAttachment(attachment)),
+              ...(queuedFrame.type === 'chat.shell'
+                ? { kind: 'shell_command', role: 'user', shell: startingShell(queuedFrame.content, queuedRequestId) }
+                : {
+                  kind: 'text',
+                  role: 'user',
+                  content: durableDraft.content,
+                  images: records.filter(isImageAttachment),
+                  files: records.filter((attachment) => !isImageAttachment(attachment)),
+                }),
             } as NormalizedMessage);
-            deliverNow({
-              type: 'chat.send',
-              sessionId: queuedSessionKey,
-              requestId: queuedRequestId,
-              content: durableDraft.content,
-              options: {
-                ...(durableDraft.options ?? {}),
-                attachments: durableDraft.uploadedAttachments ?? [],
-              },
-            }, selectedProject.projectId);
+            deliverNow(queuedFrame, selectedProject.projectId);
           }
           return;
         }
@@ -1409,9 +1417,13 @@ export function useChatComposerState({
       // Also accept exact "help" as a convenience alias for users who expect CLI-style help.
       // Never while rewind-editing: an edited prior message starting with "/"
       // must be re-sent verbatim, not executed.
+      // A rewind edit re-sends the edited prompt verbatim, so `!` there is text.
+      const shellCommand = pendingRewind
+        ? null
+        : readShellCommand(currentInput, currentAttachments.length + previouslyUploadedAttachments.length);
       const commandInput = currentInput.trimEnd();
       const isHelpAlias = commandInput.trim().toLowerCase() === 'help';
-      if (!pendingRewind && (commandInput.startsWith('/') || isHelpAlias)) {
+      if (!pendingRewind && !shellCommand && (commandInput.startsWith('/') || isHelpAlias)) {
         const firstSpace = commandInput.indexOf(' ');
         const commandName = isHelpAlias
           ? '/help'
@@ -1471,14 +1483,22 @@ export function useChatComposerState({
       const shownAttachments = uploadedAttachments.length > 0
         ? uploadedAttachments as ChatAttachment[]
         : previews;
-      addMessage({
-        id: bubbleId,
-        type: 'user',
-        content: currentInput,
-        images: shownAttachments.filter(isImageAttachment),
-        files: shownAttachments.filter((attachment) => !isImageAttachment(attachment)),
-        timestamp: new Date(),
-      });
+      addMessage(shellCommand
+        ? {
+          id: bubbleId,
+          type: 'user',
+          content: shellCommand,
+          shell: startingShell(shellCommand, requestId),
+          timestamp: new Date(),
+        }
+        : {
+          id: bubbleId,
+          type: 'user',
+          content: currentInput,
+          images: shownAttachments.filter(isImageAttachment),
+          files: shownAttachments.filter((attachment) => !isImageAttachment(attachment)),
+          timestamp: new Date(),
+        });
 
       // Busy from the press, so a follow-up queues behind this send; Stop has no run to stop yet.
       const markBusy = (sessionId: string) => onSessionProcessing?.(sessionId, { statusText: null, canInterrupt: false });
@@ -1507,13 +1527,13 @@ export function useChatComposerState({
           }
           const entry = getSend(requestId);
           if (!entry || entry.stage === 'failed') return;
-          setSendFrame(requestId, {
-            type: 'chat.send',
+          setSendFrame(requestId, draftSendFrame({
             sessionId: targetSessionId,
             requestId,
             content: messageContent,
-            options: { ...sendOptions, attachments: uploadedAttachments },
-          });
+            options: sendOptions,
+            attachments: uploadedAttachments,
+          }));
           dispatchSend(requestId);
         } catch (error) {
           if (signal.aborted) return;
@@ -1924,6 +1944,12 @@ export function useChatComposerState({
       if (!newValue.trim()) {
         event.target.style.height = 'auto';
         setIsTextareaExpanded(false);
+        resetCommandMenuState();
+        return;
+      }
+
+      // A path like `/tmp` in a shell command is not a slash command.
+      if (newValue.startsWith('!')) {
         resetCommandMenuState();
         return;
       }

@@ -42,6 +42,7 @@ import {
 } from '../../../../shared/view/ui';
 
 import UsageLimitNotice from '../../../provider-usage/UsageLimitNotice';
+import { cn } from '../../../../lib/utils';
 import { splitLeadingCommand } from '../../utils/chatFormatting';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
 
@@ -296,6 +297,8 @@ function ChatComposer({
   const { t } = useTranslation('chat');
   useClockFormat();
 
+  // Shell mode from the first `!`, as in the CLI; a rewind edit or attachments keep it a message.
+  const isShellMode = input.startsWith('!') && attachedFiles.length === 0 && !pendingRewind;
   const leadingCommand = useMemo(
     () => splitLeadingCommand(input, new Set(slashCommands.map((command) => command.name))),
     [input, slashCommands],
@@ -539,7 +542,7 @@ function ChatComposer({
             ? (event) => event.preventDefault()
             : onSubmit as (event: FormEvent<HTMLFormElement>) => void}
           status={isLoading ? 'streaming' : 'ready'}
-          className={isTextareaExpanded ? 'chat-input-expanded' : ''}
+          className={cn(isTextareaExpanded && 'chat-input-expanded', isShellMode && 'border-pink-500/70')}
           {...getRootProps()}
         >
           {isDragActive && (
@@ -611,8 +614,13 @@ function ChatComposer({
 
           <PromptInputBody>
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className={`chat-input-placeholder block w-full whitespace-pre-wrap break-words text-transparent ${PROMPT_INPUT_TEXT_LAYOUT}`}>
-                {leadingCommand ? (
+              <div className={cn('chat-input-placeholder block w-full whitespace-pre-wrap break-words text-transparent', PROMPT_INPUT_TEXT_LAYOUT, isShellMode && 'font-mono')}>
+                {isShellMode ? (
+                  <>
+                    <span className="-mx-0.5 box-decoration-clone rounded-md bg-pink-200/70 px-0.5 text-transparent dark:bg-pink-400/30">!</span>
+                    {input.slice(1)}
+                  </>
+                ) : leadingCommand ? (
                   <>
                     <span className="-mx-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">
                       {leadingCommand.command}
@@ -633,6 +641,7 @@ function ChatComposer({
 
             <PromptInputTextarea
               ref={textareaRef}
+              className={isShellMode ? 'font-mono' : undefined}
               dir="auto"
               // Tapping a squiggled word on Chrome for Android hides the keyboard to
               // show its suggestion menu, and the composer drops as the viewport grows.

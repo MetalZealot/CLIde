@@ -6,6 +6,7 @@ import { spawn } from 'cross-spawn';
 import { rgPath } from '@vscode/ripgrep';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { stripAnsiFormatting } from '@/shared/utils.js';
 
 type AnyRecord = Record<string, any>;
 type SearchableProvider = 'claude' | 'codex';
@@ -336,10 +337,6 @@ function buildClaudeLocalCommandDisplayText(payload: ClaudeLocalCommandPayload):
   }
 
   return commandArgs ? `${baseCommand} ${commandArgs}` : baseCommand;
-}
-
-function stripAnsiFormatting(text: string): string {
-  return text.replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
 }
 
 type ClaudeSearchableMessage = {

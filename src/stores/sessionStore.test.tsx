@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { flightRecorder, startFlightRecorder, stopFlightRecorder } from '../utils/flightRecorder';
 
+import { draftSendFrame, localSendMessageId } from './sendOutbox';
 import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
 import { type NormalizedMessage, type SessionStore, streamingRowId, useSessionStore } from './useSessionStore';
 
@@ -615,6 +616,47 @@ describe('useSessionStore.pagination', () => {
       store.getMessages(SESSION_ID).filter((m) => m.kind === 'error' && m.id.endsWith('long')).map((m) => m.id),
       ['server_long'],
     );
+  });
+
+  test('a `!` card replaces the composer\'s copy, updates in place, and gives way to the transcript\'s', async () => {
+    await loadFirstPage();
+    const shellRow = (id: string, seconds: number, shell: NonNullable<NormalizedMessage['shell']>): NormalizedMessage => ({
+      ...message(id, ''),
+      id,
+      timestamp: new Date(seconds * 1000).toISOString(),
+      kind: 'shell_command',
+      shell,
+    });
+    const running = { command: 'ls', output: '', state: 'running' as const, exitCode: null, requestId: 'r1' };
+
+    await begin(() => {
+      store.appendRealtime(SESSION_ID, shellRow(localSendMessageId('r1'), 5, running));
+      store.appendRealtime(SESSION_ID, shellRow('shell_r1', 5, { ...running, output: 'a' }));
+      store.appendRealtime(SESSION_ID, shellRow('shell_r1', 5, { ...running, output: 'a\nb', state: 'done', exitCode: 0 }));
+    });
+    const live = store.getMessages(SESSION_ID).filter((m) => m.kind === 'shell_command');
+    assert.deepEqual(live.map((m) => [m.id, m.shell?.output]), [['shell_r1', 'a\nb']]);
+
+    const { pending: refreshing } = await begin(() => store.refreshFromServer(SESSION_ID));
+    await settle();
+    respond({
+      messages: [message('3', 'three'), message('4', 'four'), shellRow('uuid-1', 6, { command: 'ls', output: 'a\nb', state: 'done', exitCode: 0 })],
+      total: 5,
+      hasMore: true,
+    });
+    await finish(refreshing);
+    assert.deepEqual(store.getMessages(SESSION_ID).filter((m) => m.kind === 'shell_command').map((m) => m.id), ['uuid-1']);
+  });
+
+  test('a `!` draft goes out as a command; attachments or a rewind edit keep it a message', () => {
+    const base = { sessionId: 's', requestId: 'r', options: { model: 'opus' }, attachments: [] as unknown[] };
+    assert.deepEqual(draftSendFrame({ ...base, content: '!  git status ' }), {
+      type: 'chat.shell', sessionId: 's', requestId: 'r', content: 'git status', options: { model: 'opus' },
+    });
+    assert.equal(draftSendFrame({ ...base, content: '!ls', attachments: [{ path: 'a.png' }] }).type, 'chat.send');
+    assert.equal(draftSendFrame({ ...base, content: '!ls', options: { rewindToMessageId: 'm1' } }).type, 'chat.send');
+    assert.equal(draftSendFrame({ ...base, content: ' !ls' }).type, 'chat.send');
+    assert.equal(draftSendFrame({ ...base, content: '!' }).type, 'chat.send');
   });
 });
 

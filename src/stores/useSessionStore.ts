@@ -13,6 +13,7 @@ import { authenticatedFetch } from '../utils/api';
 import { flightRecorder } from '../utils/flightRecorder';
 import type { LLMProvider } from '../types/app';
 
+import { localSendMessageId } from './sendOutbox';
 import { removeOptimisticUserEchoes, reuseUnchangedServerMessages } from './sessionMessageReconciliation';
 
 /** A turn the provider ended because usage ran out — see server types. */
@@ -44,7 +45,20 @@ export type MessageKind =
   | 'task_notification'
   | 'compact_boundary'
   | 'agent_status'
-  | 'plan_updated';
+  | 'plan_updated'
+  | 'shell_command';
+
+/** A command run with the composer's `!` mode — see server types. */
+export type ShellCommandInfo = {
+  command: string;
+  output: string;
+  state: 'running' | 'done' | 'failed' | 'stopped' | 'timed_out';
+  exitCode: number | null;
+  durationMs?: number;
+  truncated?: boolean;
+  fullOutputPath?: string;
+  requestId?: string;
+};
 
 /** Where a background or forked agent stands, from live task events — see server types. */
 export type AgentStatusInfo = {
@@ -211,6 +225,8 @@ export interface NormalizedMessage {
   agentStatus?: AgentStatusInfo;
   /** Only set on `plan_updated` rows: the whole checklist after the change. */
   plan?: SessionPlan;
+  /** Only set on `shell_command` rows. */
+  shell?: ShellCommandInfo;
   /** Only set on a `background_tasks` status: every live task. */
   backgroundTasks?: BackgroundTaskInfo[];
   subagentTools?: unknown[];
@@ -528,6 +544,18 @@ function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedM
  * JSONL indexing lags) stays in `realtimeMessages` so the chat pane never
  * flashes the empty "Continue your conversation" state.
  */
+/** The transcript's card for this command: same command, written no earlier than the live one started. */
+function isShellCommandRecordedOnServer(message: NormalizedMessage, serverMessages: NormalizedMessage[]): boolean {
+  const command = message.shell?.command;
+  const startedAt = Date.parse(message.timestamp);
+  if (!command || !Number.isFinite(startedAt)) return false;
+  return serverMessages.some((serverMessage) => {
+    if (serverMessage.kind !== 'shell_command' || serverMessage.shell?.command !== command) return false;
+    const recordedAt = Date.parse(serverMessage.timestamp);
+    return Number.isFinite(recordedAt) && recordedAt >= startedAt - 10_000;
+  });
+}
+
 function pruneRealtimeSupersededByServer(
   serverMessages: NormalizedMessage[],
   realtimeMessages: NormalizedMessage[],
@@ -560,6 +588,11 @@ function pruneRealtimeSupersededByServer(
 
     if (message.kind === 'text' && message.role === 'user') {
       return true;
+    }
+
+    // A live command card, once the transcript holds the turn it started.
+    if (message.kind === 'shell_command') {
+      return !isShellCommandRecordedOnServer(message, serverMessages);
     }
 
     // A failed turn's live error row, once the transcript records the same failure.
@@ -993,6 +1026,19 @@ export function useSessionStore() {
       : -1;
     if (streamedIdx >= 0) {
       slot.realtimeMessages = slot.realtimeMessages.map((m, i) => (i === streamedIdx ? normalizedMessage : m));
+      recomputeMergedIfNeeded(slot);
+      noteStoredRow(slot, normalizedMessage, false);
+      notify(sessionId);
+      return;
+    }
+    // A command's card updates in place as its output arrives.
+    const shellRequestId = normalizedMessage.shell?.requestId;
+    const shellIdx = normalizedMessage.kind === 'shell_command'
+      ? slot.realtimeMessages.findIndex((m) => m.id === normalizedMessage.id
+        || (shellRequestId !== undefined && m.id === localSendMessageId(shellRequestId)))
+      : -1;
+    if (shellIdx >= 0) {
+      slot.realtimeMessages = slot.realtimeMessages.map((m, i) => (i === shellIdx ? normalizedMessage : m));
       recomputeMergedIfNeeded(slot);
       noteStoredRow(slot, normalizedMessage, false);
       notify(sessionId);

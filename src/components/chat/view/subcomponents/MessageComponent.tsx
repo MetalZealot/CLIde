@@ -18,6 +18,7 @@ import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
 import type { FileOpenOptions } from '../../../code-editor/types/types';
+import { requestIdFromMessageId } from '../../../../stores/sendOutbox';
 import { formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
 import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
@@ -35,6 +36,7 @@ import FinishedPlanCard from './FinishedPlanCard';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
+import ShellCommandCard from './ShellCommandCard';
 import UserSendStatus from './UserSendStatus';
 
 type DiffLine = {
@@ -112,6 +114,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, isLatestTurn
     canEditMessage &&
     Boolean(onEditMessage) &&
     message.type === 'user' &&
+    !message.shell &&
     userCopyContent.trim().length > 0 &&
     !message.isLocalCommand &&
     !message.isMidTurnInput &&
@@ -151,9 +154,18 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, isLatestTurn
       data-message-timestamp={message.timestamp || undefined}
       data-chat-message-id={message.id}
       data-chat-find-scope={isFindableConversationMessage ? 'conversation' : undefined}
-      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end' : ''} ${usesMobileReadingInset ? 'px-1 sm:px-0' : 'px-3 sm:px-0'}`}
+      className={`chat-message ${message.shell ? 'shell' : message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' && !message.shell ? 'flex justify-end' : ''} ${usesMobileReadingInset ? 'px-1 sm:px-0' : 'px-3 sm:px-0'}`}
     >
-      {message.type === 'user' ? (
+      {message.shell ? (
+        <div className="w-full">
+          <ShellCommandCard
+            shell={message.shell}
+            timestamp={message.timestamp}
+            sessionId={message.shellSessionId}
+            pendingRequestId={requestIdFromMessageId(message.id)}
+          />
+        </div>
+      ) : message.type === 'user' ? (
         /* User turn on the right: claude.ai-style attachment cards above the bubble */
         <div className="flex w-full items-end sm:w-auto sm:max-w-[85%] md:max-w-md lg:max-w-lg xl:max-w-xl">
           <div className="flex min-w-0 flex-1 flex-col items-end gap-2 sm:flex-initial">

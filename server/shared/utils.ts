@@ -1283,6 +1283,88 @@ export const terminalTextStyles = {
     `${ANSI_TERMINAL_STYLES.dim}${text}${ANSI_TERMINAL_STYLES.reset}`,
 };
 
+/**
+ * Removes ANSI escape sequences (colour/style CSI codes and OSC titles or
+ * links) so terminal-captured output reads as plain text in the web chat.
+ *
+ * Used by the Claude transcript reader, conversation search, and the chat
+ * shell runner.
+ */
+export function stripAnsiFormatting(text: string): string {
+  return text
+    .replace(/\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)/g, '')
+    .replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
+}
+
+// ---------------------------
+//----------------- BASH MODE BLOCK UTILITIES ------------
+/** What a `!` command produced, in the shape the provider is told about it. */
+export type BashModeBlock = {
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+};
+
+const EXIT_CODE_LINE = /(?:^|\n)Exit code (-?\d+)\s*$/;
+
+/**
+ * Writes a `!` command and its output the way Claude Code records its own
+ * bash mode: `<bash-input>` then `<bash-stdout>`/`<bash-stderr>`. A non-zero
+ * exit is appended to stderr as `Exit code N`, the Bash tool's own wording,
+ * so the agent reads it and history can recover it.
+ *
+ * Used by the chat websocket's `chat.shell` turn; `parseBashModeBlock` is
+ * its inverse.
+ */
+export function formatBashModeBlock(block: BashModeBlock): string {
+  const exitLine = block.exitCode !== null && block.exitCode !== 0 ? `Exit code ${block.exitCode}` : '';
+  const stderr = [block.stderr.replace(/\s+$/, ''), exitLine].filter(Boolean).join('\n');
+  return `<bash-input>${block.command}</bash-input>\n<bash-stdout>${block.stdout.replace(/\s+$/, '')}</bash-stdout><bash-stderr>${stderr}</bash-stderr>`;
+}
+
+/**
+ * Reads a bash-mode block from the start of a user message. Claude Code
+ * writes the command and its output as two rows, so either half may be
+ * missing: `command` alone, or `stdout`/`stderr` alone. Returns null when the
+ * text does not open with one of the tags; `rest` is whatever followed.
+ *
+ * Used by provider transcript readers to turn these rows into shell cards.
+ */
+export function parseBashModeBlock(text: string): {
+  command?: string;
+  stdout?: string;
+  stderr?: string;
+  exitCode: number | null;
+  rest: string;
+} | null {
+  let remaining = text.replace(/^\s+/, '');
+  if (!remaining.startsWith('<bash-input>') && !remaining.startsWith('<bash-stdout>') && !remaining.startsWith('<bash-stderr>')) {
+    return null;
+  }
+  const result: { command?: string; stdout?: string; stderr?: string; exitCode: number | null; rest: string } = {
+    exitCode: null,
+    rest: '',
+  };
+  const tags = [['bash-input', 'command'], ['bash-stdout', 'stdout'], ['bash-stderr', 'stderr']] as const;
+  for (const [tag, field] of tags) {
+    const match = new RegExp(`^<${tag}>([\\s\\S]*?)</${tag}>\\s*`).exec(remaining);
+    if (!match) continue;
+    result[field] = match[1];
+    remaining = remaining.slice(match[0].length);
+  }
+  if (result.stderr !== undefined) {
+    const exit = EXIT_CODE_LINE.exec(result.stderr);
+    if (exit) {
+      result.exitCode = Number(exit[1]);
+      result.stderr = result.stderr.slice(0, exit.index);
+    }
+  }
+  if (result.stdout !== undefined && result.exitCode === null) result.exitCode = 0;
+  result.rest = remaining;
+  return result;
+}
+
 // ---------------------------
 //----------------- RUNTIME PATH RESOLUTION UTILITIES ------------
 /**
@@ -1334,12 +1416,55 @@ function getPathEnvKey(env: NodeJS.ProcessEnv): string {
 }
 
 /**
+ * The user's login shell from the passwd database; `$SHELL` is not forwarded
+ * under systemd. Used by the Terminal tab and the chat's `!` shell mode.
+ */
+export function resolveUserShell(): string {
+  if (os.platform() === 'win32') {
+    return 'powershell.exe';
+  }
+  try {
+    const shell = os.userInfo().shell;
+    if (shell && fs.existsSync(shell)) {
+      return shell;
+    }
+  } catch {
+    // No passwd entry.
+  }
+  return process.env.SHELL || '/bin/bash';
+}
+
+/**
+ * The environment a user-facing shell runs with: the npm global bin first,
+ * `NODE_ENV` dropped (the server runs as production, which would make
+ * `npm install` skip devDependencies), a truecolor terminal, and a UTF-8
+ * locale when none is set. Used by the Terminal tab and the chat's `!` shell
+ * mode, which turns the terminal settings back off for its pipes.
+ */
+export function buildUserShellEnv(shell: string, cwd: string): NodeJS.ProcessEnv {
+  const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
+  const env: NodeJS.ProcessEnv = { ...process.env, [prioritizedPath.key]: prioritizedPath.value };
+  delete env.NODE_ENV;
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  env.TERM_PROGRAM = 'clide-terminal';
+  env.PWD = cwd;
+  if (os.platform() !== 'win32') {
+    env.SHELL = shell;
+    if (!env.LANG && !env.LC_ALL && !env.LC_CTYPE) {
+      env.LANG = 'C.UTF-8';
+    }
+  }
+  return env;
+}
+
+/**
  * Moves the user's own npm global bin directories ahead of the rest of PATH, so a
  * globally installed CLI beats a system copy of the same name. Only reorders
  * entries already on PATH, never adds one. Returns the PATH key as spelled in
  * `env` (Windows is case-insensitive) with its new value.
  *
- * Used by the websocket module's Shell and Terminal PTY spawns.
+ * Used by the websocket module's Shell PTY spawn and `buildUserShellEnv`.
  */
 export function prioritizeUserNpmGlobalBin(env: NodeJS.ProcessEnv): { key: string; value: string | undefined } {
   const pathKey = getPathEnvKey(env);

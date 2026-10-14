@@ -57,7 +57,7 @@ export function useSendOutboxDriver({
       markSessionProcessing(entry.frame.sessionId, {
         statusText: null,
         canInterrupt: true,
-        ...(entry.frame.type === 'chat.send' ? { stage: null } : {}),
+        ...(entry.frame.type === 'chat.send' || entry.frame.type === 'chat.shell' ? { stage: null } : {}),
       });
       const handedOver = sendMessage(entry.frame);
       const now = Date.now();

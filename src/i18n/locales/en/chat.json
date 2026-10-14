@@ -592,6 +592,23 @@
     "retry": "Retry",
     "edit": "Edit"
   },
+  "shellMode": {
+    "running": "Running · {{duration}}",
+    "stopped": "Stopped · {{duration}}",
+    "timedOut": "Timed out · {{duration}}",
+    "exit": "Exit {{code}}",
+    "exitWithDuration": "Exit {{code}} · {{duration}}",
+    "stop": "Stop",
+    "starting": "Starting…",
+    "notSent": "Not sent",
+    "retry": "Retry",
+    "showOutput": "Show output",
+    "hideOutput": "Hide output",
+    "waitingForOutput": "Waiting for output…",
+    "noOutput": "No output",
+    "truncated": "Output was cut short",
+    "truncatedWithPath": "First 30,000 characters shown · full output in {{path}}"
+  },
   "planBanner": {
     "label": "Plan",
     "allDone": "All done"

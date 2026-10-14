@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import type { SessionStore } from '../../../stores/useSessionStore';
 import type { LLMProvider } from '../../../types/app';
+import { readShellCommand } from '../utils/chatFormatting';
 
 import type { QueuedDraft } from './useChatComposerState';
 
@@ -126,7 +127,9 @@ export function useSendQueuedNow({
     && content
     && queuedDraft
     && queuedDraft.attachments.length === 0
-    && (queuedDraft.uploadedAttachments?.length ?? 0) === 0,
+    && (queuedDraft.uploadedAttachments?.length ?? 0) === 0
+    // A command runs on its own once the turn ends; it cannot join one.
+    && !readShellCommand(queuedDraft.content),
   );
 
   const sendNow = useCallback(() => {

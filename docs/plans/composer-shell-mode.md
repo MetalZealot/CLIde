@@ -1,7 +1,7 @@
 # `!` shell mode in the chat composer
 
-- Status: 1/5
-- Next: Phase 1 — runner, `chat.shell`, composer mode and card, Claude reply turn
+- Status: 2/5
+- Next: Phase 2's rest — Codex `user_shell_command` cards and a fixture from a real CLI `!` run
 - Context: [providers](../providers.md); [code anchors](../code-anchors.md);
   [runtime rebuild plan](agent-runtime-rebuild.md) owns delivery, which this rides
   rather than changes
@@ -25,20 +25,20 @@ preview and the file's path.
   - Composer D: a pink `!` mark, the command in monospace, and a pink border.
   - Card C: a bordered card on the left, with a pink `!`, the command, status, Stop
     while it runs, and output that folds under the header.
-- [ ] 1. Claude reply mode on 3001. The server owns the command, so a locked phone
+- [x] 1. Claude reply mode on 3001 ([ADR 0082](../decisions/0082-cloudcli-runs-bang-commands-itself.md)). The server owns the command, so a locked phone
   loses nothing:
-  - `chat.shell` / `chat.shell.stop` on the chat socket.
+  - `chat.shell` on the chat socket; Stop is the run's own `chat.abort`.
   - cwd from the session row only, never the client.
   - Refused while the Shell tab holds the session, a turn runs, or another command runs.
   - The user's login shell, with the shell helpers shared with the Terminal tab, not copied.
   - No stdin, its own process group, a 10-minute ceiling.
   - Streamed, ANSI-stripped output, capped as above.
   - The result is held until it's delivered.
-  - The reply turn starts through the scheduled-send path.
-  - Comes with an ADR.
-- [ ] 2. History: one parser turns both Claude shapes (the CLI's two rows, CLIde's one
-  prompt) into one shell card, in the string and array branches. Codex's own
-  `user_shell_command` records render as cards too. Fixture from one real CLI `!` run.
+  - The reply turn starts from the server, inside the command's own run.
+- [~] 2. History: one parser turns both Claude shapes (the CLI's two rows, CLIde's one
+  prompt) into one shell card, in the string and array branches (done, verified on the
+  S20). Left: Codex's own `user_shell_command` records render as cards too, and a
+  fixture from one real CLI `!` run.
 - [ ] 3. Every provider: one contract test in `chat-session.test.ts` sends `!` through
   each. Cursor and OpenCode flatten prompt newlines. If their output arrives
   unreadable, a capability flag hides shell mode there, with a reason.

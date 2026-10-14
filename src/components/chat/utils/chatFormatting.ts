@@ -277,6 +277,16 @@ export interface LeadingCommandMatch {
 }
 
 /**
+ * The command a `!` draft runs in the project folder, or null when the draft
+ * is an ordinary message: the `!` must be the first character, as `/` must,
+ * and a draft with attachments is always a message.
+ */
+export function readShellCommand(content: string, attachmentCount = 0): string | null {
+  if (attachmentCount > 0 || !content.startsWith('!')) return null;
+  return content.slice(1).trim() || null;
+}
+
+/**
  * Only a command at the very start of the composer counts: that is the only
  * position a runtime parses one, so marking a mid-message token would promise
  * a dispatch that never happens. Names are matched whole, prefix included, so

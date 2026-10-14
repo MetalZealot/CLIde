@@ -7,7 +7,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
-import { prioritizeUserNpmGlobalBin } from '@/shared/utils.js';
+import { buildUserShellEnv, resolveUserShell } from '@/shared/utils.js';
 
 // Wire protocol, ported from upstream's cloudcli-plugin-terminal (protocol 2):
 // binary frames carry raw PTY bytes both ways, text frames carry JSON control, so
@@ -93,22 +93,6 @@ function clampDimension(value: unknown, fallback: number, max: number): number {
   return Number.isFinite(n) ? Math.max(1, Math.min(n, max)) : fallback;
 }
 
-/** The user's login shell from the passwd database; `$SHELL` is not forwarded under systemd. */
-function resolveShell(): string {
-  if (os.platform() === 'win32') {
-    return 'powershell.exe';
-  }
-  try {
-    const shell = os.userInfo().shell;
-    if (shell && fs.existsSync(shell)) {
-      return shell;
-    }
-  } catch {
-    // No passwd entry.
-  }
-  return process.env.SHELL || '/bin/bash';
-}
-
 /** A missing or deleted project path falls back to home rather than failing the spawn. */
 function resolveCwd(requested: unknown): string {
   for (const candidate of [requested, os.homedir()]) {
@@ -125,24 +109,6 @@ function resolveCwd(requested: unknown): string {
     }
   }
   return process.cwd();
-}
-
-/** NODE_ENV is dropped: the server runs as production, which would make `npm install` here skip devDependencies. */
-function buildShellEnv(shell: string, cwd: string): NodeJS.ProcessEnv {
-  const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
-  const env: NodeJS.ProcessEnv = { ...process.env, [prioritizedPath.key]: prioritizedPath.value };
-  delete env.NODE_ENV;
-  env.TERM = 'xterm-256color';
-  env.COLORTERM = 'truecolor';
-  env.TERM_PROGRAM = 'clide-terminal';
-  env.PWD = cwd;
-  if (os.platform() !== 'win32') {
-    env.SHELL = shell;
-    if (!env.LANG && !env.LC_ALL && !env.LC_CTYPE) {
-      env.LANG = 'C.UTF-8';
-    }
-  }
-  return env;
 }
 
 function sendControl(ws: WebSocket | null, message: ServerMessage): void {
@@ -224,7 +190,7 @@ function createSession(
     cols: options.cols,
     rows: options.rows,
     cwd: options.cwd,
-    env: buildShellEnv(options.shell, options.cwd),
+    env: buildUserShellEnv(options.shell, options.cwd),
     // Exactly 'utf8' turns on IUTF8, so backspacing over a multi-byte character leaves no mojibake.
     encoding: 'utf8',
   });
@@ -361,7 +327,7 @@ export function handleTerminalConnection(
       return;
     }
 
-    const shell = resolveShell();
+    const shell = resolveUserShell();
     const cwd = resolveCwd(message?.cwd);
     try {
       session = createSession({ ownerId, shell, cwd, cols, rows }, spawnPty);

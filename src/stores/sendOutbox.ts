@@ -8,17 +8,44 @@
 import { useSyncExternalStore } from 'react';
 
 import type { PendingRewind } from '../components/chat/hooks/useChatComposerState';
+import { readShellCommand } from '../components/chat/utils/chatFormatting';
 import { safeLocalStorage } from '../components/chat/utils/chatStorage';
 
 export type SendStage = 'uploading' | 'creating' | 'waiting' | 'sending' | 'failed';
 
 export type ChatSendFrame = {
-  type: 'chat.send';
+  /** `chat.shell` carries a `!` command, without its `!`, as `content`. */
+  type: 'chat.send' | 'chat.shell';
   sessionId: string;
   requestId: string;
   content: string;
   options: Record<string, unknown>;
 };
+
+/**
+ * A draft as the frame it goes out as: a `!` draft runs as a shell command,
+ * without its `!`. A rewind edit re-sends its prompt verbatim, `!` included.
+ */
+export function draftSendFrame(draft: {
+  sessionId: string;
+  requestId: string;
+  content: string;
+  options: Record<string, unknown>;
+  attachments: unknown[];
+}): ChatSendFrame {
+  const command = draft.options.rewindToMessageId === undefined
+    ? readShellCommand(draft.content, draft.attachments.length)
+    : null;
+  return command
+    ? { type: 'chat.shell', sessionId: draft.sessionId, requestId: draft.requestId, content: command, options: draft.options }
+    : {
+      type: 'chat.send',
+      sessionId: draft.sessionId,
+      requestId: draft.requestId,
+      content: draft.content,
+      options: { ...draft.options, attachments: draft.attachments },
+    };
+}
 
 export type OutboxEntry = {
   requestId: string;

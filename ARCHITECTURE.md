@@ -96,6 +96,7 @@ shaped by [the module standards](.agents/skills/backend-module-standards/SKILL.m
   CLI updates and the sessions watcher. Provider SDKs are imported only here.
 - `websocket/` is the chat gateway (run registry, session writer, replay, abort), the
   Shell's terminal connection, and the Terminal's resumable PTYs.
+- `chat-shell/` runs the composer's `!` commands; the gateway wraps each in a run.
 - `database/` is the SQLite connection, migrations and repositories.
 - `auth/` and `user/` cover sign-in, per-user Git config and onboarding.
 - `projects/`, `file-tree/` and `git/` back project discovery, Files and Source

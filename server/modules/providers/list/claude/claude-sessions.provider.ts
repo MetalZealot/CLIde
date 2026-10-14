@@ -28,7 +28,7 @@ import type {
   SideQuestionExchange,
   UsageLimitStop,
 } from '@/shared/types.js';
-import { createNormalizedMessage, creditOutputTokens, generateMessageId, findLeadingTurn, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, creditOutputTokens, generateMessageId, findLeadingTurn, parseBashModeBlock, readObjectRecord, sliceTailPage, stripAnsiFormatting } from '@/shared/utils.js';
 
 import {
   resolveClaudeCeilingProvenance,
@@ -712,12 +712,70 @@ function buildLocalCommandDisplayText(payload: ClaudeLocalCommandPayload): strin
   return commandArgs ? `${baseCommand} ${commandArgs}` : baseCommand;
 }
 
+const BASH_MODE_TRUNCATION_NOTE = /\n… output truncated at [\d,]+ characters; the full output is in (\S+)$/;
+
 /**
- * Claude local-command stdout may contain ANSI styling codes because it was
- * captured from the terminal. The web chat should receive readable plain text.
+ * A `!` command's user row as a shell card. Claude Code writes the command
+ * and its output as two rows (`part` says which half this is, for
+ * `mergeBashModeRows`); CLIde writes both in one prompt, possibly followed by
+ * the user's own text, returned as `rest`.
  */
-function stripAnsiFormatting(text: string): string {
-  return text.replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
+function toShellCommandMessage(
+  text: string,
+  envelope: { id: string; sessionId: string | null; timestamp: string },
+): { message: NormalizedMessage; rest: string } | null {
+  const parsed = parseBashModeBlock(text);
+  if (!parsed) return null;
+  const hasOutput = parsed.stdout !== undefined || parsed.stderr !== undefined;
+  let stdout = parsed.stdout ?? '';
+  const truncation = BASH_MODE_TRUNCATION_NOTE.exec(stdout);
+  if (truncation) stdout = stdout.slice(0, truncation.index);
+  const output = stripAnsiFormatting(
+    [stdout, parsed.stderr ?? ''].map((part) => part.replace(/\s+$/, '')).filter(Boolean).join('\n'),
+  );
+  const exitCode = hasOutput ? parsed.exitCode : null;
+  return {
+    message: createNormalizedMessage({
+      ...envelope,
+      provider: PROVIDER,
+      kind: 'shell_command',
+      role: 'user',
+      shell: {
+        command: parsed.command ?? '',
+        output,
+        state: exitCode === null || exitCode === 0 ? 'done' : 'failed',
+        exitCode,
+        ...(truncation ? { truncated: true, fullOutputPath: truncation[1] } : {}),
+      },
+      shellPart: parsed.command === undefined ? 'output' : hasOutput ? 'whole' : 'input',
+    }),
+    rest: parsed.rest.trim(),
+  };
+}
+
+/** Joins Claude Code's output row onto the command row before it, so one command is one card. */
+export function mergeBashModeRows(messages: NormalizedMessage[]): NormalizedMessage[] {
+  const merged: NormalizedMessage[] = [];
+  for (const message of messages) {
+    const previous = merged[merged.length - 1];
+    if (
+      message.kind === 'shell_command'
+      && message.shellPart === 'output'
+      && previous?.kind === 'shell_command'
+      && previous.shellPart === 'input'
+      && previous.shell
+      && message.shell
+    ) {
+      merged[merged.length - 1] = {
+        ...previous,
+        shellPart: 'whole',
+        shell: { ...message.shell, command: previous.shell.command },
+      };
+      continue;
+    }
+    merged.push(message);
+  }
+  return merged;
 }
 
 /**
@@ -1147,7 +1205,13 @@ export class ClaudeSessionsProvider implements IProviderSessions {
               toolUseResult: raw.toolUseResult,
             }));
           } else if (part.type === 'text') {
-            const text = part.text || '';
+            let text = part.text || '';
+            const shellRow = toShellCommandMessage(text, { id: `${baseId}_shell_${partIndex}`, sessionId, timestamp: ts });
+            if (shellRow) {
+              messages.push(shellRow.message);
+              text = shellRow.rest;
+              if (!text) continue;
+            }
             const parsedFiles = parseFilesInputTag(text);
             if (
               (parsedFiles.text || parsedFiles.attachments.length > 0)
@@ -1237,6 +1301,23 @@ export class ClaudeSessionsProvider implements IProviderSessions {
          * frontend and emit a plain user-visible command string so the command
          * no longer disappears from history.
          */
+        const shellRow = toShellCommandMessage(text, { id: baseId, sessionId, timestamp: ts });
+        if (shellRow) {
+          messages.push(shellRow.message);
+          if (shellRow.rest) {
+            messages.push(createNormalizedMessage({
+              id: `${baseId}_text`,
+              sessionId,
+              timestamp: ts,
+              provider: PROVIDER,
+              kind: 'text',
+              role: 'user',
+              content: shellRow.rest,
+            }));
+          }
+          return messages;
+        }
+
         const localCommandPayload = parseLocalCommandPayload(text);
         if (localCommandPayload) {
           const displayText = buildLocalCommandDisplayText(localCommandPayload);
@@ -1489,12 +1570,12 @@ export class ClaudeSessionsProvider implements IProviderSessions {
         if (Number.isSafeInteger(output) && output > 0) owedOutputTokens += output;
       }
       // Never carried past a prompt into the next turn.
-      owedOutputTokens = batch.some((msg) => msg.kind === 'text' && msg.role === 'user')
+      owedOutputTokens = batch.some((msg) => (msg.kind === 'text' || msg.kind === 'shell_command') && msg.role === 'user')
         ? 0
         : creditOutputTokens(batch, owedOutputTokens);
       normalizedWithEchoes.push(...batch);
     }
-    const normalized = dropDuplicateLocalCommandEchoes(normalizedWithEchoes);
+    const normalized = mergeBashModeRows(dropDuplicateLocalCommandEchoes(normalizedWithEchoes));
 
     const compactReferencesByRowId = collectCompactReferencesByRowId(rawMessages);
     if (compactReferencesByRowId.size > 0) {

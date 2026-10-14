@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import type { WebSocket } from 'ws';
 
+import { SHELL_INLINE_OUTPUT_LIMIT, startShellCommand } from '@/modules/chat-shell/index.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import { getProviderSessionEffort, providerCapabilitiesService } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
@@ -24,8 +25,9 @@ import type {
   LLMProvider,
   ProviderInteractiveResolution,
   ProviderRuntimeWriter,
+  ShellCommandInfo,
 } from '@/shared/types.js';
-import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { formatBashModeBlock, parseIncomingJsonObject } from '@/shared/utils.js';
 
 /**
  * Trust boundary for client-supplied image attachments: chat.send options come
@@ -622,6 +624,175 @@ async function handleChatSend(
   }
 }
 
+const MAX_SHELL_COMMAND_LENGTH = 10_000;
+
+/**
+ * Handles `chat.shell`: the composer's `!` mode. The command runs in the
+ * session row's folder as a run of its own, so Stop, the busy state and
+ * reconnect replay work as they do for a turn; its card streams as
+ * `shell_command` rows. When it finishes the agent gets a turn whose prompt
+ * is the command and its output in Claude Code's bash-mode block. A stopped
+ * or timed-out command starts no turn, as in Claude Code.
+ */
+async function handleChatShell(
+  ws: WebSocket,
+  userId: string | number | null,
+  data: AnyRecord,
+  dependencies: ChatWebSocketDependencies
+): Promise<void> {
+  const sessionId = readRequiredSessionId(data);
+  const requestId = readRequestId(data.requestId);
+  if (!sessionId) {
+    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.shell requires a sessionId.', undefined, requestId);
+    return;
+  }
+  const command = typeof data.content === 'string' ? data.content.trim() : '';
+  if (!command || command.length > MAX_SHELL_COMMAND_LENGTH) {
+    sendProtocolError(ws, 'INVALID_SHELL_COMMAND', 'chat.shell needs a command of up to 10,000 characters.', sessionId, requestId);
+    return;
+  }
+
+  const receiptKey = requestId ? `${sessionId}:${requestId}` : null;
+  if (receiptKey && acceptedChatSends.get(receiptKey)) {
+    sendChatSendAccepted(ws, sessionId, requestId!);
+    return;
+  }
+
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session) {
+    sendProtocolError(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`, sessionId, requestId);
+    return;
+  }
+  const provider = session.provider as LLMProvider;
+  if (!dependencies.runtime.hasRuntime(provider)) {
+    sendProtocolError(ws, 'UNSUPPORTED_PROVIDER', `Provider "${provider}" is not available.`, sessionId, requestId);
+    return;
+  }
+  const cwd = session.project_path;
+  if (!cwd) {
+    sendProtocolError(ws, 'SESSION_HAS_NO_FOLDER', 'This session has no project folder to run the command in.', sessionId, requestId);
+    return;
+  }
+  if (isSessionOpenInShell(sessionId)) {
+    sendProtocolError(
+      ws,
+      'SESSION_OPEN_IN_SHELL',
+      'This session is open in the Shell. Open the Shell and choose Disconnect first.',
+      sessionId,
+      requestId
+    );
+    return;
+  }
+  if (chatRunRegistry.isPinned(sessionId)) {
+    sendProtocolError(
+      ws,
+      'SESSION_PINNED',
+      'Background work is still running in this session. Stop it before running a command.',
+      sessionId,
+      requestId
+    );
+    return;
+  }
+
+  sessionsDb.resetAutoContinueStreak(sessionId);
+
+  const run = chatRunRegistry.startRun({
+    appSessionId: sessionId,
+    provider,
+    providerSessionId: session.provider_session_id,
+    connection: ws,
+    userId,
+    turnOptions: data.options,
+  });
+  if (!run) {
+    sendProtocolError(ws, 'RUN_IN_PROGRESS', `Session "${sessionId}" already has a run in progress.`, sessionId, requestId);
+    return;
+  }
+
+  console.log(`[chat] shell session=${sessionId} request=${requestId ?? 'none'} accepted`);
+  if (receiptKey) {
+    acceptedChatSends.set(receiptKey, true);
+    sendChatSendAccepted(ws, sessionId, requestId!);
+  }
+
+  const rowId = `shell_${(requestId ?? `${Date.now()}`).replace(/[^\w-]/g, '_')}`;
+  const timestamp = new Date().toISOString();
+  const emit = (shell: Omit<ShellCommandInfo, 'command' | 'requestId'>, transient = false) => {
+    run.writer.send({
+      id: rowId,
+      sessionId,
+      timestamp,
+      provider,
+      kind: 'shell_command',
+      role: 'user',
+      shell: { command, ...shell, ...(requestId ? { requestId } : {}) },
+      // Superseded by the final row, so it takes no replay slot.
+      ...(transient ? { transient: true } : {}),
+    });
+  };
+
+  // A stop completes the run straight away, so `chat.abort` owns the ending.
+  let stopped = false;
+  try {
+    emit({ output: '', state: 'running', exitCode: null });
+    const handle = startShellCommand({
+      command,
+      cwd,
+      signal: run.abortController.signal,
+      outputName: `${sessionId.replace(/[^\w-]/g, '_')}-${rowId}`,
+      onProgress: (tail) => emit({ output: tail, state: 'running', exitCode: null }, true),
+    });
+    // Synchronous with the abort, so the stopped card lands before its `complete`.
+    const onAbort = () => {
+      stopped = true;
+      const snapshot = handle.snapshot();
+      emit({ output: snapshot.output, state: 'stopped', exitCode: null, durationMs: snapshot.durationMs });
+    };
+    run.abortController.signal.addEventListener('abort', onAbort, { once: true });
+    const result = await handle.result;
+    run.abortController.signal.removeEventListener('abort', onAbort);
+    console.log(
+      `[shell] session=${sessionId} state=${result.state} exit=${result.exitCode ?? 'none'} ms=${result.durationMs} chars=${result.output.length}${result.truncated ? ' truncated' : ''}`,
+    );
+    if (stopped || result.state === 'stopped') {
+      stopped = true;
+      return;
+    }
+    emit({
+      output: result.output,
+      state: result.state,
+      exitCode: result.exitCode,
+      durationMs: result.durationMs,
+      ...(result.truncated ? { truncated: true } : {}),
+      ...(result.fullOutputPath ? { fullOutputPath: result.fullOutputPath } : {}),
+    });
+    if (result.state === 'timed_out') return;
+
+    const truncationNote = result.truncated && result.fullOutputPath
+      ? `\n… output truncated at ${SHELL_INLINE_OUTPUT_LIMIT.toLocaleString('en-US')} characters; the full output is in ${result.fullOutputPath}`
+      : '';
+    const prompt = formatBashModeBlock({
+      command,
+      stdout: `${result.stdout.replace(/\s+$/, '')}${truncationNote}`,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    });
+    const runtimeOptions = await buildChatRuntimeOptions({
+      session,
+      sessionId,
+      provider,
+      clientOptions: (data.options ?? {}) as AnyRecord,
+      abortController: run.abortController,
+    });
+    await dependencies.runtime.run(provider, prompt, runtimeOptions, run.writer);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[Chat] Shell command for "${provider}" failed`, { sessionId, error: message });
+  } finally {
+    if (!stopped) chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
+  }
+}
+
 /**
  * Handles `chat.receipt`: did this request id start a run? Answers only "yes"
  * (`chat_input_accepted`); an id it does not know gets no reply, so asking can
@@ -877,6 +1048,7 @@ async function handlePermissionResponse(
  * - `chat.send`                { sessionId, content, options? }
  * - `chat.steer`               { requestId, sessionId, content }
  * - `chat.abort`               { sessionId }
+ * - `chat.shell`               { sessionId, requestId, content, options } — `!` mode
  * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq?, runId? }] }
  * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
  * - `chat.ping`                { ts? } — liveness probe; echoed as `chat_pong`
@@ -909,6 +1081,9 @@ export function handleChatConnection(
       switch (messageType) {
         case 'chat.send':
           await handleChatSend(ws, userId, data, dependencies);
+          return;
+        case 'chat.shell':
+          await handleChatShell(ws, userId, data, dependencies);
           return;
         case 'chat.steer':
           await handleChatSteer(ws, data, dependencies);

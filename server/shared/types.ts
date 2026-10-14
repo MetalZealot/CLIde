@@ -429,7 +429,8 @@ export type MessageKind =
   | 'task_notification'
   | 'compact_boundary'
   | 'agent_status'
-  | 'plan_updated';
+  | 'plan_updated'
+  | 'shell_command';
 
 /**
  * Where a background or forked agent stands, from the provider's live task
@@ -475,6 +476,25 @@ export type SessionPlanStep = {
 /** The agent's checklist for one session, as its provider stores it. */
 export type SessionPlan = {
   steps: SessionPlanStep[];
+};
+
+/**
+ * A command the user ran with the composer's `!` shell mode, carried on
+ * `shell_command` rows. Live rows come from the chat gateway while it runs;
+ * history rows are parsed back out of the `<bash-input>` block the provider
+ * received. `output` is plain text (ANSI stripped) and capped; past the cap,
+ * `fullOutputPath` names the file holding all of it.
+ */
+export type ShellCommandInfo = {
+  command: string;
+  output: string;
+  state: 'running' | 'done' | 'failed' | 'stopped' | 'timed_out';
+  exitCode: number | null;
+  durationMs?: number;
+  truncated?: boolean;
+  fullOutputPath?: string;
+  /** The `chat.shell` request that started it; ties the live row to the composer's send. */
+  requestId?: string;
 };
 
 /** The end of a background command's output; `live` while its run can still add to it. */
@@ -724,6 +744,7 @@ export type NormalizedMessage = {
   agentStatus?: AgentStatusInfo;
   /** Only set on `plan_updated` rows: the whole checklist after the change. */
   plan?: SessionPlan;
+  shell?: ShellCommandInfo;
   /** Only set on a `background_tasks` status: every live task. */
   backgroundTasks?: BackgroundTaskInfo[];
   subagentTools?: unknown;

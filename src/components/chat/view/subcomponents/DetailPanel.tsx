@@ -12,12 +12,14 @@ interface DetailPanelProps {
   copyText?: string;
   /** Shows the wrap toggle beside copy, pressed while lines wrap. Unwrapped lines scroll under the buttons. */
   wrap?: { on: boolean; toggle: () => void };
+  /** The content scrolls inside the panel, so the buttons sit over it instead of narrowing it. */
+  scrolls?: boolean;
   className?: string;
   children: ReactNode;
 }
 
 /** The flat panel a row opens to: no border, header or strip. */
-export const DetailPanel = memo(function DetailPanel({ copyText, wrap, className = '', children }: DetailPanelProps) {
+export const DetailPanel = memo(function DetailPanel({ copyText, wrap, scrolls, className = '', children }: DetailPanelProps) {
   const { t } = useTranslation('chat');
   const [copied, setCopied] = useState(false);
 
@@ -56,8 +58,8 @@ export const DetailPanel = memo(function DetailPanel({ copyText, wrap, className
 
   return (
     <div className={`relative mb-1.5 mt-0.5 flow-root rounded-md bg-muted/60 px-2.5 py-2 dark:bg-muted/40 ${className}`}>
-      {(copyText || wrap) && (wrap?.on === false ? (
-        // Unwrapped lines can't flow around the corner, so they slide under the buttons.
+      {(copyText || wrap) && (scrolls || wrap?.on === false ? (
+        // Unwrapped lines and scroll boxes can't flow around the corner, so they slide under the buttons.
         <div className="absolute right-1 top-1 z-10 flex gap-1">{buttons}</div>
       ) : (
         // Floated so only the rows beside the buttons wrap short; -mb-1 keeps the float off the second row.

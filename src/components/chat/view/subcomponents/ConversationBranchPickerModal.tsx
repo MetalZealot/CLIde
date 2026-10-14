@@ -42,6 +42,7 @@ export default function ConversationBranchPickerModal({
       .filter(
         (message) =>
           message.type === 'user' &&
+          !message.shell &&
           typeof message.content === 'string' &&
           message.content.trim().length > 0 &&
           !message.isLocalCommand &&

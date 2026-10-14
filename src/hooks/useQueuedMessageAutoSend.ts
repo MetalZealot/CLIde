@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { clearQueuedMessage, readQueuedMessage } from '../components/chat/utils/chatStorage';
-import { deliverNow, mintRequestId } from '../stores/sendOutbox';
+import { deliverNow, draftSendFrame, mintRequestId } from '../stores/sendOutbox';
 
 import { isTurnRunning, type MarkSessionProcessing, type SessionActivityMap } from './useSessionProtection';
 
@@ -58,13 +58,13 @@ export function useQueuedMessageAutoSend({
       }
 
       clearQueuedMessage(sessionId);
-      deliverNow({
-        type: 'chat.send',
+      deliverNow(draftSendFrame({
         sessionId,
         requestId: mintRequestId(),
         content: queued.content,
-        options: { ...(queued.options ?? {}), attachments: queued.attachments ?? queued.images ?? [] },
-      }, null);
+        options: queued.options ?? {},
+        attachments: queued.attachments ?? queued.images ?? [],
+      }), null);
       markSessionProcessing(sessionId, { statusText: null, stage: null, canInterrupt: true });
     }
   }, [processingSessions, activeSessionId, ws, markSessionProcessing]);

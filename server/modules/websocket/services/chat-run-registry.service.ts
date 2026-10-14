@@ -266,6 +266,11 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     return { ...message, sessionId: run.appSessionId, runId: run.runId };
   }
 
+  // A running command's output snapshot, superseded by its final row like streamed text.
+  if (message.kind === 'shell_command' && message.transient === true) {
+    return { ...message, sessionId: run.appSessionId, runId: run.runId };
+  }
+
   run.lastSeq += 1;
   trackRunWork(run.work, message);
   if (isPinnedSignal(message)) run.turnRunning = false;

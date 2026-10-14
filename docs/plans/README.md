@@ -36,7 +36,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Scheduled tasks](scheduled-tasks.md) | not started | Phase 0: Grayson agrees the positions |
 | [Sidebar rail](sidebar-rail.md) | not started | Phase 0: Grayson agrees the design |
 | [Desktop panes](desktop-panes.md) | not started | Phase 0: desktop frame in the probe harness, then the layout probe |
-| [`!` shell mode](composer-shell-mode.md) | 1/5 | Phase 1: runner, `chat.shell`, composer mode and card, Claude reply turn |
+| [`!` shell mode](composer-shell-mode.md) | 2/5 | Phase 2's rest: Codex `user_shell_command` cards, a real CLI fixture |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

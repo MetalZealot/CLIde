@@ -132,6 +132,9 @@ function chatMessageToNormalized(
   if (msg.isThinking) {
     return { ...base, kind: 'thinking', content: msg.content || '' } as NormalizedMessage;
   }
+  if (msg.shell) {
+    return { ...base, kind: 'shell_command', role: 'user', shell: msg.shell } as NormalizedMessage;
+  }
   if (msg.isInteractivePrompt) {
     return { ...base, kind: 'interactive_prompt', content: msg.content || '' } as NormalizedMessage;
   }

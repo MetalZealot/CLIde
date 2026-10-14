@@ -521,6 +521,103 @@ describe('chat-session-addressing', () => {
     });
   });
 
+  /** Polls until `check` holds; shell commands finish on the process's own clock. */
+  async function waitFor(check: () => boolean, label: string): Promise<void> {
+    for (let i = 0; i < 200 && !check(); i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(check(), label);
+  }
+
+  // The contract every provider gets: the command runs in the session row's
+  // folder, and its turn's prompt is the bash-mode block, addressed by the app id.
+  for (const provider of ['claude', 'cursor', 'codex', 'opencode'] as const) {
+    test(`${provider}: chat.shell runs in the session's folder, then the agent gets the output as its turn`, async () => {
+      await withIsolatedDatabase(async () => {
+        const folder = await mkdtemp(path.join(tmpdir(), 'chat-shell-'));
+        const appSessionId = `app-shell-${provider}`;
+        sessionsDb.createAppSession(appSessionId, provider, folder);
+        sessionsDb.assignProviderSessionId(appSessionId, `native-${provider}-1`);
+
+        const turns: Array<{ command: string; sessionId: unknown }> = [];
+        const dependencies: ChatDependencies = {
+          runtime: {
+            hasRuntime: () => true,
+            run: async (_provider, command, options) => {
+              turns.push({ command, sessionId: options.sessionId });
+            },
+            abort: async () => true,
+            resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+            getPendingApprovalsForSession: () => [],
+          },
+        };
+        const connection = new FakeConnection();
+        handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+        const frame = JSON.stringify({
+          type: 'chat.shell',
+          sessionId: appSessionId,
+          requestId: `shell-${provider}`,
+          content: 'pwd; echo nope >&2; exit 2',
+          // The client's folder never wins over the session row's.
+          options: { cwd: '/' },
+        });
+        connection.emit('message', frame);
+        await waitFor(() => turns.length === 1, 'the reply turn started');
+        connection.emit('message', frame);
+        await flush();
+
+        assert.deepEqual(turns, [{
+          command: `<bash-input>pwd; echo nope >&2; exit 2</bash-input>\n<bash-stdout>${folder}</bash-stdout><bash-stderr>nope\nExit code 2</bash-stderr>`,
+          sessionId: appSessionId,
+        }]);
+        const cards = connection.frames.filter((received) => received.kind === 'shell_command');
+        const last = cards[cards.length - 1]?.shell as Record<string, unknown>;
+        assert.equal((cards[0].shell as Record<string, unknown>).state, 'running');
+        assert.equal(last.state, 'failed');
+        assert.equal(last.exitCode, 2);
+        assert.equal(last.requestId, `shell-${provider}`);
+        assert.equal(connection.frames.filter((received) => received.kind === 'chat_input_accepted').length, 2);
+        await rm(folder, { recursive: true, force: true });
+      });
+    });
+  }
+
+  test('chat.shell: Stop kills the command, ends the run once, and starts no turn', async () => {
+    await withIsolatedDatabase(async () => {
+      const folder = await mkdtemp(path.join(tmpdir(), 'chat-shell-stop-'));
+      const appSessionId = 'app-shell-stop';
+      sessionsDb.createAppSession(appSessionId, 'claude', folder);
+
+      const turns: string[] = [];
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => true,
+          run: async (_provider, command) => {
+            turns.push(command);
+          },
+          abort: async () => false,
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+      const connection = new FakeConnection();
+      handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      connection.emit('message', JSON.stringify({ type: 'chat.shell', sessionId: appSessionId, requestId: 'stop-1', content: 'echo started; sleep 30' }));
+      await waitFor(() => chatRunRegistry.isProcessing(appSessionId), 'the command is running');
+      connection.emit('message', JSON.stringify({ type: 'chat.send', sessionId: appSessionId, requestId: 'blocked-1', content: 'hi' }));
+      await flush();
+      connection.emit('message', JSON.stringify({ type: 'chat.abort', sessionId: appSessionId }));
+      await waitFor(() => !chatRunRegistry.isProcessing(appSessionId), 'the run ended');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      assert.deepEqual(turns, []);
+      const kinds = connection.frames.map((received) => received.kind);
+      assert.equal(kinds.filter((kind) => kind === 'complete').length, 1);
+      const stoppedAt = connection.frames.findIndex((received) => (received.shell as Record<string, unknown> | undefined)?.state === 'stopped');
+      assert.ok(stoppedAt >= 0 && stoppedAt < kinds.indexOf('complete'), 'the stopped card lands before the run ends');
+      assert.ok(connection.frames.some((received) => received.code === 'RUN_IN_PROGRESS'), 'a send waits while the command runs');
+      await rm(folder, { recursive: true, force: true });
+    });
+  });
+
   test('chat.send names the request id when it refuses, so the same id can try again', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-receipt-2';

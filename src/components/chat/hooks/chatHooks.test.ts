@@ -1148,6 +1148,15 @@ test('a newer read-aloud waits for an explicitly stopped generation to cancel', 
   }
 });
 
+test('a `!` command row becomes a user turn drawn as a shell card, stoppable in its session', () => {
+  const shell = { command: 'npm test', output: 'ok', state: 'done' as const, exitCode: 0 };
+  const [row] = normalizedToChatMessages([transcriptRow({ id: 'sh1', kind: 'shell_command', role: 'user', shell })]);
+  assert.equal(row.type, 'user');
+  assert.equal(row.content, 'npm test');
+  assert.deepEqual(row.shell, shell);
+  assert.equal(row.shellSessionId, transcriptRow({ id: 'x', kind: 'text' }).sessionId);
+});
+
 test('an Agent tool call becomes a subagent container with its child tools', () => {
   const messages = normalizedToChatMessages([
     transcriptRow({
