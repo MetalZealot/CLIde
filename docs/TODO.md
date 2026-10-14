@@ -132,7 +132,7 @@ new work.
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
 - [ ] **Every background notice adds a full reply to the chat.** Each one wakes Claude, whose reply gets its own timestamp and footer. Fold the turns woken since your last message into one row, the latest shown in full, failures and questions kept open. Probe first, in the probe harness. Its trigger guess goes in [runtime plan](plans/agent-runtime-rebuild.md) phase 7. **S/M**
 - [~] **Subagents are invisible while they run and unreadable after.** Phases 1–4 landed (3 merged, not yet live-verified); next, open an agent's whole transcript in place. Never re-index them as sessions. [Plan](plans/subagent-visibility.md). **M/L**
-- [ ] `!` shell mode in the conversation window. **M**
+- [~] **`!` shell mode in the chat composer.** CLIde runs the command in the project folder; the agent replies by default, or a setting makes it context-only. [Plan](plans/composer-shell-mode.md). **M**
 - [ ] Conversation "map" sidebar: a minimap of user/assistant messages, tap to scroll. Depends on the direct-navigation foundation and stable rendering in the [history performance plan](plans/chat-history-performance.md); its visual design remains separate. **L**
 - [ ] Audit which Codex commands and config keys CLIde lacks; give each a destination. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
