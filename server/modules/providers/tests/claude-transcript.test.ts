@@ -283,6 +283,16 @@ describe('claude-harness-rows', () => {
       message: { role: 'user', content: 'Another Claude session sent a message: ...' },
     }, SESSION_ID);
     assert.deepEqual(handback.map((m) => [m.kind, m.agentStatus]), [['agent_status', { taskId: 'k', state: 'completed', report: 'Line one.\n  indented' }]]);
+    // A hand-back that lands mid-turn is queued as a prompt, framed in an agent-message tag.
+    const queued = provider.normalizeMessage({
+      type: 'attachment', uuid: 'q',
+      attachment: {
+        type: 'queued_command', commandMode: 'prompt',
+        origin: { kind: 'peer', senderTaskId: 'k', handback: true },
+        prompt: '<agent-message from="k">\n[Subagent hand-back] Framing. The report follows:\n  Line one.\n    indented\n</agent-message>',
+      },
+    }, SESSION_ID);
+    assert.deepEqual(queued.map((m) => [m.kind, m.agentStatus]), [['agent_status', { taskId: 'k', state: 'completed', report: 'Line one.\n  indented' }]]);
   });
 
   test('claude: a finished background command reads back the tail of its saved output', async () => {

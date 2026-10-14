@@ -918,17 +918,23 @@ function readClaudeAgentStatus(raw: AnyRecord): AgentStatusInfo | null {
 }
 
 /**
- * A background agent's report, handed back as a hidden peer message from its task.
+ * A background agent's report, handed back as a hidden peer message from its task —
+ * or, when it lands mid-turn, as a queued prompt carrying the same peer origin.
  * Null for any other row, including peer messages that are not hand-backs.
  */
 export function readClaudeAgentHandback(raw: AnyRecord): AgentStatusInfo | null {
-  const origin = readObjectRecord(raw.origin);
-  if (raw.type !== 'user' || origin?.kind !== 'peer' || origin.handback !== true) return null;
-  if (typeof origin.senderTaskId !== 'string' || typeof origin.body !== 'string') return null;
+  const attachment = raw.type === 'attachment' ? readObjectRecord(raw.attachment) : null;
+  const origin = readObjectRecord(attachment ? attachment.origin : raw.type === 'user' ? raw.origin : null);
+  if (origin?.kind !== 'peer' || origin.handback !== true || typeof origin.senderTaskId !== 'string') return null;
+  const body = attachment ? readQueuedPromptText(raw) : origin.body;
+  if (typeof body !== 'string') return null;
   // The harness frames the report and indents each of its lines by two spaces.
   const marker = 'The report follows:\n';
-  const at = origin.body.indexOf(marker);
-  const report = (at === -1 ? origin.body : origin.body.slice(at + marker.length)).replace(/^ {2}/gm, '').trim();
+  const at = body.indexOf(marker);
+  const report = (at === -1 ? body : body.slice(at + marker.length))
+    .replace(/^<\/agent-message>\s*$/m, '')
+    .replace(/^ {2}/gm, '')
+    .trim();
   return report ? { taskId: origin.senderTaskId, state: 'completed', report } : null;
 }
 
