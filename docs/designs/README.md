@@ -8,6 +8,7 @@ apart from the plan, which changes every session.
 | Design | Status | Plan |
 |---|---|---|
 | [Agent runtime](agent-runtime-rebuild.md) | agreed 2026-10-06 | [Rebuild the agent runtime](../plans/agent-runtime-rebuild.md) |
+| [Chat scroll owner](chat-history-performance.md) | agreed 2026-10-14 | [Chat history performance](../plans/chat-history-performance.md) |
 | [Sidebar rail](sidebar-rail.md) | draft | [Sidebar rail](../plans/sidebar-rail.md) |
 | [Design system](design-system.md) | draft | [One design system](../plans/design-system.md) |
 | [Diffs and Previews](source-control.md) | draft | [Diffs and Previews](../plans/source-control-truthfulness.md) |
