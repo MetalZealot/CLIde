@@ -3426,14 +3426,54 @@ describe('QuestionAnswerContent', () => {
     });
   });
 
-  test('still renders a well-formed question + answer', () => {
+  test('closed card shows each question\'s topic and answer, not the offered options', () => {
     const html = renderToStaticMarkup(
       React.createElement(QuestionAnswerContent, {
-        questions: [{ question: 'Pick one?', header: 'H', options: [{ label: 'A' }, { label: 'B' }] }],
-        answers: { 'Pick one?': 'A' },
+        questions: [{ question: 'Pick one?', header: 'Auth', options: [{ label: 'Alpha' }, { label: 'Beta' }] }],
+        answers: { 'Pick one?': 'Alpha' },
       }),
     );
-    assert.ok(html.includes('Pick one?'));
+    assert.match(html, /aria-expanded="false"/);
+    assert.match(html, />Question</);
+    assert.match(html, />Auth</);
+    assert.match(html, />Alpha</);
+    assert.doesNotMatch(html, /Beta|Pick one\?/);
+  });
+
+  test('closed card counts a partial answer set, and says when it waits', () => {
+    const questions = [
+      { question: 'One?', options: [{ label: 'A' }] },
+      { question: 'Two?', options: [{ label: 'B' }] },
+    ];
+    const partial = renderToStaticMarkup(
+      React.createElement(QuestionAnswerContent, { questions, answers: { 'One?': 'A' } }),
+    );
+    assert.match(partial, /2 questions/);
+    assert.match(partial, /1 of 2 answered/);
+    assert.match(partial, /Skipped/);
+    const waiting = renderToStaticMarkup(
+      React.createElement(QuestionAnswerContent, { questions, answers: {}, status: 'running' }),
+    );
+    assert.match(waiting, /Waiting for your answer/);
+    assert.doesNotMatch(waiting, /Skipped|Not answered/);
+  });
+
+  test('open card lists every offered option and marks only the picked one', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(QuestionAnswerContent, {
+        questions: [{
+          question: 'Pick one?',
+          options: [{ label: 'Alpha', description: 'First choice' }, { label: 'Beta' }],
+        }],
+        answers: { 'Pick one?': 'Alpha' },
+        defaultOpen: true,
+      }),
+    );
+    assert.match(html, /Alpha/);
+    assert.match(html, /First choice/);
+    assert.match(html, /Beta/);
+    assert.equal(html.match(/lucide-check/g)?.length, 1);
+    assert.match(html, /rounded-full/);
   });
 
   // Regression coverage for custom "Other" answers containing ", ": the answer
@@ -3445,9 +3485,10 @@ describe('QuestionAnswerContent', () => {
       React.createElement(QuestionAnswerContent, {
         questions: [{ question: 'Proceed?', options: [{ label: 'Yes' }, { label: 'No' }] }],
         answers: { 'Proceed?': 'Sure, do it now, please' },
+        defaultOpen: true,
       }),
     );
-    assert.ok(html.includes('<span>Sure, do it now, please</span>'));
+    assert.match(html, /Sure, do it now, please<span[^>]*>your answer</);
   });
 
   test('separates a selected option from a comma-containing custom answer', () => {
@@ -3455,9 +3496,12 @@ describe('QuestionAnswerContent', () => {
       React.createElement(QuestionAnswerContent, {
         questions: [{ question: 'Which?', options: [{ label: 'A' }, { label: 'B' }], multiSelect: true }],
         answers: { 'Which?': 'A, custom part one, part two' },
+        defaultOpen: true,
       }),
     );
-    assert.ok(html.includes('<span>A</span>, <span>custom part one, part two</span>'));
+    assert.equal(html.match(/lucide-check/g)?.length, 2);
+    assert.match(html, /custom part one, part two<span[^>]*>your answer</);
+    assert.match(html, /rounded-\[3px\]/);
   });
 
   test('still splits a plain multi-select answer into option labels', () => {
@@ -3465,12 +3509,14 @@ describe('QuestionAnswerContent', () => {
       React.createElement(QuestionAnswerContent, {
         questions: [{ question: 'Which?', options: [{ label: 'A' }, { label: 'B' }], multiSelect: true }],
         answers: { 'Which?': 'A, B' },
+        defaultOpen: true,
       }),
     );
-    assert.ok(html.includes('<span>A</span>, <span>B</span>'));
+    assert.equal(html.match(/lucide-check/g)?.length, 2);
+    assert.doesNotMatch(html, /your answer/);
   });
 
-  test('shows each question over its answer, with no tool name, and marks the rest skipped', () => {
+  test('a failed call opens with its error, shows no tool name, and marks the rest skipped', () => {
     const html = renderToStaticMarkup(
       React.createElement(QuestionAnswerContent, {
         questions: [
@@ -3478,11 +3524,14 @@ describe('QuestionAnswerContent', () => {
           { question: 'Which port?', options: [{ label: '3000' }] },
         ],
         answers: { 'What kind of app?': 'React app (Vite)' },
+        status: 'error',
         errorText: 'Answer timed out',
       }),
     );
+    assert.match(html, /aria-expanded="true"/);
     assert.ok(html.indexOf('What kind of app?') < html.indexOf('React app (Vite)'));
-    assert.doesNotMatch(html, /AskUserQuestion|>App</);
+    assert.doesNotMatch(html, /AskUserQuestion/);
+    assert.match(html, /Failed/);
     assert.match(html, /Skipped/);
     assert.match(html, /Answer timed out/);
   });
@@ -3498,6 +3547,7 @@ describe('QuestionAnswerContent', () => {
           choice: ['A', 'custom answer'],
           secret: ['[redacted]'],
         },
+        defaultOpen: true,
       }),
     );
     assert.ok(html.includes('>A<'));

@@ -557,6 +557,12 @@
     "pickerHint": "Picking a message loads it into the composer; sending rewinds the conversation to that point."
   },
   "questions": {
+    "label_one": "Question",
+    "label_other": "{{count}} questions",
+    "someAnswered": "{{answered}} of {{total}} answered",
+    "waiting": "Waiting for your answer",
+    "failed": "Failed",
+    "yourAnswer": "your answer",
     "skipped": "Skipped",
     "notAnswered": "Not answered"
   },

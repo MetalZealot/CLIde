@@ -180,13 +180,14 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
     );
   }
 
-  // Questions are their own flat card: no tool name, strip or disclosure, and a failure shows inside it.
+  // Questions are their own card, with no tool name; a failure shows inside it.
   if (displayConfig.contentType === 'question-answer') {
     const contentProps = displayConfig.getContentProps?.(parsedData, { toolResult }) || {};
     return (
       <QuestionAnswerContent
         questions={contentProps.questions || []}
         answers={contentProps.answers || {}}
+        status={toolStatus}
         errorText={toolStatus === 'error' ? String(toolResult?.content || '').trim().split('\n')[0] : undefined}
       />
     );
