@@ -593,6 +593,7 @@
     "edit": "Edit"
   },
   "shellMode": {
+    "placeholder": "Shell mode · type a command to run",
     "running": "Running · {{duration}}",
     "stopped": "Stopped · {{duration}}",
     "timedOut": "Timed out · {{duration}}",

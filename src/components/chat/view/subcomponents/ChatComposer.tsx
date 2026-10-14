@@ -619,6 +619,11 @@ function ChatComposer({
                   <>
                     <span className="-mx-0.5 box-decoration-clone rounded-md bg-pink-200/70 px-0.5 text-transparent dark:bg-pink-400/30">!</span>
                     {input.slice(1)}
+                    {input === '!' && (
+                      <span className="font-sans text-muted-foreground/70">
+                        {' '}{t('shellMode.placeholder', { defaultValue: 'Shell mode · type a command to run' })}
+                      </span>
+                    )}
                   </>
                 ) : leadingCommand ? (
                   <>
