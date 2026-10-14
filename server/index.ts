@@ -323,6 +323,8 @@ async function startServer() {
 
         await closeSessionsWatcher();
         const shutdownRuntimeServices = async () => {
+            // 1012 "Service Restart" lets clients say CLIde is restarting rather than unreachable.
+            for (const client of wss.clients) client.close(1012, 'Server restarting');
             closeProviderUsageResetMonitor();
             closeScheduledMessages();
             providerRuntimeService.closeAll();

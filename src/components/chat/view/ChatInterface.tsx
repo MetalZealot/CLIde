@@ -37,6 +37,7 @@ import BackgroundWork, { type BackgroundRunning } from './subcomponents/Backgrou
 import { ActivityLineSlotProvider } from './subcomponents/ActivityLineSlot';
 import PlanBanner from './subcomponents/PlanBanner';
 import ScrollToBottomButton from './subcomponents/ScrollToBottomButton';
+import ConnectionNotice, { useConnectionNotice } from './subcomponents/ConnectionNotice';
 import ChatComposer from './subcomponents/ChatComposer';
 import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CommandResultModal from './subcomponents/CommandResultModal';
@@ -92,23 +93,14 @@ function ChatInterface({
   pageScroll = false,
   hasBottomNav = false,
 }: ChatInterfaceProps) {
-  const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
+  const { subscribe, probeConnection, getReplayProgress } = useWebSocket();
   const { t } = useTranslation('chat');
   const {
     providerAuthStatus,
     refreshProviderAuthStatuses,
   } = useProviderAuthStatus();
 
-  // "Connection lost" is only meaningful after a first successful connect —
-  // without this guard the banner would flash on every cold page load while
-  // the initial websocket handshake is still in flight.
-  const hasBeenConnectedRef = useRef(false);
-  useEffect(() => {
-    if (isConnected) {
-      hasBeenConnectedRef.current = true;
-    }
-  }, [isConnected]);
-  const showConnectionLostBanner = hasBeenConnectedRef.current && !isConnected;
+  const connectionNotice = useConnectionNotice();
 
   const sessionStore = useSessionStore();
   // Streaming buffers are per session: background sessions stream concurrently
@@ -1147,19 +1139,13 @@ function ChatInterface({
               : 'relative flex-shrink-0'
           }
         >
-          {showConnectionLostBanner && (
-            <div className="pointer-events-none absolute -top-11 left-0 right-0 z-30 flex justify-center">
-              <div
-                role="status"
-                className="pointer-events-auto flex items-center gap-2 rounded-full border border-amber-500/50 bg-card px-3 py-1.5 text-xs font-medium text-amber-600 shadow-sm dark:text-amber-400"
-              >
-                <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" aria-hidden />
-                {t('connection.reconnecting', { defaultValue: 'Connection lost — reconnecting…' })}
-              </div>
+          {connectionNotice && (
+            <div className="pointer-events-none absolute -top-11 left-0 right-0 z-30 flex justify-center px-4">
+              <ConnectionNotice notice={connectionNotice} />
             </div>
           )}
 
-          {!showConnectionLostBanner && isUserScrolledUp && chatMessages.length > 0 && (
+          {!connectionNotice && isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
               <ScrollToBottomButton
                 activity={isProcessing ? sessionActivity : null}

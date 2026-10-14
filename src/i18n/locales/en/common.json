@@ -36,6 +36,13 @@
       "openSettings": "Notification settings"
     }
   },
+  "connection": {
+    "quiet": "Connection went quiet — reconnecting…",
+    "unreachable": "Can’t reach CLIde — retrying…",
+    "restart": "CLIde is restarting…",
+    "offline": "You’re offline — waiting for network",
+    "back": "Reconnected"
+  },
   "buttons": {
     "save": "Save",
     "cancel": "Cancel",

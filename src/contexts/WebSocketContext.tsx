@@ -22,6 +22,16 @@ export type ServerEvent = {
 
 type ServerEventListener = (event: ServerEvent) => void;
 
+export type OutageCause = 'quiet' | 'unreachable' | 'restart' | 'offline';
+
+/** Why the socket is down since a first successful connect, and for how long. */
+export type ConnectionOutage = {
+  cause: OutageCause;
+  since: number;
+  /** Reconnect attempts whose socket never opened. */
+  failedTries: number;
+};
+
 /**
  * How far into a run's sequenced live events this client has processed.
  * `seq` restarts at 1 for every run, so the counter is only meaningful
@@ -50,6 +60,8 @@ type WebSocketContextType = {
    */
   subscribe: (listener: ServerEventListener) => () => void;
   isConnected: boolean;
+  /** Null while connected and before the first connect. */
+  outage: ConnectionOutage | null;
   /**
    * Fires one liveness probe immediately (no-op while disconnected). Callers
    * with delivery-critical sends (Stop) use this to shrink half-open detection
@@ -77,6 +89,28 @@ type WebSocketContextType = {
  */
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const PONG_TIMEOUT_MS = 10_000;
+const RECONNECT_DELAY_MS = 3_000;
+
+/** Failed reconnects before an outage reads as unreachable (~6s at the reconnect delay). */
+const UNREACHABLE_AFTER_TRIES = 2;
+/** A restart that has not come back after this many tries (~30s) reads as unreachable. */
+const RESTART_GRACE_TRIES = 10;
+/** WebSocket close code "Service Restart", sent by the server on shutdown. */
+const CLOSE_SERVICE_RESTART = 1012;
+
+const isBrowserOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/** Folds one more drop into the outage; offline wins, then restart grace, then unreachable. */
+export const nextOutage = (prev: ConnectionOutage | null, event: { restart?: boolean; failedTry?: boolean }): ConnectionOutage => {
+  const base = prev ?? { cause: 'quiet' as OutageCause, since: Date.now(), failedTries: 0 };
+  const failedTries = base.failedTries + (event.failedTry ? 1 : 0);
+  let cause: OutageCause = event.restart ? 'restart' : base.cause;
+  if (cause === 'restart' && failedTries >= RESTART_GRACE_TRIES) cause = 'unreachable';
+  else if (cause !== 'restart' && failedTries >= UNREACHABLE_AFTER_TRIES) cause = 'unreachable';
+  if (isBrowserOffline()) cause = 'offline';
+  else if (cause === 'offline') cause = 'quiet';
+  return { cause, since: base.since, failedTries };
+};
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
@@ -113,6 +147,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
    */
   const listenersRef = useRef(new Set<ServerEventListener>());
   const [isConnected, setIsConnected] = useState(false);
+  const [outage, setOutage] = useState<ConnectionOutage | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -174,6 +209,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       console.warn('[WS] No response to liveness ping — forcing reconnect');
       flightRecorder()?.event('ws.watchdog');
       setIsConnected(false);
+      setOutage((prev) => nextOutage(prev, {}));
       connectRef.current();
     }, PONG_TIMEOUT_MS);
   }, []);
@@ -220,6 +256,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       stopHeartbeat();
 
       const websocket = new WebSocket(wsUrl);
+      let opened = false;
       // Store connecting sockets too, so a token refresh can close them before
       // their handshake completes with stale credentials.
       wsRef.current = websocket;
@@ -227,7 +264,9 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       websocket.onopen = () => {
         if (wsRef.current !== websocket) return; // superseded while connecting
         flightRecorder()?.event('ws.open');
+        opened = true;
         setIsConnected(true);
+        setOutage(null);
         if (hasConnectedRef.current) {
           // This is a reconnect — signal so components can catch up on missed messages
           dispatch({ kind: 'websocket_reconnected', timestamp: Date.now() });
@@ -283,14 +322,16 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         flightRecorder()?.event('ws.close', { code: event.code });
         wsRef.current = null;
         setIsConnected(false);
+        if (hasConnectedRef.current) {
+          setOutage((prev) => nextOutage(prev, { restart: event.code === CLOSE_SERVICE_RESTART, failedTry: !opened }));
+        }
         stopHeartbeat();
         if (unmountedRef.current) return;
 
-        // Attempt to reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
           if (unmountedRef.current) return; // Prevent reconnection if unmounted
           connect();
-        }, 3000);
+        }, RECONNECT_DELAY_MS);
       };
 
       websocket.onerror = (error) => {
@@ -365,11 +406,18 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') probe();
     };
+    const onOnline = () => {
+      setOutage((prev) => (prev ? nextOutage(prev, {}) : prev));
+      probe();
+    };
+    const onOffline = () => setOutage((prev) => (prev ? nextOutage(prev, {}) : prev));
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('online', probe);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('online', probe);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
     };
   }, [sendPing]);
 
@@ -415,9 +463,10 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     sendMessage,
     subscribe,
     isConnected,
+    outage,
     probeConnection,
     getReplayProgress
-  }), [sendMessage, subscribe, isConnected, probeConnection, getReplayProgress]);
+  }), [sendMessage, subscribe, isConnected, outage, probeConnection, getReplayProgress]);
 
   return value;
 };

@@ -11,7 +11,7 @@ import { useChatBrowser } from '../../browser-use/useChatBrowser';
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
 import { isTurnRunning, useSessionProtection } from '../../../hooks/useSessionProtection';
-import type { ServerEvent } from '../../../contexts/WebSocketContext';
+import { nextOutage, type ServerEvent } from '../../../contexts/WebSocketContext';
 import { streamingRowId, useSessionStore, type NormalizedMessage, type SessionStore } from '../../../stores/useSessionStore';
 import type { Project, ProjectSession } from '../../../types/app';
 import { useSendOutboxDriver } from '../../../hooks/useSendOutboxDriver';
@@ -1789,5 +1789,39 @@ test('an upload fails only once it stops moving, however long it takes', async (
     assert.equal(xhr.aborted, true);
   } finally {
     globalThis.XMLHttpRequest = originalXhr;
+  }
+});
+
+test('connection outage: a drop reads as quiet, then unreachable after two failed reconnects', () => {
+  const first = nextOutage(null, {});
+  assert.equal(first.cause, 'quiet');
+  const oneFailed = nextOutage(first, { failedTry: true });
+  assert.equal(oneFailed.cause, 'quiet');
+  const twoFailed = nextOutage(oneFailed, { failedTry: true });
+  assert.equal(twoFailed.cause, 'unreachable');
+  assert.equal(twoFailed.since, first.since);
+});
+
+test('connection outage: a server restart stays restarting through its grace, then reads as unreachable', () => {
+  let outage = nextOutage(null, { restart: true });
+  assert.equal(outage.cause, 'restart');
+  for (let i = 0; i < 9; i += 1) outage = nextOutage(outage, { failedTry: true });
+  assert.equal(outage.cause, 'restart');
+  outage = nextOutage(outage, { failedTry: true });
+  assert.equal(outage.cause, 'unreachable');
+});
+
+test('connection outage: an offline browser wins over every other cause and clears when back online', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const setOnline = (onLine: boolean) => Object.defineProperty(globalThis, 'navigator', { value: { onLine }, configurable: true });
+  try {
+    setOnline(false);
+    const offline = nextOutage(nextOutage(null, {}), { failedTry: true, restart: true });
+    assert.equal(offline.cause, 'offline');
+    setOnline(true);
+    assert.equal(nextOutage({ ...offline, cause: 'offline', failedTries: 0 }, {}).cause, 'quiet');
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'navigator', descriptor);
+    else delete (globalThis as { navigator?: unknown }).navigator;
   }
 });
