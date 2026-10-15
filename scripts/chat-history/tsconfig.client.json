@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     "./browser.tsx",
+    "./scenarios.ts",
     "./fixtures.ts",
     "./budgets.ts",
     "../../src/types/**/*.d.ts",

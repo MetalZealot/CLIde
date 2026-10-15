@@ -4,5 +4,7 @@
   window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = { supportsFiber: true, isDisabled: false, renderers: new Map(),
     inject: () => 1, checkDCE() {}, onCommitFiberUnmount() {}, onPostCommitFiberRoot() {},
     onCommitFiberRoot() { const c = (globalThis.__historyCounters ??= { rows: 0, markdown: 0, conversions: 0 }); c.commits = (c.commits ?? 0) + 1; } };
-</script></head>
+</script>
+<style>/* A web font arriving after first layout re-wraps every message (the app loads Merriweather with display=swap). */
+html.bench-late-reflow .chat-message * { letter-spacing: 0.06em !important; }</style></head>
 <body><div id="root"></div><script type="module" src="/scripts/chat-history/browser.tsx"></script></body></html>

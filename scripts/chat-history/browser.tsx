@@ -4,6 +4,7 @@ import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { useSessionStore } from '../../src/stores/useSessionStore';
 import { historyBudgets } from './budgets';
+import { createScenarios, type ScenarioMode } from './scenarios';
 import { useChatSessionState } from '../../src/components/chat/hooks/useChatSessionState';
 import { useChatFind } from '../../src/components/chat/hooks/useChatFind';
 import ChatMessagesPane from '../../src/components/chat/view/subcomponents/ChatMessagesPane';
@@ -39,6 +40,30 @@ let find: ReturnType<typeof useChatFind>;
 let store: ReturnType<typeof useSessionStore>;
 let selectedId = fixtures[0].id;
 let pageScroll = false;
+/** Shows the activity line, as a running turn does. */
+let withActivity = false;
+const runningActivity = { statusText: null, stage: null, canInterrupt: true, startedAt: Date.now() };
+/** The installed phone app's page structure (sticky header, composer and tab bar), or the desktop column. */
+function Shell({ children }: { children: React.ReactNode }) {
+  if (!pageScroll) {
+    return <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="border-b border-border" style={{ height: 56, flexShrink: 0 }} />
+      <div style={{ display: 'flex', flex: '1 1 auto', minHeight: 0, flexDirection: 'column' }}>{children}</div>
+    </div>;
+  }
+  return <div style={{ display: 'flex', minHeight: '100dvh', flexDirection: 'column' }}>
+    <div data-chat-page-top className="border-b border-border bg-background" style={{ position: 'sticky', top: 0, zIndex: 30, height: 72 }} />
+    <div style={{ display: 'flex', flex: '1 1 auto', flexDirection: 'column' }}>{children}</div>
+    <div data-chat-page-nav className="border-t border-border bg-background" style={{ position: 'sticky', bottom: 0, zIndex: 30, height: 'var(--app-footer-height)' }} />
+  </div>;
+}
+function Composer() {
+  return <div data-chat-page-bottom className="bg-background" style={pageScroll
+    ? { position: 'sticky', zIndex: 20, bottom: 'var(--app-footer-height)' } : { position: 'relative', flexShrink: 0 }}>
+    <textarea id="bench-composer" rows={2} style={{ display: 'block', width: '100%', resize: 'none', padding: 12, boxSizing: 'border-box', fieldSizing: 'content' } as React.CSSProperties} />
+    <div style={{ height: 48 }} />
+  </div>;
+}
 function Harness() {
   store = useSessionStore();
   const [session] = useState({ id: selectedId, __provider: 'claude' as const });
@@ -50,13 +75,14 @@ function Harness() {
     renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
     scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
   useEffect(() => { document.title = `History fixture: ${session.id}`; }, [session.id]);
-  return <div style={{ [pageScroll ? 'minHeight' : 'height']: '100vh', display: 'flex', flexDirection: 'column' }}>
+  return <Shell>
     <ChatMessagesPane {...state} selectedProject={project} selectedSession={session} pageScroll={pageScroll}
-      provider="claude"
+      isProcessing={withActivity} activity={withActivity ? runningActivity : null}
       onGrantToolPermission={grant} showThinking={false} scheduledMessages={[]}
       onSendScheduledNow={noop} onEditScheduledMessage={noop} onCancelScheduledMessage={noop}
       onResumeScheduledMessage={noop} />
-  </div>;
+    <Composer />
+  </Shell>;
 }
 const root = createRoot(document.getElementById('root')!);
 let ran = false;
@@ -159,8 +185,63 @@ const positionDriver = (el: HTMLElement, pageMode: boolean) => {
   const watch = (row: Element) => { anchor = row; prevTop = row.getBoundingClientRect().top; owed = 0; };
   return { jumps, drive, scrollBy, watch };
 };
+const scenarios = createScenarios({
+  async mount(fixtureId, mode, options) {
+    selectedId = fixtureId;
+    pageScroll = mode === 'page';
+    withActivity = options.activity;
+    document.documentElement.classList.remove('bench-late-reflow');
+    root.render(<AppearancePreferencesProvider><Harness /></AppearancePreferencesProvider>);
+    await until(() => !!state && state.currentSessionId === fixtureId && !state.isLoadingSessionMessages && state.chatMessages.length > 0);
+    if (options.lateReflowMs !== undefined) {
+      // After the first pin to the bottom, as the prose font landed in the measured open.
+      const host = () => state.scrollContainerRef.current;
+      await until(() => (host()?.scrollTop ?? 0) > 0);
+      setTimeout(() => document.documentElement.classList.add('bench-late-reflow'), options.lateReflowMs);
+    }
+  },
+  host: () => state.scrollContainerRef.current!,
+  following: () => !state.isUserScrolledUp,
+  isLoading: () => state.isLoadingMoreMessages || state.isLoadingSessionMessages || state.isLoadingAllMessages,
+  streamReply: (text) => store.updateStreaming(selectedId, text, 'claude'),
+  refresh: () => store.refreshFromServer(selectedId),
+  async find(query) {
+    find.open();
+    await pause(0);
+    find.setQuery(query);
+    await until(() => !find.isPreparing && find.total > 0);
+    return find.total;
+  },
+  closeFind: () => find.close(),
+  returnToLatest: () => state.scrollToBottomAndReset(),
+  async earlyPromptSnippet() {
+    const records = await store.fetchFindText(selectedId);
+    const prompts = records.filter((record) => record.kind === 'text' && record.role === 'user' && (record.content ?? '').trim().length > 40);
+    const words = prompts[Math.min(2, prompts.length - 1)]?.content?.trim().split(/\s+/).slice(0, 6).join(' ');
+    return words ?? null;
+  },
+  appendToolRow() {
+    store.appendRealtime(selectedId, { id: 'bench-live-tool', sessionId: selectedId, provider: 'claude', kind: 'tool_use',
+      timestamp: new Date().toISOString(), toolName: 'Bash', toolId: 'bench-live-tool', toolInput: { command: 'ls -la' },
+      toolResult: { content: 'bench output line\n'.repeat(30), isError: false } });
+  },
+  async resize(width, height) {
+    const resize = (window as any).__benchResize as ((w: number, h: number) => Promise<void>) | undefined;
+    if (!resize) throw new Error('Resizing needs the scenario runner');
+    await resize(width, height);
+  },
+});
 (window as any).historyBench = {
   fixtures, snapshot,
+
+  /** One scroll-rule scenario on a fresh page; see scenarios.ts and the runner, run-scenarios.mjs. */
+  async scenario(name: string, fixtureId: string, mode: ScenarioMode) {
+    if (ran) throw new Error('Reload the fixture page before each sample');
+    ran = true;
+    const run = scenarios[name];
+    if (!run) throw new Error(`Unknown scenario ${name}`);
+    return run(fixtureId, mode);
+  },
 
   /**
    * Position and per-step work in `pane` or phone `page` scroll mode: open at the

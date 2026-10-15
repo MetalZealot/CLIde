@@ -47,6 +47,14 @@ One file: `npm run test:client:one <path>` / `test:server:one <path>`. A bare
 `--test` fails on the `@/` alias, and a directory argument fails even with the
 right tsconfig.
 
+**The scroll scenarios** check the chat scroll rules ([design](designs/chat-history-performance.md))
+headless, one fresh page per scenario, in the phone page layout and the desktop pane:
+`npm run test:chat-scroll -- --reference=<a.jsonl>,<b.jsonl>`, with copies of real Claude
+transcripts kept outside the repo (without `--reference`, the synthetic tool-burst fixture).
+About 5 s per scenario on the Pi; `--only=open,nudge` narrows it, `--trace` prints every
+scroll write with the rows that changed height. Messages re-wrap shortly after the first
+pin to the bottom, as the late web font does in the app.
+
 **The history walk** guards chat position ([invariant 15](../ARCHITECTURE.md)). Run it
 for chat loading or scrolling, **and for anything rendered inside a chat row** —
 a message, activity, card or control that can change height after it mounts.

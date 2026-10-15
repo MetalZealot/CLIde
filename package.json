@@ -51,7 +51,8 @@
     "docs:dashboard": "node scripts/build-project-dashboard.mjs",
     "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs",
     "bench:chat-history": "node scripts/bench-chat-history.mjs",
-    "bench:chat-history:browser": "tsx --tsconfig server/tsconfig.json scripts/chat-history/browser-server.ts"
+    "bench:chat-history:browser": "tsx --tsconfig server/tsconfig.json scripts/chat-history/browser-server.ts",
+    "test:chat-scroll": "node scripts/chat-history/run-scenarios.mjs"
   },
   "keywords": [
     "claude code",
