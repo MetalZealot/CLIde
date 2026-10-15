@@ -96,11 +96,11 @@ interface UseChatComposerStateArgs {
   onInputFocusChange?: (focused: boolean) => void;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
-  scrollToBottom: () => void;
+  /** Sending follows the conversation to its newest message. */
+  followBottom: () => void;
   addMessage: (msg: ChatMessage) => void;
   /** Points an optimistic bubble at its uploaded files; false when the bubble is not found. */
   patchLocalUserMessage?: (sessionId: string | null, messageId: string, patch: Pick<ChatMessage, 'images' | 'files'>) => boolean;
-  setIsUserScrolledUp: (isScrolledUp: boolean) => void;
   pendingPermissionRequests: PendingPermissionRequest[];
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   /** From the provider capability matrix; gates /rewind in the command menu. */
@@ -574,10 +574,9 @@ export function useChatComposerState({
   onInputFocusChange,
   onFileOpen,
   onShowSettings,
-  scrollToBottom,
+  followBottom,
   addMessage,
   patchLocalUserMessage,
-  setIsUserScrolledUp,
   pendingPermissionRequests,
   setPendingPermissionRequests: _setPendingPermissionRequests,
   supportsRewind = false,
@@ -1078,6 +1077,7 @@ export function useChatComposerState({
     if (!inputHighlightRef.current || !target) {
       return;
     }
+    // eslint-disable-next-line no-restricted-syntax -- the composer's highlight mirror, not the chat
     inputHighlightRef.current.scrollTop = target.scrollTop;
     inputHighlightRef.current.scrollLeft = target.scrollLeft;
   }, []);
@@ -1564,8 +1564,7 @@ export function useChatComposerState({
       }
 
       safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
-      setIsUserScrolledUp(false);
-      setTimeout(() => scrollToBottom(), 100);
+      followBottom();
 
       await run();
     },
@@ -1582,14 +1581,13 @@ export function useChatComposerState({
       onSessionProcessing,
       pendingRewind,
       resetCommandMenuState,
-      scrollToBottom,
+      followBottom,
       selectedProject,
       sessionKey,
       sessionStore,
       addMessage,
       patchLocalUserMessage,
       provider,
-      setIsUserScrolledUp,
       slashCommands,
     ],
   );

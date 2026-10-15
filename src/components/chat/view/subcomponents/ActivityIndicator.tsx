@@ -133,6 +133,7 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
 
   return (
     <div
+      data-chat-activity-line
       className={`chat-message px-1 sm:px-0 ${isExiting ? 'chat-activity-exit' : 'chat-activity-enter'}`}
       role="status"
     >

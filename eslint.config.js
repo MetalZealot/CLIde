@@ -102,6 +102,18 @@ export default tseslint.config(
     },
   },
   {
+    // Only the scroll owner moves the chat (docs/designs/chat-history-performance.md); a box that
+    // scrolls itself says so with a disable comment on the line.
+    files: ["src/components/chat/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": ["error",
+        { selector: "AssignmentExpression[left.property.name='scrollTop']", message: "Ask the chat scroll owner (follow, jumpTo, reapply) instead of setting scrollTop." },
+        { selector: "CallExpression[callee.property.name=/^(scrollTo|scrollBy|scrollIntoView)$/]", message: "Ask the chat scroll owner (follow, jumpTo, reapply) instead of scrolling directly." },
+      ],
+    },
+  },
+  {
     files: ["server/**/*.{js,ts}"], // apply this block only to backend source files
     ignores: ["server/**/*.d.ts"], // skip generated declaration files in backend linting
     plugins: {

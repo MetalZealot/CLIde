@@ -3,6 +3,8 @@ import { ChevronRight } from 'lucide-react';
 
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
+import { CHAT_SCROLL_TOGGLE_EVENT } from '../../scroll/scrollRules';
+
 import { DetailPanel } from './DetailPanel';
 
 // Muted markdown in a detail panel; the first block clears the copy button.
@@ -19,12 +21,10 @@ export const OUTER_ROW_PINNED = 'sticky top-[var(--chat-pin-top,0px)] z-[16] bg-
 export const INNER_ROW_PIN = 'scroll-mt-[calc(var(--chat-pin-top,0px)_+_var(--pin-outer,0px))]';
 export const INNER_ROW_PINNED = 'sticky top-[calc(var(--chat-pin-top,0px)_+_var(--pin-outer,0px))] z-[15] bg-background';
 
-/** Toggles a row; closing it while pinned scrolls it back to where it was pinned, not past its content. */
+/** Toggles a row; the chat's scroll owner keeps the row where it was tapped, pinned or not. */
 export function toggleInPlace(row: HTMLElement, toggle: () => void): void {
-  const container = row.parentElement;
-  const isPinned = container !== null && row.getBoundingClientRect().top - container.getBoundingClientRect().top > 1;
+  row.dispatchEvent(new Event(CHAT_SCROLL_TOGGLE_EVENT, { bubbles: true }));
   toggle();
-  if (isPinned) requestAnimationFrame(() => row.scrollIntoView({ block: 'start' }));
 }
 
 interface DisclosureRowProps {

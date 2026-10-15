@@ -72,6 +72,7 @@ export default function ShellCommandCard({ shell, timestamp, sessionId, pendingR
   const output = shell.output.replace(/\s+$/, '');
   useEffect(() => {
     const box = outputRef.current;
+    // eslint-disable-next-line no-restricted-syntax -- the card's own output box, not the chat
     if (isOpen && box) box.scrollTop = box.scrollHeight;
   }, [isOpen, output]);
 

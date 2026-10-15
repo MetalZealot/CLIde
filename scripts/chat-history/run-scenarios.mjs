@@ -27,6 +27,35 @@ const traceWrites = () => {
     window.__trace.push(`${Math.round(performance.now())}ms write ${Math.round(value)} ${Math.round(before)}->${Math.round(desc.get.call(this))} height=${this.scrollHeight} rows=${now.size} ${grew.join(' ')}`);
     last = now;
   } });
+  // Calls that scroll without the setter, with their caller.
+  const caller = () => (new Error().stack ?? '').split('\n').slice(3, 6).map((line) => line.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+/, '')).join(' < ');
+  for (const [proto, name] of [[Element.prototype, 'scrollTo'], [Element.prototype, 'scrollBy'], [Element.prototype, 'scrollIntoView'], [HTMLElement.prototype, 'focus'], [window, 'scrollTo'], [window, 'scrollBy']]) {
+    const original = proto[name];
+    proto[name] = function (...args) {
+      const tag = this === window ? 'window' : `${this.tagName?.toLowerCase()}.${String(this.className).split(' ')[0]}`;
+      window.__trace.push(`${Math.round(performance.now())}ms call ${name} ${tag} ${JSON.stringify(args[0] ?? null)} ${caller()}`);
+      return original.apply(this, args);
+    };
+  }
+  // An inline size change that moves the chat when layout runs: a clamp from a transient size.
+  const chatHost = () => document.querySelector('.chat-messages-pane') ?? document.documentElement;
+  for (const prop of ['height', 'minHeight', 'maxHeight']) {
+    const sizeDesc = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, prop);
+    if (!sizeDesc?.set) continue;
+    Object.defineProperty(CSSStyleDeclaration.prototype, prop, { configurable: true, get() { return sizeDesc.get.call(this); }, set(value) {
+      const host = chatHost();
+      const before = desc.get.call(host);
+      sizeDesc.set.call(this, value);
+      const after = desc.get.call(host);
+      if (Math.abs(after - before) >= 1) window.__trace.push(`${Math.round(performance.now())}ms clamp style.${prop}=${value} ${Math.round(before)}->${Math.round(after)} client=${host.clientHeight} height=${host.scrollHeight} ${caller()}`);
+    } });
+  }
+  // Every scroll event on the chat, whoever caused it: clamps, anchoring and focus never pass the setter.
+  addEventListener('scroll', (event) => {
+    const el = event.target === document ? document.documentElement : event.target;
+    if (el !== document.documentElement && !el.classList?.contains('chat-messages-pane')) return;
+    window.__trace.push(`${Math.round(performance.now())}ms scroll ${Math.round(el.scrollTop)} height=${el.scrollHeight} client=${el.clientHeight}`);
+  }, { capture: true, passive: true });
 };
 const layouts = [
   { name: 'phone', mode: 'page', context: { viewport: { width: 412, height: 880 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true } },
@@ -58,7 +87,10 @@ const results = [];
 try {
   for (const layout of layouts) {
     const context = await browser.newContext(layout.context);
-    if (trace) await context.addInitScript(traceWrites);
+    if (trace) {
+      await context.addInitScript(traceWrites);
+      await context.addInitScript(() => localStorage.setItem('clide:scroll-log', '1'));
+    }
     for (const [fixtureIndex, name] of runList) {
       const page = await context.newPage();
       await page.exposeFunction('__benchResize', (width, height) => page.setViewportSize({ width, height }));
@@ -81,7 +113,13 @@ try {
       const failed = Object.entries(result.checks).filter(([, passed]) => !passed).map(([check]) => check);
       results.push({ layout: layout.name, name: `${name}${fixtureCount > 1 ? `@${fixtureIndex}` : ''}`, seconds: Math.round((Date.now() - started) / 100) / 10, failed, data: result.data });
       console.log(`${failed.length ? 'FAIL' : 'pass'}  ${layout.name.padEnd(7)} ${results.at(-1).name.padEnd(18)} ${String(results.at(-1).seconds).padStart(5)}s  ${failed.join(', ')}  ${JSON.stringify(result.data)}`);
-      if (trace) console.log((await page.evaluate(() => window.__trace ?? []).catch(() => [])).slice(0, 40).map((line) => `      ${line}`).join('\n'));
+      if (trace) {
+        const log = await page.evaluate(() => [
+          ...(window.__clideScrollLog ?? []).map((line) => `owner ${line}`),
+          ...(window.__trace ?? []).map((line) => `dom   ${line}`),
+        ].sort((a, b) => parseInt(a.slice(6), 10) - parseInt(b.slice(6), 10))).catch(() => []);
+        console.log(log.slice(-120).map((line) => `      ${line}`).join('\n'));
+      }
       await page.close();
     }
     await context.close();

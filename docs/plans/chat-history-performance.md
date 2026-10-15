@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 9/17
-- Next: Phase 11 — build the scroll owner with its rule tests until `npm run test:chat-scroll` passes in both layouts
+- Status: 11/17
+- Next: Phase 16 — one rendered range
 - Context: budgets in `scripts/chat-history/budgets.ts`,
   [test suite](../testing.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -50,36 +50,13 @@ interaction behaviour. Sizes include tests and verification, not model cost.
   replies render block by block (`splitMarkdownBlocks`); an update costs the
   open block only.
 
-- [~] **15. A baseline and failing tests before any fix — L.**
-
-Walk baseline at `05b92d8f` (tool-burst fixture, CLIde Browser): every position
-target passes in both layouts (opens 2 px from the bottom, no jumps);
-`rerenderBounded` fails, 75 rows re-rendered per step against 2.
-
-`npm run test:chat-scroll` runs the scenarios headless in 3–26 s each. The
-measured open fault reproduces once the harness has the app's sticky bars and a
-late re-wrap: the prose font landed after the first pin to the bottom, grew a
-1,653 px message by 360 px below the restore's off-screen anchor, and the hold
-won. On `05b92d8f`, failing: open (phone 5/5 on one transcript, 1/5 in each
-layout on the 17.7 MB one), streaming while following (192–648 px in a painted
-frame), a 12 px nudge still following, the Load bar, a card opened at the end
-(26–74 px), a growing composer (144 px), the desktop keyboard (320 px), a phone
-rotation while reading (166 px), a desktop Find jump off centre (216–284 px).
-Left: the owner's rule tests, written with the owner.
-
-**Exit:** every scenario that covers a known fault fails on `05b92d8f`,
-starting with the phone-layout open landing short; the suite runs from one
-`npm` script.
-
-- [ ] **11. One scroll owner — L.**
-
-Build the owner as the design describes and route every writer through it:
-the eight in `useChatSessionState`, Find, `toggleInPlace`, the composer's send
-and the jump flash. Remove the five timers and the settle window. Add the
-eslint ban and the switchable scroll log.
-
-**Exit:** the rule tests and scenarios pass in both layouts; lint fails on a
-direct scroll write in chat code; the log shows one write per frame at most.
+- [x] **15. A baseline and failing tests before any fix — L.**
+  `npm run test:chat-scroll`: 14 scenarios per layout on real transcripts;
+  every known fault failed on `05b92d8f`, starting with the phone open. `73f3d4a2`
+- [x] **11. One scroll owner — L.** `useChatScrollOwner` is the only writer,
+  lint-enforced, with a test per rule; only reader input makes a scroll the
+  reader's (a browser clamp left an open 48 px short in ~9% of runs). 68/72 on
+  both reference transcripts, the four left the Load bar (phase 10).
 
 - [ ] **16. One rendered range — M–L.**
 

@@ -297,19 +297,18 @@ under a bar, jump to the top, or get pulled into the composer.
 
 #### 15. Nothing moves the chat that the reader did not scroll
 
-Older messages load above, replies stream below, and rows open while reading; the app
-restores the reading position by hand after each. A session opens at the bottom.
-While scrolled up, new messages never remove rows above, and the row held still is
-the one at the top of the screen. A row reaches its final height in the commit that
-mounts it: restoration reads layout before a follow-up render lands, so content that
-measures itself and then resizes (a collapse, a clamp) writes the result to the DOM
-in the measuring pass. Every change to loading, scrolling or what a row renders is
-walked in phone and desktop layouts, pausing between swipes, before it ships
+One scroll owner is the only code that sets the chat's position (lint-enforced). It
+is always following the bottom, holding the row the reader is on, or holding a jump
+target, and re-applies that after every change of rows or sizes before paint. Only
+reader input changes the mode: a move without it (a browser clamp, a resize) is
+content. A session opens at the bottom; while scrolled up, new messages never remove
+rows above. Every change to loading, scrolling or what a row renders passes the
+scroll scenarios in phone and desktop layouts before it ships
 ([how](docs/testing.md#which-checks-to-run)).
 
 **Breaks:** the view jumps by a message's height, or a chat opens partway up; speed
-checks alone let that ship once, and a row that collapsed a render late let it ship
-again.
+checks alone let that ship once, a row that collapsed a render late let it ship
+again, and a browser clamp read as the reader left opens short.
 
 #### 16. Nothing has a published place around the composer
 

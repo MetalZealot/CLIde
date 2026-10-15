@@ -160,9 +160,10 @@ export default function CommandMenu({
     }
     const menuRect = menuRef.current.getBoundingClientRect();
     const itemRect = selectedItemRef.current.getBoundingClientRect();
-    if (itemRect.bottom > menuRect.bottom || itemRect.top < menuRect.top) {
-      selectedItemRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
+    // Scrolls the menu's own box only: scrollIntoView would also move the chat page behind it.
+    const delta = itemRect.bottom > menuRect.bottom ? itemRect.bottom - menuRect.bottom : itemRect.top < menuRect.top ? itemRect.top - menuRect.top : 0;
+    // eslint-disable-next-line no-restricted-syntax -- the menu's own box, not the chat
+    if (delta) menuRef.current.scrollBy({ top: delta, behavior: 'smooth' });
   }, [selectedIndex]);
 
   if (!isOpen) {

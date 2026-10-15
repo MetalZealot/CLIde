@@ -80,7 +80,10 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose, onCle
 
   useEffect(() => {
     if (open) {
-      endRef.current?.scrollIntoView?.({ block: 'end' });
+      // The sheet's own box: scrollIntoView would also move the chat page behind the sheet.
+      const box = endRef.current?.closest<HTMLElement>('.overflow-y-auto');
+      // eslint-disable-next-line no-restricted-syntax -- the sheet's own box, not the chat
+      if (box) box.scrollTop = box.scrollHeight;
     }
   }, [open, entries]);
 

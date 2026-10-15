@@ -103,15 +103,42 @@ export function createScenarios(ctx: ScenarioContext) {
     await settled();
   };
   /** Records the largest movement of `watch` across painted frames while `step` runs until it returns true. */
-  const during = async (watch: () => number, step: (frame: number) => boolean | Promise<boolean>) => {
+  /** Where the worst painted frame of the last `during` was, for diagnosing a failure. */
+  let worstAt: Record<string, number> = {};
+  /**
+   * Samples `watch` in the states that reach the screen: in a size observer created after the scroll
+   * owner's, so it runs after the owner's correction in the same frame, and after each paint only when
+   * nothing has resized since. React can commit between a paint and a task, and that state never paints.
+   */
+  const painted = (watch: () => number) => {
     let worst = 0;
+    let settledHeight = -1;
+    const rowsColumn = document.querySelector('.chat-rows');
+    const take = (where: string) => {
+      const value = Math.abs(watch());
+      if (Number.isNaN(value) || value <= worst) return;
+      const el = ctx.host();
+      worst = value;
+      worstAt = { [where]: 1, at: Math.round(performance.now()), top: Math.round(el.scrollTop), height: el.scrollHeight, client: el.clientHeight };
+    };
+    const observer = new ResizeObserver(() => { settledHeight = rowsColumn?.scrollHeight ?? -1; take('resize'); });
+    if (rowsColumn) observer.observe(rowsColumn);
+    observer.observe(pageMode() ? document.documentElement : ctx.host());
+    return {
+      afterPaint() { if ((rowsColumn?.scrollHeight ?? -1) === settledHeight) take('paint'); },
+      stop() { observer.disconnect(); return worst; },
+    };
+  };
+  const during = async (watch: () => number, step: (frame: number) => boolean | Promise<boolean>) => {
+    worstAt = {};
+    const sampler = painted(watch);
     for (let frame = 0; frame < 600; frame += 1) {
       const done = await step(frame);
       await afterPaint();
-      const value = Math.abs(watch());
-      if (!Number.isNaN(value)) worst = Math.max(worst, value);
-      if (done) return worst;
+      sampler.afterPaint();
+      if (done) { await frames(2); sampler.afterPaint(); return sampler.stop(); }
     }
+    sampler.stop();
     throw new Error('Scenario step did not finish');
   };
   const streamFor = (frameCount: number) => {
@@ -161,7 +188,7 @@ export function createScenarios(ctx: ScenarioContext) {
     async followStream(fixtureId, mode) {
       await open(fixtureId, mode);
       const worst = await during(distance, streamFor(80));
-      return { checks: { heldBottomEveryFrame: near(worst), following: ctx.following() }, data: { worst, shift: shiftSum } };
+      return { checks: { heldBottomEveryFrame: near(worst), following: ctx.following() }, data: { worst, worstAt, shift: shiftSum } };
     },
     /** Rules 3 and 10: any upward scroll of the reader's own leaves Following and shows the button. */
     async nudge(fixtureId, mode) {
@@ -190,16 +217,15 @@ export function createScenarios(ctx: ScenarioContext) {
         el.scrollTop = before - 300;
         // The reader's own scroll moves the row by exactly this much; anything beyond it is a jump.
         const owed = before - el.scrollTop;
-        for (let i = 0; i < 6; i += 1) {
-          await afterPaint();
-          const moved = reading.moved();
-          if (!Number.isNaN(moved)) worst = Math.max(worst, Math.abs(moved - owed));
-        }
+        const sampler = painted(() => reading.moved() - owed);
+        for (let i = 0; i < 6; i += 1) { await afterPaint(); sampler.afterPaint(); }
+        const jump = sampler.stop();
+        if (jump > worst) { worst = jump; worstAt = { ...worstAt, swipe: swipes, edge: reading.edge === 'top' ? 0 : 1 }; }
         loadBarSeen ||= Array.from(document.querySelectorAll('button')).some((button) => /load all/i.test(button.textContent ?? ''));
         swipes += 1;
         stillAtTop = el.scrollTop <= 0 && !ctx.isLoading() ? stillAtTop + 1 : 0;
       }
-      return { checks: { reachedTop: stillAtTop >= 30, noJumps: near(worst), noLoadBar: !loadBarSeen }, data: { worst, swipes, shift: shiftSum } };
+      return { checks: { reachedTop: stillAtTop >= 30, noJumps: near(worst), noLoadBar: !loadBarSeen }, data: { worst, worstAt, swipes, shift: shiftSum } };
     },
     /** Rule 5: opening a tool card while reading leaves the card where it was. */
     async toggleReading(fixtureId, mode): Promise<ScenarioResult> {
@@ -223,9 +249,11 @@ export function createScenarios(ctx: ScenarioContext) {
       await settled();
       const target = toggleIn(0, 1);
       if (!target?.button) return { checks: { foundToggle: false }, data: start };
+      const tail = Array.from(document.querySelectorAll('.chat-rows > *')).slice(-3)
+        .map((el) => `${el.className.toString().slice(0, 30)}${el.contains(target.button!) ? '*' : ''}`);
       target.button.click();
       await frames(30);
-      return { checks: { foundToggle: true, atBottom: near(distance()), following: ctx.following() }, data: { distance: distance() } };
+      return { checks: { foundToggle: true, atBottom: near(distance()), following: ctx.following() }, data: { distance: distance(), tail } };
     },
     /** Rule 2: a growing composer keeps a following reader at the bottom. */
     async composerFollow(fixtureId, mode) {

@@ -34,8 +34,10 @@ type UseChatFindArgs = {
   loadedRecords: NormalizedMessage[];
   /** Rows currently rendered; highlights refresh when they change. */
   renderedMessages: ChatMessage[];
-  /** Brings a message that is not rendered into the chat; resolves false when it cannot be found. */
-  jumpToMessage: (target: ChatJumpTarget) => Promise<boolean>;
+  /** Brings a message that is not rendered into the chat, centring `within` its row; resolves false when it cannot be found. */
+  jumpToMessage: (target: ChatJumpTarget, within?: (row: HTMLElement) => DOMRect) => Promise<boolean>;
+  /** The scroll owner's jump: holds the match in view until the reader scrolls. */
+  revealInChat: (locate: () => DOMRect | null, align: 'center' | 'ifNeeded', reason: string) => void;
   scrollContainerRef: RefObject<HTMLElement>;
   messagesContentRef: RefObject<HTMLDivElement>;
 };
@@ -207,31 +209,26 @@ export function initialMatchIndex(matches: ChatFindMatch[], boundary: number): n
   return matches.length > 0 ? 0 : -1;
 }
 
-const scrollToOccurrence = (
-  target: ChatFindOccurrence | HTMLElement,
-  scrollContainer: HTMLElement | null,
-) => {
-  if (!scrollContainer) {
-    return;
-  }
+/** The live position of a match: its range, or the row when highlights are unavailable. */
+const occurrenceRect = (target: ChatFindOccurrence | HTMLElement): (() => DOMRect | null) => () => {
+  if (target instanceof HTMLElement) return target.isConnected ? target.getBoundingClientRect() : null;
+  if (!target.messageElement.isConnected) return null;
+  const rect = getOccurrenceRect(target);
+  return rect.width > 0 || rect.height > 0 ? rect : target.messageElement.getBoundingClientRect();
+};
 
-  const element = target instanceof HTMLElement ? target : target.messageElement;
-  const matchRect = target instanceof HTMLElement ? target.getBoundingClientRect() : getOccurrenceRect(target);
-  const containerRect = getChatViewportRect(scrollContainer);
-  if (matchRect.top >= containerRect.top && matchRect.bottom <= containerRect.bottom) {
-    return;
-  }
-
-  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  if (typeof scrollContainer.scrollTo === 'function' && (matchRect.width > 0 || matchRect.height > 0)) {
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollTop + matchRect.top - containerRect.top - ((containerRect.bottom - containerRect.top) / 2),
-      behavior: reduceMotion ? 'auto' : 'smooth',
-    });
-    return;
-  }
-
-  element.scrollIntoView?.({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+/** A match whose row is not rendered yet: the `ordinal`th in the row once it renders, searched once per row. */
+const matchInRow = (query: string, ordinal: number) => {
+  let searched: HTMLElement | null = null;
+  let found: ChatFindOccurrence | undefined;
+  return (row: HTMLElement): DOMRect => {
+    if (searched !== row) {
+      searched = row;
+      const inRow = collectChatFindOccurrences(row.parentElement ?? row, query).filter((occurrence) => occurrence.messageElement === row);
+      found = inRow[Math.min(ordinal, inRow.length - 1)];
+    }
+    return found ? getOccurrenceRect(found) : row.getBoundingClientRect();
+  };
 };
 
 /**
@@ -246,6 +243,7 @@ export function useChatFind({
   loadedRecords,
   renderedMessages,
   jumpToMessage,
+  revealInChat,
   scrollContainerRef,
   messagesContentRef,
 }: UseChatFindArgs): ChatFindController {
@@ -376,7 +374,8 @@ export function useChatFind({
     if (current && key && !row && jumpedKeyRef.current !== key) {
       jumpedKeyRef.current = key;
       scrolledKeyRef.current = null;
-      void jumpToMessage({ messageId: current.messageId, recordId: current.recordId });
+      // The jump centres the match itself, so the reveal below has nothing left to move.
+      void jumpToMessage({ messageId: current.messageId, recordId: current.recordId }, matchInRow(query, current.ordinal));
     }
 
     const inRow = row ? occurrences.filter((occurrence) => occurrence.messageElement === row) : [];
@@ -397,17 +396,19 @@ export function useChatFind({
     if (row && key && scrolledKeyRef.current !== key) {
       scrolledKeyRef.current = key;
       const target = currentOccurrence ?? row;
+      // A match reached by loading a window is centred; one already on screen stays put.
+      const align = jumpedKeyRef.current === key ? 'center' : 'ifNeeded';
       const collapsed = currentOccurrence?.range.startContainer.parentElement?.closest(COLLAPSED_MESSAGE_SELECTOR);
       if (collapsed) {
         collapsed.dispatchEvent(new Event(CHAT_FIND_REVEAL_EVENT));
         // Scroll once the expanded layout has painted; the live range then measures its new position.
-        requestAnimationFrame(() => requestAnimationFrame(() => scrollToOccurrence(target, scrollContainerRef.current)));
+        requestAnimationFrame(() => requestAnimationFrame(() => revealInChat(occurrenceRect(target), align, 'find')));
       } else {
-        scrollToOccurrence(target, scrollContainerRef.current);
+        revealInChat(occurrenceRect(target), align, 'find');
       }
     }
     return () => clearHighlights(root);
-  }, [currentIndex, isOpen, jumpToMessage, matches, messagesContentRef, query, renderedMessages, scrollContainerRef]);
+  }, [currentIndex, isOpen, jumpToMessage, matches, messagesContentRef, query, renderedMessages, revealInChat]);
 
   useEffect(() => () => clearHighlights(messagesContentRef.current), [messagesContentRef]);
 

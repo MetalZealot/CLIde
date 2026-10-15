@@ -1,7 +1,8 @@
 // Chat-hook regressions: composer routing and settings, queued-send ordering,
-// realtime request de-duplication, message normalization, and voice playback.
+// realtime request de-duplication, message normalization, voice playback, and the
+// scroll owner's rules.
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { describe, it } from 'node:test';
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,6 +16,20 @@ import { nextOutage, type ServerEvent } from '../../../contexts/WebSocketContext
 import { streamingRowId, useSessionStore, type NormalizedMessage, type SessionStore } from '../../../stores/useSessionStore';
 import type { Project, ProjectSession } from '../../../types/app';
 import { useSendOutboxDriver } from '../../../hooks/useSendOutboxDriver';
+import {
+  FLING_GAP_MS,
+  FOLLOW_REJOIN_PX,
+  READER_INPUT_WINDOW_MS,
+  followTop,
+  holdTop,
+  jumpTop,
+  modeAfterReaderScroll,
+  pickHold,
+  readerInputCurrent,
+  shiftBesideReader,
+  scrollCause,
+  toggleKeepsFollow,
+} from '../scroll/scrollRules';
 import {
   SEND_GIVE_UP_MS,
   SEND_RETRY_WINDOW_MS,
@@ -40,7 +55,7 @@ import { writeQueuedMessage } from '../utils/chatStorage';
 import { resolveEffortValuesForModel } from '../constants/providerEffort';
 
 import { useAsyncQuestions } from './useAsyncQuestions';
-import { applyScrollRestore, useChatSessionState, type ScrollRestoreState } from './useChatSessionState';
+import { useChatSessionState } from './useChatSessionState';
 import {
   copyAttachmentsToMemory,
   describeDropRejections,
@@ -173,7 +188,7 @@ test('chat find searches whole-history text and closes on Escape or session chan
     controller = useChatFind({
       isVisible: true, sessionId, sessionStore, loadedRecords: loaded, renderedMessages: noRows,
       jumpToMessage: async ({ messageId }) => { jumps.push(messageId); return false; },
-      scrollContainerRef, messagesContentRef,
+      revealInChat: () => undefined, scrollContainerRef, messagesContentRef,
     });
     return React.createElement('div', { ref: scrollContainerRef },
       React.createElement('div', { ref: messagesContentRef },
@@ -239,28 +254,6 @@ test('chat find searches whole-history text and closes on Escape or session chan
   }
 });
 
-test('a prepend restore keeps a scroll the reader made after it was captured', () => {
-  const pane = { scrollTop: 1000, scrollHeight: 5000, getBoundingClientRect: () => ({ top: 0, bottom: 600 }) };
-  let anchorContentTop = 1500;
-  const anchor = { isConnected: true, getBoundingClientRect: () => ({ top: anchorContentTop - pane.scrollTop }) };
-  const restore: ScrollRestoreState = { height: 5000, top: 1000, anchor: anchor as unknown as HTMLElement, anchorOffset: 500 };
-
-  pane.scrollTop = 880; // the reader scrolls up before the page commits
-  anchorContentTop += 2000; // 2000 px of older rows land above the anchor
-  pane.scrollHeight = 7000;
-  applyScrollRestore(pane as unknown as HTMLElement, restore);
-  assert.equal(pane.scrollTop, 2880);
-
-  applyScrollRestore(pane as unknown as HTMLElement, restore); // a later settle holds it
-  assert.equal(pane.scrollTop, 2880);
-
-  restore.anchor = null;
-  pane.scrollTop = 2760;
-  pane.scrollHeight = 7400;
-  applyScrollRestore(pane as unknown as HTMLElement, restore);
-  assert.equal(pane.scrollTop, 3160);
-});
-
 test('find jumps within cached history, keeps rows bounded and returns to the latest', async () => {
   const host = document.createElement('div');
   document.body.appendChild(host);
@@ -292,7 +285,7 @@ test('find jumps within cached history, keeps rows bounded and returns to the la
     state = useChatSessionState(args);
     find = useChatFind({
       isVisible: true, sessionId: 'find-cached', sessionStore, loadedRecords: state.loadedRecords,
-      renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
+      renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage, revealInChat: state.revealInChat,
       scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef,
     });
     return React.createElement('div', { ref: state.scrollContainerRef },
@@ -1419,7 +1412,7 @@ test('history performance target: Find keeps the rendered window bounded', async
     state = useChatSessionState(args);
     find = useChatFind({ isVisible: true, sessionId: 'fixture-client', sessionStore: store,
       loadedRecords: state.loadedRecords, renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
-      scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
+      revealInChat: state.revealInChat, scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
     return React.createElement('div', { ref: state.scrollContainerRef },
       React.createElement('div', { ref: state.messagesContentRef }, state.visibleMessages.map((message) =>
         React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-message-id': message.id, 'data-chat-find-scope': 'conversation' },
@@ -1471,12 +1464,13 @@ test('arrivals while scrolled up keep the rows above the reader', async () => {
   try {
     await React.act(async () => root.render(React.createElement(Harness)));
     const top = state.visibleMessages[0].id;
-    await React.act(async () => state.setIsUserScrolledUp(true));
+    // Any mode but following holds the window start; a jump is one.
+    await React.act(async () => state.revealInChat(() => null, 'center', 'test'));
     messages = clientHistory(203);
     await React.act(async () => root.render(React.createElement(Harness)));
     assert.equal(state.chatMessages.length, 203);
     assert.equal(state.visibleMessages[0].id, top, 'trimming above the reader moves what they are reading');
-    await React.act(async () => state.setIsUserScrolledUp(false));
+    await React.act(async () => state.followBottom());
     assert.equal(state.visibleMessages.length, 100, 'back at the bottom, the tail window applies again');
   } finally {
     await React.act(async () => root.unmount());
@@ -1603,9 +1597,8 @@ test('a new chat shows its bubble at the press and a second press cannot start a
       tokenBudget: null,
       sendMessage: () => true,
       sessionStore,
-      scrollToBottom: () => undefined,
+      followBottom: () => undefined,
       addMessage: (message) => { added.push(message); },
-      setIsUserScrolledUp: () => undefined,
       pendingPermissionRequests: [],
       setPendingPermissionRequests: () => undefined,
     });
@@ -1824,4 +1817,124 @@ test('connection outage: an offline browser wins over every other cause and clea
     if (descriptor) Object.defineProperty(globalThis, 'navigator', descriptor);
     else delete (globalThis as { navigator?: unknown }).navigator;
   }
+});
+
+// The scroll owner's rules, free of the DOM (design: chat-history-performance).
+const band = { top: 100, bottom: 700 };
+const event = { top: 500, lastTop: 520, wrote: null, readerInput: false };
+
+describe('scrollCause: who moved the view (rule 3)', () => {
+  it('a position the owner wrote is the owner, even with input pending', () => {
+    assert.equal(scrollCause({ ...event, wrote: 500, readerInput: true }), 'owner');
+    assert.equal(scrollCause({ ...event, wrote: 501 }), 'owner');
+  });
+  it('a move without reader input is content, even when the height is back as it was (a browser clamp)', () => {
+    assert.equal(scrollCause(event), 'content');
+  });
+  it('reader input makes it the reader, even while content grows', () => {
+    assert.equal(scrollCause({ ...event, readerInput: true }), 'reader');
+  });
+  it('an event that moved nothing changes nothing', () => {
+    assert.equal(scrollCause({ ...event, lastTop: 500, readerInput: true }), 'content');
+  });
+});
+
+describe('readerInputCurrent: input that makes a scroll the reader\'s', () => {
+  const idle = { pressed: false, inputAt: 0, readerScrollAt: 0 };
+  const now = 10_000;
+  it('a finger or pointer held on the chat is current however long it rests', () => {
+    assert.equal(readerInputCurrent(now, { ...idle, pressed: true }), true);
+  });
+  it('wheel, touch or key input is current within its window', () => {
+    assert.equal(readerInputCurrent(now, { ...idle, inputAt: now - READER_INPUT_WINDOW_MS + 1 }), true);
+    assert.equal(readerInputCurrent(now, { ...idle, inputAt: now - READER_INPUT_WINDOW_MS }), false);
+  });
+  it('a fling still moving stays the reader\'s after the window, until it pauses', () => {
+    assert.equal(readerInputCurrent(now, { ...idle, readerScrollAt: now - FLING_GAP_MS + 1 }), true);
+    assert.equal(readerInputCurrent(now, { ...idle, readerScrollAt: now - FLING_GAP_MS }), false);
+  });
+  it('no input is not the reader', () => {
+    assert.equal(readerInputCurrent(now, idle), false);
+  });
+});
+
+describe('modeAfterReaderScroll (rules 3 and 10)', () => {
+  it('any upward scroll of the reader leaves Following', () => {
+    assert.equal(modeAfterReaderScroll('follow', { delta: -1, distanceToBottom: 1, detached: false }), 'read');
+  });
+  it('an upward scroll leaves a jump for Reading', () => {
+    assert.equal(modeAfterReaderScroll('jump', { delta: -40, distanceToBottom: 900, detached: false }), 'read');
+  });
+  it('a downward scroll ending in the bottom band re-enters Following', () => {
+    assert.equal(modeAfterReaderScroll('read', { delta: 300, distanceToBottom: FOLLOW_REJOIN_PX, detached: false }), 'follow');
+  });
+  it('a downward scroll short of the band keeps Reading', () => {
+    assert.equal(modeAfterReaderScroll('read', { delta: 300, distanceToBottom: FOLLOW_REJOIN_PX + 1, detached: false }), 'read');
+  });
+  it('a jumped-to window that does not reach the newest message never follows', () => {
+    assert.equal(modeAfterReaderScroll('read', { delta: 300, distanceToBottom: 0, detached: true }), 'read');
+  });
+  it('a downward scroll from a jump reads', () => {
+    assert.equal(modeAfterReaderScroll('jump', { delta: 50, distanceToBottom: 900, detached: false }), 'read');
+  });
+});
+
+describe('pickHold: the message the reader is on (rule 4)', () => {
+  it('holds the top edge of the first row whose top is in the band', () => {
+    assert.deepEqual(pickHold([{ top: -200, bottom: 90 }, { top: 120, bottom: 400 }], band), { index: 1, edge: 'top', offset: 20 });
+  });
+  it('holds the bottom edge once the row top is off screen', () => {
+    assert.deepEqual(pickHold([{ top: -900, bottom: 1100 }], band), { index: 0, edge: 'bottom', offset: 1000 });
+  });
+  it('a row ending exactly at the band top is not on screen', () => {
+    assert.deepEqual(pickHold([{ top: 0, bottom: 100 }, { top: 100, bottom: 300 }], band), { index: 1, edge: 'top', offset: 0 });
+  });
+  it('nothing in the band holds nothing', () => {
+    assert.equal(pickHold([{ top: 800, bottom: 900 }], band), null);
+  });
+});
+
+describe('positions', () => {
+  it('holdTop scrolls by exactly how far the held edge moved', () => {
+    // Older rows landed above: the edge moved 360 px down, so the view moves 360 px with it.
+    assert.equal(holdTop(1200, 100 + 20 + 360, band, 20), 1560);
+    assert.equal(holdTop(1200, 120, band, 20), 1200);
+  });
+  it('a scroll the reader made just before older rows land is kept', () => {
+    // The reader moved up 120 px, so the hold is re-picked there: the row's top is now 140 below the band.
+    const hold = pickHold([{ top: 240, bottom: 500 }], band)!;
+    assert.equal(hold.offset, 140);
+    // 2000 px of older rows land above: the edge moves 2000 px down and the view follows it exactly.
+    assert.equal(holdTop(880, 240 + 2000, band, hold.offset), 2880);
+  });
+  it('a reader scroll moves the held edge by exactly the scroll: nothing beside it', () => {
+    assert.equal(shiftBesideReader(band.top + 40 + 300, band, 40, -300), 0);
+  });
+  it('a row growing above in the same frame as the reader scroll is the part not scrolled', () => {
+    assert.equal(shiftBesideReader(band.top + 40 + 300 + 4, band, 40, -300), 4);
+  });
+  it('followTop is the end of the content', () => {
+    assert.equal(followTop(3000, 600), 2400);
+    assert.equal(followTop(400, 600), 0);
+  });
+  it('jumpTop centres a target in the band', () => {
+    assert.equal(jumpTop(1000, { top: 900, bottom: 940 }, band, 'center'), 1000 + 920 - 400);
+  });
+  it('jumpTop puts a target taller than the band at its top', () => {
+    assert.equal(jumpTop(1000, { top: 900, bottom: 2000 }, band, 'center'), 1800);
+  });
+  it('jumpTop leaves a fully visible target alone when only needed', () => {
+    assert.equal(jumpTop(1000, { top: 300, bottom: 340 }, band, 'ifNeeded'), null);
+    assert.equal(jumpTop(1000, { top: 680, bottom: 720 }, band, 'ifNeeded'), 1000 + 700 - 400);
+  });
+});
+
+describe('toggleKeepsFollow (rule 5)', () => {
+  it('opening the last card while following keeps the end', () => {
+    assert.equal(toggleKeepsFollow('follow', true), true);
+  });
+  it('opening any other card holds that card', () => {
+    assert.equal(toggleKeepsFollow('follow', false), false);
+    assert.equal(toggleKeepsFollow('read', true), false);
+  });
 });

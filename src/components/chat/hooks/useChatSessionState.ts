@@ -8,9 +8,9 @@ import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage } from '../types/types';
 import { createCachedDiffCalculator, type DiffCalculator } from '../utils/messageTransforms';
-import { getChatViewportRect, isPageScrollHost, scrollEventTarget } from '../utils/chatScrollHost';
 import { chatFindEntriesForRecord, locateSearchTarget } from '../utils/chatFindIndex';
 import { revealStartForBudget } from '../utils/toolGrouping';
+import { useChatScrollOwner } from '../scroll/useChatScrollOwner';
 
 import type { ChatJumpTarget } from './useChatFind';
 import { normalizedToChatMessages } from './useChatMessages';
@@ -54,50 +54,6 @@ interface UseChatSessionStateArgs {
   sessionStore: SessionStore;
   /** The page scrolls instead of the message pane (phones). */
   pageScroll?: boolean;
-}
-
-export interface ScrollRestoreState {
-  height: number;
-  top: number;
-  anchor: HTMLElement | null;
-  anchorOffset: number | null;
-}
-
-function captureScrollRestore(container: HTMLElement): ScrollRestoreState {
-  const containerRect = getChatViewportRect(container);
-  const anchor = Array.from(container.querySelectorAll<HTMLElement>('.chat-message')).find((element) => {
-    const rect = element.getBoundingClientRect();
-    return rect.bottom > containerRect.top && rect.top < containerRect.bottom;
-  }) ?? null;
-
-  return {
-    height: container.scrollHeight,
-    top: container.scrollTop,
-    anchor,
-    anchorOffset: anchor ? anchor.getBoundingClientRect().top - containerRect.top : null,
-  };
-}
-
-export function applyScrollRestore(container: HTMLElement, restore: ScrollRestoreState): void {
-  // Every geometry read precedes the write: a read after it lays the whole pane out again.
-  const height = container.scrollHeight;
-  // Anchoring is off, so any scroll since the target was recorded is the reader's: keep it.
-  const readerScroll = container.scrollTop - restore.top;
-  if (restore.anchor?.isConnected && restore.anchorOffset !== null) {
-    const currentOffset = restore.anchor.getBoundingClientRect().top - getChatViewportRect(container).top;
-    restore.anchorOffset -= readerScroll;
-    container.scrollTop += currentOffset - restore.anchorOffset;
-  } else {
-    container.scrollTop = restore.top + readerScroll + Math.max(height - restore.height, 0);
-  }
-
-  restore.height = height;
-  restore.top = container.scrollTop;
-}
-
-/** The reader's scroll re-picks what a restore holds: the row now at the top, not the one at capture. */
-function updateScrollRestoreTarget(container: HTMLElement, restore: ScrollRestoreState): void {
-  Object.assign(restore, captureScrollRestore(container));
 }
 
 /* ------------------------------------------------------------------ */
@@ -184,12 +140,12 @@ export function useChatSessionState({
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(selectedSession?.id || null);
   const [isLoadingSessionMessages, setIsLoadingSessionMessages] = useState(false);
   const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
-  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
   const [visibleMessageCount, setVisibleMessageCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
-  const [scrollRestoreTick, setScrollRestoreTick] = useState(0);
+  /** Bumps after each reveal or older page, so the chain can decide whether to reveal more. */
+  const [revealTick, setRevealTick] = useState(0);
   const [viewHiddenCount, setViewHiddenCount] = useState(0);
   const [selectionStartIndex, setSelectionStartIndex] = useState<number | null>(null);
   /**
@@ -207,12 +163,8 @@ export function useChatSessionState({
   const hasChatSelectionRef = useRef(false);
   /** First rendered message index held while selecting, so arrivals cannot trim it. */
   const selectionStartIndexRef = useRef<number | null>(null);
-  /** Last page position while the chat was showing; the page collapses under other tabs. */
-  const lastPageScrollTopRef = useRef<number | null>(null);
   const currentSessionIdRef = useRef(currentSessionId);
   currentSessionIdRef.current = currentSessionId;
-  const isUserScrolledUpRef = useRef(false);
-  isUserScrolledUpRef.current = isUserScrolledUp;
   // Render-time mirrors of the rendered window, for scroll handlers and jumps.
   const viewRangeRef = useRef<typeof viewRange>(null);
   const windowStartRef = useRef(0);
@@ -229,11 +181,18 @@ export function useChatSessionState({
   const isLoadingMoreRef = useRef(false);
   const topLoadArmedRef = useRef(true);
   const chainedPageSizeRef = useRef(MESSAGES_PER_PAGE);
-  const capturedScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
-  const pendingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
-  const settlingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
-  const scrollRestoreReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingInitialScrollRef = useRef(true);
+  /** Paging reads every scroll; it is declared below and reached through this ref. */
+  const handleScrollRef = useRef<() => void>(() => undefined);
+  const scrollOwner = useChatScrollOwner({
+    hostRef: scrollContainerRef,
+    contentRef: messagesContentRef,
+    pageScroll,
+    detachedRef: isViewDetachedRef,
+    suspendedRef: hasChatSelectionRef,
+    onScroll: () => handleScrollRef.current(),
+  });
+  const isFollowing = scrollOwner.isFollowing;
+  const { follow: followScroll, jumpTo: jumpScrollTo, reapply: reapplyScroll, reset: resetScroll } = scrollOwner;
   const externalUpdateTargetRef = useRef<{ version: number; sessionId: string | null }>({
     version: 0,
     sessionId: null,
@@ -248,16 +207,6 @@ export function useChatSessionState({
    * reset pass in this local chat state domain.
    */
   const previousNewSessionTriggerRef = useRef(newSessionTrigger ?? 0);
-
-  const cancelSettlingScrollRestore = useCallback(() => {
-    settlingScrollRestoreRef.current = null;
-    if (scrollRestoreReleaseTimerRef.current) {
-      clearTimeout(scrollRestoreReleaseTimerRef.current);
-      scrollRestoreReleaseTimerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => cancelSettlingScrollRestore, [cancelSettlingScrollRestore]);
 
   // Declared before the scroll layout effects so the page is already scrollable when they run.
   useLayoutEffect(() => {
@@ -306,13 +255,8 @@ export function useChatSessionState({
     searchScrollActiveRef.current = false;
     topLoadArmedRef.current = true;
     chainedPageSizeRef.current = MESSAGES_PER_PAGE;
-    capturedScrollRestoreRef.current = null;
-    pendingScrollRestoreRef.current = null;
-    cancelSettlingScrollRestore();
-    pendingInitialScrollRef.current = true;
-    isUserScrolledUpRef.current = false;
-    setIsUserScrolledUp(false);
-  }, [cancelSettlingScrollRestore, newSessionTrigger, onSessionIdle, resetStreamingState]);
+    resetScroll();
+  }, [newSessionTrigger, onSessionIdle, resetScroll, resetStreamingState]);
 
   /* ---------------------------------------------------------------- */
   /*  Derive processing state for the viewed session                  */
@@ -448,12 +392,6 @@ export function useChatSessionState({
 
   const rewindMessages = useCallback((count: number) => setViewHiddenCount(count), []);
 
-  const scrollToBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    container.scrollTop = container.scrollHeight;
-  }, []);
-
   const scrollToBottomAndReset = useCallback(() => {
     const slot = activeSessionId ? sessionStore.getSessionSlot(activeSessionId) : undefined;
     if (viewRangeRef.current || slot?.hasNewer) {
@@ -462,9 +400,7 @@ export function useChatSessionState({
         setViewRange(null);
         setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
         setAllMessagesLoaded(false);
-        pendingInitialScrollRef.current = true;
-        isUserScrolledUpRef.current = false;
-        setIsUserScrolledUp(false);
+        followScroll('return');
       };
       if (activeSessionId && slot?.hasNewer) {
         void sessionStore.fetchFromServer(activeSessionId, { limit: MESSAGES_PER_PAGE, onBeforeNotify: rejoin });
@@ -473,23 +409,13 @@ export function useChatSessionState({
       }
       return;
     }
-    // Following before the scroll lands, so rows that lay out on arrival keep it pinned.
-    isUserScrolledUpRef.current = false;
-    setIsUserScrolledUp(false);
-    scrollToBottom();
+    followScroll('return');
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
       setAllMessagesLoaded(false);
     }
-  }, [activeSessionId, allMessagesLoaded, scrollToBottom, sessionStore]);
+  }, [activeSessionId, allMessagesLoaded, followScroll, sessionStore]);
   returnToLatestRef.current = scrollToBottomAndReset;
-
-  const isNearBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return false;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    return scrollHeight - scrollTop - clientHeight < 50;
-  }, []);
 
   const loadOlderMessages = useCallback(
     async (container: HTMLElement, limit = MESSAGES_PER_PAGE) => {
@@ -498,8 +424,6 @@ export function useChatSessionState({
 
       isLoadingMoreRef.current = true;
       setIsLoadingMoreMessages(true);
-      const scrollRestore = captureScrollRestore(container);
-      capturedScrollRestoreRef.current = scrollRestore;
       const previousSlot = sessionStore.getSlot(selectedSession.id);
       const previousOffset = previousSlot.offset;
       const previousServerMessageCount = previousSlot.serverMessages.length;
@@ -520,12 +444,10 @@ export function useChatSessionState({
               updatedSlot.offset > previousOffset
               || updatedSlot.serverMessages.length > previousServerMessageCount;
 
-            // The page lands above the rendered window; the restore effect's
-            // chain then reveals it a row budget per frame, keeping each commit short.
+            // The page lands above the rendered window; the reveal chain then
+            // shows it a row budget per frame, keeping each commit short.
             restoreWasArmed = true;
-            pendingScrollRestoreRef.current = scrollRestore;
-            capturedScrollRestoreRef.current = null;
-            setScrollRestoreTick((tick) => tick + 1);
+            setRevealTick((tick) => tick + 1);
             if (madeProgress) holdWindowStart();
             if (!updatedSlot.hasMore) {
               setAllMessagesLoaded(true);
@@ -546,9 +468,7 @@ export function useChatSessionState({
         // Keep a defensive fallback in case a future store implementation
         // applies a page without invoking the pre-notify hook.
         if (!restoreWasArmed) {
-          pendingScrollRestoreRef.current = scrollRestore;
-          capturedScrollRestoreRef.current = null;
-          setScrollRestoreTick((tick) => tick + 1);
+          setRevealTick((tick) => tick + 1);
           holdWindowStart();
           if (!slot.hasMore) {
             setAllMessagesLoaded(true);
@@ -556,9 +476,6 @@ export function useChatSessionState({
         }
         return true;
       } finally {
-        if (capturedScrollRestoreRef.current === scrollRestore) {
-          capturedScrollRestoreRef.current = null;
-        }
         isLoadingMoreRef.current = false;
         setIsLoadingMoreMessages(false);
       }
@@ -566,13 +483,12 @@ export function useChatSessionState({
     [hasMoreMessages, isLoadingMoreMessages, selectedProject?.projectId, selectedSession?.id, sessionStore],
   );
 
-  /** Loaded rows above the rendered window need no request, only the prepend anchor. */
-  const revealOlderRows = useCallback((container: HTMLElement, count = MESSAGES_PER_PAGE): boolean => {
+  /** Loaded rows above the rendered window need no request; the scroll owner keeps the view still. */
+  const revealOlderRows = useCallback((_container: HTMLElement, count = MESSAGES_PER_PAGE): boolean => {
     const start = windowStartRef.current;
     if (start <= 0) return false;
     const nextStart = revealStartForBudget(chatMessagesRef.current, start, count, REVEAL_BUDGET_MS);
-    pendingScrollRestoreRef.current = captureScrollRestore(container);
-    setScrollRestoreTick((tick) => tick + 1);
+    setRevealTick((tick) => tick + 1);
     if (viewRangeRef.current) {
       const id = chatMessagesRef.current[nextStart]?.id;
       setViewRange((range) => range && { ...range, startId: nextStart === 0 || !id ? null : id });
@@ -611,18 +527,11 @@ export function useChatSessionState({
     setViewRange(null);
   }, [sessionStore]);
 
+  /** Paging only: the scroll owner has already decided what this scroll means. */
   const handleScroll = useCallback(async () => {
     const container = scrollContainerRef.current;
     if (!container) return;
-
-    const trackedRestore = capturedScrollRestoreRef.current ?? settlingScrollRestoreRef.current;
-    if (trackedRestore) updateScrollRestoreTarget(container, trackedRestore);
-
-    // A jumped-to window's bottom is not the conversation's: never follow it.
     const detached = isViewDetachedRef.current;
-    const scrolledUp = !isNearBottom() || detached;
-    isUserScrolledUpRef.current = scrolledUp;
-    setIsUserScrolledUp(scrolledUp);
 
     if (container.scrollTop >= topLoadRearmDistance(container)) {
       topLoadArmedRef.current = true;
@@ -645,24 +554,16 @@ export function useChatSessionState({
     // the prepend creates enough real scroll distance; collapsed transcript rows
     // are fetched through automatically instead of leaving a false "roof".
     topLoadArmedRef.current = false;
-    isUserScrolledUpRef.current = true;
-    setIsUserScrolledUp(true);
     const didLoad = await loadOlderMessages(container);
     if (!didLoad) topLoadArmedRef.current = true;
-  }, [hasMoreMessages, isNearBottom, loadOlderMessages, revealNewer, revealOlderRows]);
+  }, [hasMoreMessages, loadOlderMessages, revealNewer, revealOlderRows]);
+  handleScrollRef.current = () => { void handleScroll(); };
 
+  // After each reveal: the owner puts the view back first, then the chain decides whether to reveal more.
   useLayoutEffect(() => {
-    if (!pendingScrollRestoreRef.current || !scrollContainerRef.current) return;
+    if (revealTick === 0 || !scrollContainerRef.current) return;
     const container = scrollContainerRef.current;
-    const restore = pendingScrollRestoreRef.current;
-    applyScrollRestore(container, restore);
-    pendingScrollRestoreRef.current = null;
-    settlingScrollRestoreRef.current = restore;
-    if (scrollRestoreReleaseTimerRef.current) clearTimeout(scrollRestoreReleaseTimerRef.current);
-    scrollRestoreReleaseTimerRef.current = setTimeout(() => {
-      settlingScrollRestoreRef.current = null;
-      scrollRestoreReleaseTimerRef.current = null;
-    }, 2000);
+    reapplyScroll('reveal');
 
     if (!hasMoreMessages && windowStartRef.current === 0) return;
     if (container.scrollTop >= topLoadRearmDistance(container)) {
@@ -678,53 +579,35 @@ export function useChatSessionState({
     const pageSize = Math.min(chainedPageSizeRef.current * 2, MAX_CHAINED_PAGE);
     chainedPageSizeRef.current = pageSize;
     const frame = requestAnimationFrame(() => {
-      if (pendingScrollRestoreRef.current || isLoadingMoreRef.current) return;
+      if (isLoadingMoreRef.current) return;
       if (revealOlderRows(container, pageSize)) return;
       void loadOlderMessages(container, pageSize).then((didLoad) => {
         if (!didLoad) topLoadArmedRef.current = true;
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [scrollRestoreTick, hasMoreMessages, loadOlderMessages, revealOlderRows]);
+  }, [revealTick, hasMoreMessages, loadOlderMessages, reapplyScroll, revealOlderRows]);
 
   // Reset scroll/pagination state on session change
   useLayoutEffect(() => {
-    if (!searchScrollActiveRef.current) {
-      pendingInitialScrollRef.current = true;
-      setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
-    }
+    if (!searchScrollActiveRef.current) setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     setViewRange(null);
     topLoadArmedRef.current = true;
     chainedPageSizeRef.current = MESSAGES_PER_PAGE;
-    capturedScrollRestoreRef.current = null;
-    pendingScrollRestoreRef.current = null;
-    cancelSettlingScrollRestore();
-    isUserScrolledUpRef.current = false;
-    setIsUserScrolledUp(false);
+    resetScroll();
     // A selection in the previous session must not hold or widen this one's window.
     hasChatSelectionRef.current = false;
     selectionStartIndexRef.current = null;
     setSelectionStartIndex(null);
     document.documentElement.classList.remove('chat-text-selected');
-  }, [cancelSettlingScrollRestore, selectedProject?.projectId, selectedSession?.id]);
+  }, [resetScroll, selectedProject?.projectId, selectedSession?.id]);
 
-  // Establish the initial bottom position synchronously after the first page
-  // renders. A ResizeObserver below keeps that bottom anchor authoritative as
-  // markdown, code blocks, fonts, images, and tool cards finish laying out.
+  // Each rendered change re-applies the scroll mode before paint: an opening session lands at the bottom.
   useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     if (!container || isLoadingSessionMessages || chatMessages.length === 0) return;
-    if (searchScrollActiveRef.current) {
-      pendingInitialScrollRef.current = false;
-      return;
-    }
-
-    if (pendingInitialScrollRef.current) {
-      container.scrollTop = container.scrollHeight;
-      pendingInitialScrollRef.current = false;
-      isUserScrolledUpRef.current = false;
-      setIsUserScrolledUp(false);
-    }
+    if (searchScrollActiveRef.current) return;
+    reapplyScroll('rows');
 
     // If the newest page is shorter than the viewport, reaching the top emits
     // no scroll event at all. Proactively fill through hidden, older and collapsed
@@ -732,7 +615,7 @@ export function useChatSessionState({
     if (
       (hasMoreMessages || windowStartRef.current > 0)
       && container.clientHeight > 0
-      && !isUserScrolledUpRef.current
+      && scrollOwner.modeRef.current.kind === 'follow'
       && container.scrollTop < topLoadDistance(container)
       && topLoadArmedRef.current
     ) {
@@ -747,42 +630,14 @@ export function useChatSessionState({
     hasMoreMessages,
     isLoadingSessionMessages,
     loadOlderMessages,
+    reapplyScroll,
     revealOlderRows,
+    scrollOwner.modeRef,
     selectedProject?.projectId,
     selectedSession?.id,
     viewRange,
     visibleMessageCount,
   ]);
-
-  useLayoutEffect(() => {
-    const container = scrollContainerRef.current;
-    const content = messagesContentRef.current;
-    if (!container || !content || typeof ResizeObserver === 'undefined') return;
-
-    const observer = new ResizeObserver(() => {
-      // ResizeObserver runs after layout and before paint. Restore immediately:
-      // deferring through requestAnimationFrame exposes one incorrect frame in
-      // which a newly prepended assistant header can flash at the roof before
-      // late markdown/tool layout pushes it out of view.
-      const restore = settlingScrollRestoreRef.current;
-      if (restore) {
-        applyScrollRestore(container, restore);
-        return;
-      }
-      if (
-        !isUserScrolledUpRef.current
-        && !isViewDetachedRef.current
-        && !searchScrollActiveRef.current
-        && !isLoadingMoreRef.current
-        && !hasChatSelectionRef.current
-      ) {
-        container.scrollTop = container.scrollHeight;
-      }
-    });
-
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [pageScroll, selectedProject?.projectId, selectedSession?.id]);
 
   // Main session loading effect — store-based
   useEffect(() => {
@@ -917,10 +772,6 @@ export function useChatSessionState({
     const reloadExternalMessages = async () => {
       try {
         await sessionStore.refreshFromServer(selectedSessionId);
-
-        if (isNearBottom() && !isViewDetachedRef.current) {
-          setTimeout(() => scrollToBottom(), 200);
-        }
       } catch (error) {
         console.error('Error reloading messages from external update:', error);
       }
@@ -931,9 +782,7 @@ export function useChatSessionState({
     externalMessageUpdate,
     isLoadingSessionMessages,
     isLoadingAllMessages,
-    isNearBottom,
     isProcessing,
-    scrollToBottom,
     selectedProject?.projectId,
     selectedSessionId,
     sessionStore,
@@ -1040,7 +889,7 @@ export function useChatSessionState({
 
   // Scrolled up, arrivals must not trim rows above the reader: the rendered start holds by id.
   const tailStart = Math.max(0, chatMessages.length - visibleMessageCount);
-  const heldId = isUserScrolledUp ? readingStartIdRef.current : null;
+  const heldId = isFollowing ? null : readingStartIdRef.current;
   const heldStart = heldId === null ? -1
     : chatMessages[windowStartRef.current]?.id === heldId ? windowStartRef.current
       : chatMessages.findIndex((message) => message.id === heldId);
@@ -1065,11 +914,10 @@ export function useChatSessionState({
       .find((element) => element.dataset.chatMessageId === flashTargetId);
     if (!row) return;
     setFlashTargetId(null);
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    row.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    jumpScrollTo(() => (row.isConnected ? row.getBoundingClientRect() : null), 'center', 'search');
     row.classList.add('search-highlight-flash');
     setTimeout(() => row.classList.remove('search-highlight-flash'), 4000);
-  }, [flashTargetId, visibleMessages]);
+  }, [flashTargetId, jumpScrollTo, visibleMessages]);
 
   // Arrivals trim the oldest rendered message and scrolling follows new output;
   // either would move or destroy text the reader is selecting, so both wait.
@@ -1096,108 +944,52 @@ export function useChatSessionState({
         // Keep what was on screen instead of trimming it the moment the selection clears.
         setVisibleMessageCount((count) => Math.max(count, chatMessageCountRef.current - held));
       }
+      reapplyScroll('selection-end');
     };
     document.addEventListener('selectionchange', onSelectionChange);
     return () => {
       document.removeEventListener('selectionchange', onSelectionChange);
       document.documentElement.classList.remove('chat-text-selected');
     };
-  }, []);
-
-  // Scrolled up, new content lands below the viewport and the position holds on
-  // its own; older messages arriving above are the scroll-restore path's job.
-  // Reads the ref, not state: re-entering the bottom band mid-drag must not snap.
-  useEffect(() => {
-    if (!scrollContainerRef.current || chatMessages.length === 0) return;
-    if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
-    if (searchScrollActiveRef.current) return;
-    if (isUserScrolledUpRef.current || isViewDetachedRef.current) return;
-
-    setTimeout(() => {
-      if (!hasChatSelectionRef.current) scrollToBottom();
-    }, 50);
-  }, [chatMessages.length, isLoadingMoreMessages, scrollToBottom]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    let frame: number | null = null;
-
-    const target = scrollEventTarget(container);
-    const onScroll = () => {
-      // A hidden chat collapses the page; that clamp is not the reader scrolling.
-      if (messagesContentRef.current?.offsetParent === null) return;
-      if (isPageScrollHost(container)) lastPageScrollTopRef.current = container.scrollTop;
-      if (frame !== null) return;
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        void handleScroll();
-      });
-    };
-
-    target.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      target.removeEventListener('scroll', onScroll);
-      if (frame !== null) cancelAnimationFrame(frame);
-    };
-  }, [handleScroll, pageScroll]);
-
-  // The page is the scroller only while this chat shows on a phone. Returning
-  // from another tab restores the reader's place, or rejoins the bottom when
-  // they were following; a keyboard resize keeps a follower at the bottom.
-  useLayoutEffect(() => {
-    if (!pageScroll) return;
-    const root = document.documentElement;
-
-    if (!pendingInitialScrollRef.current) {
-      const savedTop = lastPageScrollTopRef.current;
-      root.scrollTop = isUserScrolledUpRef.current && savedTop !== null ? savedTop : root.scrollHeight;
-    }
-
-    const onResize = () => {
-      if (isUserScrolledUpRef.current || hasChatSelectionRef.current || searchScrollActiveRef.current) return;
-      root.scrollTop = root.scrollHeight;
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [pageScroll]);
+  }, [reapplyScroll]);
 
   /** Renders rows around one message; false when it is not among `messages`. */
-  const revealAround = useCallback((messages: ChatMessage[], messageId: string): boolean => {
+  const revealAround = useCallback((messages: ChatMessage[], messageId: string, within?: (row: HTMLElement) => DOMRect): boolean => {
     const index = messages.findIndex((message) => message.id === messageId);
     if (index < 0) return false;
     const start = Math.max(0, index - JUMP_ROWS_AROUND);
     const end = Math.min(messages.length, index + JUMP_ROWS_AROUND + 1);
-    pendingScrollRestoreRef.current = null;
-    capturedScrollRestoreRef.current = null;
-    cancelSettlingScrollRestore();
-    isUserScrolledUpRef.current = true;
-    setIsUserScrolledUp(true);
+    const targetId = messages[index].id;
+    jumpScrollTo(() => {
+      const row = messagesContentRef.current?.querySelector<HTMLElement>(`.chat-message[data-chat-message-id="${CSS.escape(String(targetId))}"]`);
+      if (!row) return null;
+      return within ? within(row) : row.getBoundingClientRect();
+    }, 'center', 'jump');
     setViewRange({
       startId: start === 0 ? null : messages[start].id ?? null,
       endId: end >= messages.length ? null : messages[end - 1].id ?? null,
     });
     return true;
-  }, [cancelSettlingScrollRestore]);
+  }, [jumpScrollTo]);
 
   /**
    * Brings one message into the rendered rows without rendering what lies
    * between: loaded rows are revealed in place, anything else is fetched as
    * a window around it. Resolves false when the message cannot be found.
    */
-  const jumpToMessage = useCallback(async ({ messageId, recordId }: ChatJumpTarget): Promise<boolean> => {
+  const jumpToMessage = useCallback(async ({ messageId, recordId }: ChatJumpTarget, within?: (row: HTMLElement) => DOMRect): Promise<boolean> => {
     const sessionId = activeSessionId;
     if (!sessionId) return false;
     const messages = chatMessagesRef.current;
     const index = messages.findIndex((message) => message.id === messageId);
     if (index >= windowStartRef.current && index < windowEndRef.current) return true;
-    if (index >= 0) return revealAround(messages, messageId);
+    if (index >= 0) return revealAround(messages, messageId, within);
 
     let found = false;
     const reveal = (slot: { merged: NormalizedMessage[] }) => {
       if (currentSessionIdRef.current !== sessionId) return;
       const converted = normalizedToChatMessages(slot.merged);
-      found = revealAround(converted, messageId) || revealAround(converted, recordId);
+      found = revealAround(converted, messageId, within) || revealAround(converted, recordId, within);
     };
     const slot = await sessionStore.fetchAround(sessionId, recordId, { limit: JUMP_RECORDS, onBeforeNotify: reveal });
     // A live row not yet in the transcript is only in the tail window.
@@ -1215,10 +1007,6 @@ export function useChatSessionState({
     isLoadingMoreRef.current = true;
     setIsLoadingAllMessages(true);
 
-    const container = scrollContainerRef.current;
-    const scrollRestore = container ? captureScrollRestore(container) : null;
-    capturedScrollRestoreRef.current = scrollRestore;
-
     try {
       // A complete cache can still have older rows hidden by the display limit.
       const slot = hasMoreMessages || sessionStore.getSessionSlot(requestSessionId)?.hasNewer
@@ -1228,12 +1016,6 @@ export function useChatSessionState({
       if (currentSessionIdRef.current !== requestSessionId) return null;
 
       if (slot && slot.status !== 'error' && !slot.hasMore) {
-        if (scrollRestore) {
-          pendingScrollRestoreRef.current = scrollRestore;
-          capturedScrollRestoreRef.current = null;
-          setScrollRestoreTick((tick) => tick + 1);
-        }
-
         setViewRange(null);
         setVisibleMessageCount(Infinity);
         setAllMessagesLoaded(true);
@@ -1248,9 +1030,6 @@ export function useChatSessionState({
       console.error('Error loading all messages:', error);
       return null;
     } finally {
-      if (capturedScrollRestoreRef.current === scrollRestore) {
-        capturedScrollRestoreRef.current = null;
-      }
       isLoadingMoreRef.current = false;
       setIsLoadingAllMessages(false);
     }
@@ -1274,8 +1053,7 @@ export function useChatSessionState({
     hasMoreMessages,
     turnStartedAt,
     turnOutputTokens,
-    isUserScrolledUp,
-    setIsUserScrolledUp,
+    isUserScrolledUp: !isFollowing,
     tokenBudget,
     setTokenBudget,
     // Rows loaded but not rendered above count as hidden, as in the tail window.
@@ -1289,8 +1067,10 @@ export function useChatSessionState({
     createDiff,
     scrollContainerRef,
     messagesContentRef,
-    scrollToBottom,
     scrollToBottomAndReset,
-    isNearBottom,
+    /** A send follows the conversation to its newest message. */
+    followBottom: () => followScroll('send'),
+    /** Centres a target in the chat until the reader scrolls (Find, jumps). */
+    revealInChat: jumpScrollTo,
   };
 }

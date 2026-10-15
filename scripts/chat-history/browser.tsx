@@ -72,7 +72,7 @@ function Harness() {
     sendMessage: send, resetStreamingState: noop, statusCheckSentAtRef: status,
     getReplayProgress: replay, sessionStore: store, pageScroll });
   find = useChatFind({ isVisible: true, sessionId: session.id, sessionStore: store, loadedRecords: state.loadedRecords,
-    renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
+    renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage, revealInChat: state.revealInChat,
     scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
   useEffect(() => { document.title = `History fixture: ${session.id}`; }, [session.id]);
   return <Shell>
