@@ -111,9 +111,12 @@ the Load bar is gone; Grayson has accepted it on the S20.
   re-enter Following (a downward reader scroll ending within the bottom band)
   and never to leave it. Rejects the 50 px check deciding mode.
 - **The reader is recognised, not inferred.** A scroll counts as the reader's
-  when its position is not one the owner wrote and the content height did not
-  change since the owner's last read; wheel, touch and keyboard input mark
-  intent directly. Rejects treating every scroll event as the reader's.
+  only with reader input: wheel, touch, navigation keys, a pointer held on the
+  scroller, or a fling still moving from one. Any other move is content and the
+  mode is re-applied. Rejects inferring the reader from an unchanged height: a
+  `content-visibility` row briefly at a stale size makes the browser clamp the
+  position, and the height is back before the owner looks. A page scroll with no
+  input, such as the browser's own find, is undone.
 - **Correct before paint, once.** The owner re-applies its mode inside the
   ResizeObserver callback and the rows' layout effect: every geometry read
   first, then at most one write. No timers, no settle windows; a hold lasts
