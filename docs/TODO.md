@@ -118,6 +118,7 @@ new work.
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — the remaining half, waiting on runtime rebuild phase 7. **L**
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Fix both, then add Stash rows to the existing + menu. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
 - [~] **Background-session notifications** — phases 1–3 and 5 verified (push fixes, sidebar-button mark, chime, quiet finished while CLIde is open); phase 4 waits on the runtime rebuild. [Plan](plans/background-session-notifications.md). **M**
+- [ ] **Per-project settings: a User / Project scope in Settings.** Project scope shows only keys that can differ per project, each marked when it overrides the user value. First keys: worktree setup command, environment variables, new-session provider and model. Claude's own project files (`.claude/settings*.json`) need reading too. Design first, beside the sidebar rail's project sheet. **L**
 
 ---
 

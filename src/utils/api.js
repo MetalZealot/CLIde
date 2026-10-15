@@ -313,6 +313,14 @@ export const api = {
       body: JSON.stringify({ branch, path, baseRef }),
     });
   },
+  // The new worktree's setup job, polled while the create modal shows it.
+  worktreeSetup: (worktreePath) =>
+    authenticatedFetch(`/api/projects/worktree-setup?path=${encodeURIComponent(worktreePath)}`),
+  retryWorktreeSetup: (worktreePath) =>
+    authenticatedFetch('/api/projects/worktree-setup/retry', {
+      method: 'POST',
+      body: JSON.stringify({ path: worktreePath }),
+    }),
   migrateLegacyProjectStars: (projectIds) =>
     authenticatedFetch('/api/projects/migrate-legacy-stars', {
       method: 'POST',

@@ -699,6 +699,7 @@ export function useProjectsState({
           worktreePath?: string;
           project?: Project | null;
           registrationError?: string | null;
+          setup?: CreateWorktreeOutcome['setup'];
         };
       };
       const refreshedProjects = await refreshProjectsSilently();
@@ -711,6 +712,7 @@ export function useProjectsState({
         worktreePath: payload.data?.worktreePath ?? '',
         project: canonicalProject,
         registrationError: payload.data?.registrationError ?? null,
+        setup: payload.data?.setup ?? null,
       };
     },
     [refreshProjectsSilently],

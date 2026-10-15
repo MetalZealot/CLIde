@@ -778,10 +778,10 @@ router.get('/branches', async (req, res) => {
       .map(b => b.trim())
       .filter(b => b && !b.includes('->'));
 
-    // Local branches (may start with '* ' for current)
+    // Local branches: '* ' marks the current one, '+ ' one checked out in another worktree
     const localBranches = rawLines
       .filter(b => !b.startsWith('remotes/'))
-      .map(b => (b.startsWith('* ') ? b.substring(2) : b));
+      .map(b => b.replace(/^[*+] /, ''));
 
     // Remote branches — strip 'remotes/<remote>/' prefix
     const remoteBranches = rawLines

@@ -89,6 +89,19 @@ export type CreateWorktreeOutcome = {
   worktreePath: string;
   project: Project | null;
   registrationError: string | null;
+  /** The repository's setup job for the new copy; null when it declares none. */
+  setup: WorktreeSetupView | null;
+};
+
+/** Mirrors the server's `WorktreeSetupView`. */
+export type WorktreeSetupView = {
+  worktreePath: string;
+  command: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  output: string;
+  exitCode: number | null;
+  elapsedMs: number;
+  queuePosition: number;
 };
 
 /** A session paired with the checkout it actually belongs to. */

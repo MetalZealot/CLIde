@@ -132,6 +132,8 @@ cleanly the fix stands alone.
 - [ ] **Shimmer loop jumps at the seam.** `tailwind.config.js` keyframes and `src/shared/ui/Shimmer.tsx` unchanged. Cosmetic. **2 files.**
 - [ ] **Enter sends instead of newline on touch** (`d9c9d2b`, `0551406`). **Grayson is reworking this himself.** Open #1149 also tries it, bundled with a repo picker and on pre-move paths; mention it.
 
+- [ ] **Branches checked out in another worktree list as `+ name`.** The `/branches` route in `git.routes.ts` strips only git's `* ` marker, so the `+ ` one reaches the branch pickers and fails as a ref. Read from upstream source 2026-10-14. **S.**
+
 ### Covered by someone else's open PR
 
 - [ ] **Claude composer `default` inherits `permissions.defaultMode`.** `claude-runtime.provider.js` still skips `permissionMode` when it is `default`; open #1160 targets that exact line. Review or comment there rather than opening a duplicate.

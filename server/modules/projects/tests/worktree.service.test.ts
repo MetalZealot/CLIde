@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import test, { beforeEach, describe } from 'node:test';
 
 import { clearRepositoryLocationCache } from '@/shared/git-checkout.js';
@@ -10,6 +11,7 @@ import {
   createRepositoryWorktree,
   deriveWorktreePath,
 } from '@/modules/projects/services/worktree.service.js';
+import { createWorktreeSetupQueue } from '@/modules/projects/services/worktree-setup.service.js';
 
 describe('worktree.service', () => {
   const REPOSITORY_ROOT = '/home/user/Projects/cloudcli';
@@ -438,5 +440,88 @@ describe('repository-identity.service', () => {
     const identity = await readCheckoutIdentity('/repos/app-wt-gone', removed);
 
     assert.deepEqual(identity, { repositoryId: null, branch: null, detachedHead: null });
+  });
+});
+
+describe('worktree-setup.service', () => {
+  /** A setup process the test finishes by hand. */
+  class FakeSetup extends EventEmitter {
+    stdout = new EventEmitter();
+    stderr = new EventEmitter();
+    finish(code: number | null) {
+      this.emit('close', code);
+    }
+  }
+
+  function stubSetup(commands: Record<string, string | null>) {
+    const spawned: Array<{ command: string; cwd: string; child: FakeSetup }> = [];
+    const logs: string[] = [];
+    let clock = 1_000;
+    const queue = createWorktreeSetupQueue({
+      readConfig: async (worktreePath) => commands[worktreePath] ?? null,
+      spawnSetup: (command, cwd) => {
+        const child = new FakeSetup();
+        spawned.push({ command, cwd, child });
+        return child as never;
+      },
+      now: () => clock,
+      log: (line) => logs.push(line),
+    });
+    return { queue, spawned, logs, advance: (ms: number) => { clock += ms; } };
+  }
+
+  test('a repository without a setup file gets no job', async () => {
+    const { queue, spawned } = stubSetup({});
+
+    assert.equal(await queue.start('/repos/app-wt-a'), null);
+    assert.equal(spawned.length, 0);
+  });
+
+  test("a copy's setup queues behind another and starts when it finishes", async () => {
+    const { queue, spawned, advance } = stubSetup({ '/repos/app-wt-a': 'npm ci', '/repos/app-wt-b': 'npm ci' });
+
+    assert.equal((await queue.start('/repos/app-wt-a'))?.status, 'running');
+    const second = await queue.start('/repos/app-wt-b');
+    assert.equal(second?.status, 'queued');
+    assert.equal(second?.queuePosition, 1);
+    assert.deepEqual(spawned.map((entry) => entry.cwd), ['/repos/app-wt-a']);
+
+    advance(5_000);
+    spawned[0].child.finish(0);
+
+    assert.equal(queue.get('/repos/app-wt-a')?.status, 'succeeded');
+    assert.equal(queue.get('/repos/app-wt-a')?.elapsedMs, 5_000);
+    assert.equal(queue.get('/repos/app-wt-b')?.status, 'running');
+    assert.deepEqual(spawned.map((entry) => entry.cwd), ['/repos/app-wt-a', '/repos/app-wt-b']);
+  });
+
+  test('output is kept without colour codes, and a failure can be retried', async () => {
+    const { queue, spawned, logs } = stubSetup({ '/repos/app-wt-a': 'scripts/setup.sh .' });
+
+    await queue.start('/repos/app-wt-a');
+    spawned[0].child.stdout.emit('data', Buffer.from('  \x1b[32m✓\x1b[0m node_modules\n'));
+    spawned[0].child.stderr.emit('data', Buffer.from('npm ERR! network\n'));
+    spawned[0].child.finish(1);
+
+    const failed = queue.get('/repos/app-wt-a');
+    assert.equal(failed?.status, 'failed');
+    assert.equal(failed?.exitCode, 1);
+    assert.equal(failed?.output, '  ✓ node_modules\nnpm ERR! network\n');
+    assert.match(logs[0], /^\[worktree-setup\] failed copy=\/repos\/app-wt-a ms=\d+ exit=1/);
+
+    const retried = await queue.retry('/repos/app-wt-a');
+    assert.equal(retried?.status, 'running');
+    assert.equal(retried?.output, '');
+    assert.equal(spawned.length, 2);
+  });
+
+  test('a running setup is neither restarted nor retried', async () => {
+    const { queue, spawned } = stubSetup({ '/repos/app-wt-a': 'npm ci' });
+
+    await queue.start('/repos/app-wt-a');
+    await queue.start('/repos/app-wt-a');
+    await queue.retry('/repos/app-wt-a');
+
+    assert.equal(spawned.length, 1);
   });
 });

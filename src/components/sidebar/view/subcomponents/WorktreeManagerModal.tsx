@@ -19,7 +19,7 @@ import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPre
 import { cn } from '../../../../lib/utils';
 import { api } from '../../../../utils/api';
 import type { Project } from '../../../../types/app';
-import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } from '../../types/types';
+import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry, WorktreeSetupView } from '../../types/types';
 import { getCheckoutRefLabel, isDiscoveredCheckout, isMainCheckout } from '../../utils/utils';
 import {
   compactHomePath,
@@ -34,6 +34,7 @@ import {
 } from '../../utils/worktreeManager';
 
 import SidebarContextMenu, { type SidebarContextMenuItem } from './SidebarContextMenu';
+import WorktreeSetupPanel from './WorktreeSetupPanel';
 
 type WorktreeManagerModalProps = {
   entry: RepositoryEntry;
@@ -314,6 +315,11 @@ export default function WorktreeManagerModal({
   const [createError, setCreateError] = useState<string | null>(null);
   const [orphanWarning, setOrphanWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingSetup, setPendingSetup] = useState<{
+    branch: string;
+    setup: WorktreeSetupView;
+    project: Project | null;
+  } | null>(null);
   const [adoptingPath, setAdoptingPath] = useState<string | null>(null);
   const [adoptError, setAdoptError] = useState<string | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -503,6 +509,10 @@ export default function WorktreeManagerModal({
         setIsCreating(false);
       }
 
+      if (outcome.setup) {
+        setPendingSetup({ branch, setup: outcome.setup, project: outcome.project });
+      }
+
       // The tree exists either way. When CLIde could not adopt it the modal stays
       // open holding the path — the only way back to a directory nothing else
       // names.
@@ -515,6 +525,11 @@ export default function WorktreeManagerModal({
               'The worktree was created at {{path}}, but CLIde could not add it: {{reason}}',
           }),
         );
+        return;
+      }
+
+      // The setup panel opens the copy once its dependencies are in.
+      if (outcome.setup) {
         return;
       }
 
@@ -831,7 +846,21 @@ export default function WorktreeManagerModal({
             </div>
           )}
 
-          {!isSelecting && (isCreating ? (
+          {pendingSetup ? (
+            <WorktreeSetupPanel
+              branch={pendingSetup.branch}
+              initialSetup={pendingSetup.setup}
+              canOpen={pendingSetup.project !== null}
+              onOpen={() => {
+                if (pendingSetup.project) {
+                  onOpenWorktree(pendingSetup.project);
+                }
+                onClose();
+              }}
+              onClose={onClose}
+              t={t}
+            />
+          ) : !isSelecting && (isCreating ? (
             <div className="space-y-2 border-t border-border bg-muted/20 p-3">
               <label className="block text-xs font-medium text-muted-foreground" htmlFor="new-worktree-branch">
                 {t('worktrees.branchLabel', 'New branch')}

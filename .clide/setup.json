@@ -1,0 +1,3 @@
+{
+  "command": "scripts/setup-worktree.sh ."
+}

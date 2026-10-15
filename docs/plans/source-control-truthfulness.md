@@ -54,6 +54,9 @@ identity, integration and cleanup behaviour get replaced.
   3. A per-project setup command (CLIde: `npm ci` and the Claude memory link), run
      once in the background with streamed output; setups queue one at a time; the
      first turn waits with a timer. Failure: output, Retry, or Continue on `main`.
+     Built ahead of the launcher toggle: `.clide/setup.json`, a server queue, and
+     the create modal streaming it with Open held until success. Left: the first
+     turn waiting, which needs the rebuilt runtime's turn start.
   4. `main` chats: occupancy (other live sessions) in the Diffs header and sidebar.
   5. Measure the setup wait in real use; if it drives chats back to `main`, keep one
      prepared copy ready.

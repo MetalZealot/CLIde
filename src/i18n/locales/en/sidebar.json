@@ -106,7 +106,8 @@
     "logOut": "Log out",
     "select": "Select…",
     "copySessionId": "Copy session ID",
-    "sessionIdCopied": "Copied"
+    "sessionIdCopied": "Copied",
+    "close": "Close"
   },
   "status": {
     "active": "Active",
@@ -217,7 +218,17 @@
     "baseLocal": "Local branches",
     "baseRemote": "Remote-only branches",
     "createHint": "Creates the branch and a worktree beside the repository, then adds it here.",
-    "createdButUnregistered": "The worktree was created at {{path}}, but CLIde could not add it: {{reason}}"
+    "createdButUnregistered": "The worktree was created at {{path}}, but CLIde could not add it: {{reason}}",
+    "setup": {
+      "running": "Setting up {{branch}}",
+      "queued": "Waiting for another setup to finish · {{count}} ahead",
+      "failed": "Setup failed (exit {{code}})",
+      "succeeded": "Set up",
+      "lost": "CLIde restarted and lost track of this setup. Run the setup command in the worktree by hand.",
+      "retry": "Retry",
+      "openAnyway": "Open anyway",
+      "openWhenReady": "Opens when setup finishes"
+    }
   },
   "browseView": {
     "filter": "Sort",

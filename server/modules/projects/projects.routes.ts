@@ -7,6 +7,7 @@ import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWit
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { createRepositoryWorktree } from '@/modules/projects/services/worktree.service.js';
+import { worktreeSetupQueue, type WorktreeSetupView } from '@/modules/projects/services/worktree-setup.service.js';
 import { projectsDb } from '@/modules/database/index.js';
 
 const router = express.Router();
@@ -309,14 +310,50 @@ router.post(
         || (error instanceof Error ? error.message : 'Failed to register the new worktree as a project');
     }
 
+    let setup: WorktreeSetupView | null = null;
+    try {
+      setup = await worktreeSetupQueue.start(worktree.worktreePath);
+    } catch (error) {
+      console.error('[worktree-setup] could not start:', error);
+    }
+
     res.json(
       createApiSuccessResponse({
         worktreePath: worktree.worktreePath,
         branch: worktree.branch,
         project,
         registrationError,
+        setup,
       }),
     );
+  }),
+);
+
+function readSetupJob(worktreePath: string, setup: WorktreeSetupView | null): WorktreeSetupView {
+  if (!setup) {
+    throw new AppError('No setup for this worktree', {
+      code: 'WORKTREE_SETUP_NOT_FOUND',
+      statusCode: 404,
+      details: `No setup has run for ${worktreePath} since the server started`,
+    });
+  }
+  return setup;
+}
+
+// Keyed by path: a worktree whose registration failed has no project id.
+router.get(
+  '/worktree-setup',
+  asyncHandler(async (req, res) => {
+    const worktreePath = readQueryStringValue((req.query as Record<string, unknown>).path);
+    res.json(createApiSuccessResponse(readSetupJob(worktreePath, worktreeSetupQueue.get(worktreePath))));
+  }),
+);
+
+router.post(
+  '/worktree-setup/retry',
+  asyncHandler(async (req, res) => {
+    const worktreePath = typeof req.body?.path === 'string' ? req.body.path : '';
+    res.json(createApiSuccessResponse(readSetupJob(worktreePath, await worktreeSetupQueue.retry(worktreePath))));
   }),
 );
 
